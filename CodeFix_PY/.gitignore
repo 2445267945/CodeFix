@@ -1,0 +1,80 @@
+# -------------------- Python 环境 --------------------
+# 虚拟环境（如果是用 venv 或 virtualenv）
+.venv/
+venv/
+ENV/
+env/
+
+# Python 编译缓存
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dll
+
+# 打包文件
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+
+# -------------------- 数据与存储 --------------------
+# Chroma 持久化目录（你的数据存储路径）
+data/
+chroma_data/
+chroma_db/
+*.db
+*.sqlite3
+
+# 文档/PDF 源文件（如果包含版权内容，可不提交）
+docs/*.pdf
+docs/*.docx
+
+# 日志文件
+*.log
+logs/
+
+# -------------------- 敏感信息 --------------------
+# 环境变量文件（包含 API Key）
+.env
+.env.local
+.env.*.local
+
+# 配置文件（如果包含密码或密钥）
+config.yaml
+secrets.json
+*.key
+
+# -------------------- IDE 和操作系统 --------------------
+# IntelliJ IDEA / PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# 操作系统生成文件
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# -------------------- 测试与临时文件 --------------------
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Jupyter Notebook 检查点
+.ipynb_checkpoints/
+
+# 临时文件
+*.tmp
+*.bak

@@ -1,0 +1,44 @@
+package com.xd.model.entity;
+
+
+import lombok.Data;
+import java.util.List;
+
+/**
+ * 审计报告 - 核心领域实体
+ * 由 Python Agent 生成，Java 端二次校验后返回给前端
+ */
+@Data
+public class AuditReport {
+
+    /**
+     * 状态：success / partial / error（字符串，与 Python 端对齐）
+     */
+    private String status;
+
+    /**
+     * 整体健康度评分（0-100）
+     */
+    private Integer healthScore;
+
+    /**
+     * 发现的所有问题列表
+     */
+    private List<CodeIssue> issues;
+
+    /**
+     * AI 修复后的完整代码（可能为 null）
+     */
+    private String fixedCode;
+
+    /**
+     * 修复摘要（中文，供前端展示）
+     */
+    private String summary;
+
+    /**
+     * 元数据（调试/追踪用，不返回给前端）
+     * 这个字段是 AuditReport 独有，AuditResponse 不需要
+     */
+    private ReportMetadata metadata;
+}

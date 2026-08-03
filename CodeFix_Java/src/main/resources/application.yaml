@@ -1,0 +1,9 @@
+server:
+  port: 8080
+
+spring:
+  data:
+    redis:
+      port: 6379
+      host: localhost
+      password: 123456
