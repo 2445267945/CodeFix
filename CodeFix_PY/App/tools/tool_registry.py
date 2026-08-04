@@ -1,11 +1,12 @@
 import httpx
 from watchfiles import awatch
-
+from App.models.tool_schemas import TOOL_SCHEMAS
 from App.services.rag_service import search_manual
 
 class ToolRegistry:
     def __init__(self):
         self.tools = {}
+        self.tool_schemas = {} # 每个工具的参数校验器
 
     def register(self, name, description):
         """这是一个装饰器，用来把函数注册进工具箱"""
@@ -15,8 +16,9 @@ class ToolRegistry:
                 "func": func,
                 "desc": description
             }
+            if name in TOOL_SCHEMAS:
+                self.tool_schemas[name] = TOOL_SCHEMAS[name]
             return func
-
         return decorator
 
     def get_tools_desc(self):

@@ -85,9 +85,9 @@ def search_manual(query: str, n_results: int = None) -> str:
 
 
 # ===================== 4. 直接运行测试 =====================
-# if __name__ == "__main__":
-#     # 首次运行导入手册（取消注释）
-#     # load_manual_to_vector_db("./data/docs/Alibaba_Java_Manual.pdf")
-#     # 测试查询
-#     print(f"集合中文档总数: {collection.count()}")
-#     print(search_manual("@Transactional rollbackFor 使用规范"))
+if __name__ == "__main__":
+    # 首次运行导入手册（取消注释）
+    # load_manual_to_vector_db("./data/docs/Alibaba_Java_Manual.pdf")
+    # 测试查询
+    print(f"集合中文档总数: {collection.count()}")
+    print(search_manual("@Transactional rollbackFor 使用规范"))
