@@ -6,7 +6,7 @@ from App.services.rag_service import search_manual
 class ToolRegistry:
     def __init__(self):
         self.tools = {}
-        self.tool_schemas = {} # 每个工具的参数校验器
+        self.schemas = {} # 每个工具的参数校验器
 
     def register(self, name, description):
         """这是一个装饰器，用来把函数注册进工具箱"""
@@ -17,7 +17,7 @@ class ToolRegistry:
                 "desc": description
             }
             if name in TOOL_SCHEMAS:
-                self.tool_schemas[name] = TOOL_SCHEMAS[name]
+                self.schemas[name] = TOOL_SCHEMAS[name]
             return func
         return decorator
 
@@ -62,7 +62,7 @@ async def verify_java_syntax(code: str) -> str:
         输入参数: {'query': '你想了解的规范问题'}"
     """
 )
-async def search_manual_async(query: str) -> str:
-    return search_manual(query)
+async def search_manual_async(query: str, n_results: int = 3) -> str:
+    return search_manual(query, n_results=n_results)
 
 

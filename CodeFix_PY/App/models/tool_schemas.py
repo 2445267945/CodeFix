@@ -1,6 +1,5 @@
-# tools/tool_schemas.py
-from pydantic import BaseModel, Field, ValidationError
-from typing import Optional, List
+from pydantic import BaseModel, Field
+from typing import Optional
 
 # ---------- search_manual 的入参规则 ----------
 class SearchManualInput(BaseModel):

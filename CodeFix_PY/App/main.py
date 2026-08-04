@@ -48,16 +48,16 @@ async def analyze(request: AnalyzeRequest):
 
     # 1. 构造完整的问题描述，包含代码和预扫描线索
     question = f"""
-    请分析以下 Java 代码，是否有什么语法问题或隐患，
+    请分析以下 Java 代码，是否有什么语法问题或编码隐患，
     代码：
     ```java
     {request.code}
+    ```
     以下是预扫描的嫌疑点（仅供参考）：
-    {request.smells if request.smells else "无"}
+    {request.smells if request.smells else "暂无"}
     """
 
     result = await agent.run(question)
-    # result = "a"
 
     # 必须返回符合 AuditReport 的结构
     return {

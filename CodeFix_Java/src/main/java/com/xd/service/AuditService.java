@@ -41,12 +41,9 @@ public class AuditService {
         AuditResponse cached = cacheService.get(md5);
         if (cached != null) return cached;
 
-        // 2. JavaParser提取关键特征
-        List<CodeSmell> smells = parserService.extractSmells(request.getCode());
-
-        // 3. 调用Python Agent深度分析（含重试）
+        // 2. 调用Python Agent深度分析（含重试）
         AuditReport report = handleCode(request.getCode());
-        // 4. 封装响应，存入缓存
+        // 3. 封装响应，存入缓存
         AuditResponse response = aiContentConvert.buildResponse(report);
         cacheService.put(md5, response);
         return response;
