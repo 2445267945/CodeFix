@@ -1,22 +1,27 @@
 import json
+import logging
+
 from App.utils.json_parser import parse_llm_response
-from pydantic import ValidationError
-from App.services.llm_service import LLMService
 from .agent_state import AgentState
 from .react_agent import ReActAgent
 import datetime
 
+logger = logging.getLogger(__name__)
+
 class ToolExecutor(ReActAgent):
     def __init__(self):
         super().__init__()  # 调用父类的构造函数
-        self.llm = LLMService()
         self.cur_tool_name = None
         self.cur_tool_args = None
         self.action_history = []
 
+
     async def think(self):
+        if self.main_llm == None:
+            logger.error("LLM 未实例化")
+            return
         # 1. 获取 LLM 响应
-        response = await self.llm.chat(self.messages)
+        response = await self.main_llm.chat(self.messages)
         # print(f"[原始响应]: {response}")
         self.add_message("assistant", response)
         # 2. 使用抽取出来的解析器
@@ -45,7 +50,7 @@ class ToolExecutor(ReActAgent):
         tool_args = self.cur_tool_args
         tool_res = ""
         print(f"使用工具{tool_name}")
-        if self.checkLoop(tool_name, tool_args, self.action_history):
+        if self.manager.checkLoop(tool_name, tool_args, self.action_history):
             self.status = AgentState.ERROR
             return "Error: AI陷入死循环"
         result_output = ""  # 统一存放最终要返回的内容
@@ -53,7 +58,7 @@ class ToolExecutor(ReActAgent):
             # 1. 解析 JSON
             args = json.loads(tool_args)
             # 2. 调用校验方法
-            validated_args = self.check_tool_Input(tool_name, args, self.tools_schemas)
+            validated_args = self.manager.check_tool_Input(tool_name, args, self.tools_schemas)
             # 3. 执行工具
             func = self.tools[tool_name]["func"]
             tool_res = await func(**validated_args)
@@ -71,37 +76,7 @@ class ToolExecutor(ReActAgent):
             self.add_message("user", f"Observation: {tool_res}")
             return tool_res
 
-    def check_tool_Input(self, tool_name, tool_args, tools_schemas):
-        """
-        AI给出的参数校验
-        :param tool_name:
-        :param tool_args:
-        :return:
-        """
-        if tool_name in self.tools_schemas.schemas:
-            try:
-                validated_args = tools_schemas.schemas[tool_name](**tool_args)
-                return validated_args.model_dump()
-            except ValidationError as e:
-                # 直接抛出异常，让上层捕获
-                raise ValueError(f"参数校验失败: {e.errors()}") from e
 
-    def checkLoop(self, tool_name, tool_args, action_history) -> bool:
-        """
-        检测AI是不是重复的调用同一个工具和传入同样的参数，如果是则代表死循环了
-        :param tool_name:
-        :param tool_args:
-        :return:
-        """
-        action_signature = f"{tool_name}:{tool_args}"  # 生成动作指纹
-        # 检测重复
-        action_history.append(action_signature)
-        if len(action_history) > 3:
-            action_history.pop(0)
-        if len(action_history) == 3 and len(set(action_history)) == 1:
-            # 连续3轮完全一样的动作 → 死循环
-            return True
-        return False
 
     def cleanup(self):
         self.messages.clear()

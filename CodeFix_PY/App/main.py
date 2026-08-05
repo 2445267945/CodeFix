@@ -1,11 +1,9 @@
-from http.client import responses
-
-from fastapi import FastAPI, HTTPException
+from App.agents.prompts import SYSTEM_PROMPT_TEMPLATE  # 导入提示词
+from App.services.llm_factory import LLMFactory
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional, List
 import uvicorn
-from select import select
-
 from App.agents.audit_agent import AuditAgent
 
 # ---------- 定义请求/响应模型（与 Java 端对齐） ----------
@@ -71,6 +69,7 @@ async def analyze(request: AnalyzeRequest):
 
 # ---------- 启动服务 ----------
 if __name__ == "__main__":
-    # 111
-    agent = AuditAgent()
+    main_llm = LLMFactory.get_llm(4096, 0.1, "mid")
+    compress_llm = LLMFactory.get_llm(4096, 0.1, "low")
+    agent = AuditAgent("JavaFixer", main_llm, compress_llm, 10, 30, SYSTEM_PROMPT_TEMPLATE)
     uvicorn.run(app, host="0.0.0.0", port=8000)

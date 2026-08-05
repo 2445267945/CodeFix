@@ -46,3 +46,15 @@ SYSTEM_PROMPT_TEMPLATE = """
 现在开始执行任务。
 Question: {question}
 """
+
+COMPRESS_PROMPT_TEMPLATE = """
+你是一个任务记忆总结助手。请将以下对话历史压缩为一段精炼的文字摘要（控制在 400 字以内）。
+输出的摘要，必须采用以下格式：
+OriginTask: 原始任务目标（用户最初要解决的问题）
+FinishPart: 已经完成了哪些步骤（例如：已修复 N+1 查询、已添加事务注解等）
+CurrentState: 当前任务的状态（是否还有错误、还需做什么）
+
+对话历史（待压缩）：
+{head}
+摘要：
+"""
