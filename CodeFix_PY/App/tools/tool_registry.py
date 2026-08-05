@@ -1,5 +1,4 @@
-import httpx
-from watchfiles import awatch
+import httpx, os, json
 from App.models.tool_schemas import TOOL_SCHEMAS
 from App.services.rag_service import search_manual
 
@@ -33,17 +32,19 @@ class ToolRegistry:
 registry = ToolRegistry()
 
 
-# === 定义我们的工具 ===
+# === 定义工具 ===
 @registry.register(name="get_length", description="测量字符串长度。输入参数: {'text': '字符串'}")
 def get_length(text) -> int:
     return len(text)
 
 @registry.register(name="verify_java_syntax", description="验证 Java 代码语法是否正确。输入参数: {'code': 'Java 源代码字符串'}")
 async def verify_java_syntax(code: str) -> str:
-    """验证Java代码语法，返回校验结果。如果通过返回成功信息，否则返回具体错误"""
+    """
+    验证Java代码语法，返回校验结果。如果通过返回成功信息，否则返回具体错误
+    """
     async with httpx.AsyncClient() as client:
         resp = await client.post(
-            "http://localhost:8080/api/validate",
+            f"{os.getenv("BACKED_URL")}/api/validate",
             json={"code": code}
         )
         data = resp.json()
@@ -51,6 +52,26 @@ async def verify_java_syntax(code: str) -> str:
             return "语法校验通过，代码正确！"
         else:
             return f"语法校验失败：{data['error']}"
+
+@registry.register(
+    name="parse_java_code",
+    description="解析 Java 代码结构，返回类名、方法、循环、注解等详细信息。输入参数: {'code': 'Java 源代码字符串'}"
+)
+async def parse_java_code(code: str) -> str:
+    """
+    调用 Java 端 /api/parse 接口，获取代码 AST 结构。
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(
+                f"{os.getenv("BACKED_URL")}/api/parse",
+                json={"code": code},
+            )
+            data = resp.json()
+            # 返回格式化的 JSON 字符串，便于 Agent 阅读
+            return json.dumps(data, indent=2, ensure_ascii=False)
+        except Exception as e:
+            return f"Error: 调用 Java 解析服务失败 - {str(e)}"
 
 @registry.register(
     name="search_manual",

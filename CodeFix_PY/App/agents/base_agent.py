@@ -13,7 +13,7 @@ class BaseAgent(ABC):
         self.window_size = 10 # 窗口大小
         self.max_iterations = 30  # 防止死循环
         self.messages = []  # 维护对话历史（上下文）
-        self.systemPrompt = "" # 系统提示词
+        self.systemPrompt = None # 系统提示词
         self.tools = registry.tools # 工具
         self.tools_schemas = registry # 工具入参规则
         self.final_answer = None # 最终回复

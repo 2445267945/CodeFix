@@ -1,10 +1,9 @@
-from App.agents.prompts import SYSTEM_PROMPT_TEMPLATE  # 导入提示词
+from App.agents.supervisor.supervisor_agent import SupervisorAgent
 from App.services.llm_factory import LLMFactory
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional, List
 import uvicorn
-from App.agents.audit_agent import AuditAgent
 
 # ---------- 定义请求/响应模型（与 Java 端对齐） ----------
 class CodeSmell(BaseModel):
@@ -56,7 +55,7 @@ async def analyze(request: AnalyzeRequest):
     """
 
     result = await agent.run(question)
-
+    print(f"结果: {result}")
     # 必须返回符合 AuditReport 的结构
     return {
         "status": "success",
@@ -69,7 +68,8 @@ async def analyze(request: AnalyzeRequest):
 
 # ---------- 启动服务 ----------
 if __name__ == "__main__":
-    main_llm = LLMFactory.get_llm(4096, 0.1, "mid")
-    compress_llm = LLMFactory.get_llm(4096, 0.1, "low")
-    agent = AuditAgent("JavaFixer", main_llm, compress_llm, 10, 30, SYSTEM_PROMPT_TEMPLATE)
+    llm_factory = LLMFactory()
+    main_llm = llm_factory.get_llm(4096, 0.1, "mid")
+    compress_llm = llm_factory.get_llm(4096, 0.1, "low")
+    agent = SupervisorAgent(main_llm, compress_llm)
     uvicorn.run(app, host="0.0.0.0", port=8000)

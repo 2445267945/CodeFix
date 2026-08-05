@@ -22,7 +22,6 @@ class ToolExecutor(ReActAgent):
             return
         # 1. 获取 LLM 响应
         response = await self.main_llm.chat(self.messages)
-        # print(f"[原始响应]: {response}")
         self.add_message("assistant", response)
         # 2. 使用抽取出来的解析器
         parsed = parse_llm_response(response)
@@ -49,7 +48,7 @@ class ToolExecutor(ReActAgent):
         tool_name = self.cur_tool_name
         tool_args = self.cur_tool_args
         tool_res = ""
-        print(f"使用工具{tool_name}")
+        print(f"使用工具{tool_name}，传入参数{tool_args[:100]}")
         if self.manager.checkLoop(tool_name, tool_args, self.action_history):
             self.status = AgentState.ERROR
             return "Error: AI陷入死循环"

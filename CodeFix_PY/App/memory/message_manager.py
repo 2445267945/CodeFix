@@ -45,11 +45,10 @@ class MessageManager:
         :param llm:
         :return:
         """
+        compress_threshold = 0.7
         keep_recent = window_size * 0.3
-        compress_threshold = 1 - keep_recent * 0.1
         msg_len = len(messages)
-        if msg_len - keep_recent / msg_len < compress_threshold:
-            print("无需压缩")
+        if msg_len / window_size < compress_threshold:
             return
         # 分割消息
         keep = round(keep_recent)

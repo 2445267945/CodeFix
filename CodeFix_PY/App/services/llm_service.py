@@ -17,6 +17,7 @@ class LLMService:
     ):
         # 从统一配置读取
         self.api_key = api_key or config.llm.API_KEY
+        self.enJsonFormat = config.llm.JSON_FORMAT
         self.timeout = config.llm.TIMEOUT or 60
         self.url = url
         self.model = model
@@ -51,6 +52,8 @@ class LLMService:
             "temperature": self.temperature,
             "thinking": {"type": self.enthinking}
         }
+        if self.enJsonFormat:
+            payload["response_format"] = {"type": "json_object"}
 
         try:
             # 异步发送 POST 请求（不会阻塞 FastAPI 事件循环）

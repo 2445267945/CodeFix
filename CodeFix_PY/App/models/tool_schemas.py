@@ -10,8 +10,13 @@ class SearchManualInput(BaseModel):
 class VerifyJavaSyntaxInput(BaseModel):
     code: str = Field(..., description="Java源代码", min_length=1)
 
+# ---------- parse_java_code 的入参规则 ----------
+class ParseJavaCodeInput(BaseModel):
+    code: str = Field(..., description="Java源代码", min_length=1)
+
 # ---------- 工具 Schema 注册表 ----------
 TOOL_SCHEMAS = {
     "search_manual": SearchManualInput,
     "verify_java_syntax": VerifyJavaSyntaxInput,
+    "parse_java_code": ParseJavaCodeInput
 }
