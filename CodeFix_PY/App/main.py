@@ -1,12 +1,9 @@
-from http.client import responses
-
-from fastapi import FastAPI, HTTPException
+from App.agents.supervisor.supervisor_agent import SupervisorAgent
+from App.services.llm_factory import LLMFactory
+from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional, List
 import uvicorn
-from select import select
-
-from App.agents.audit_agent import AuditAgent
 
 # ---------- 定义请求/响应模型（与 Java 端对齐） ----------
 class CodeSmell(BaseModel):
@@ -48,17 +45,17 @@ async def analyze(request: AnalyzeRequest):
 
     # 1. 构造完整的问题描述，包含代码和预扫描线索
     question = f"""
-    请分析以下 Java 代码，是否有什么语法问题或隐患，
+    请分析以下 Java 代码，是否有什么语法问题或编码隐患，
     代码：
     ```java
     {request.code}
+    ```
     以下是预扫描的嫌疑点（仅供参考）：
-    {request.smells if request.smells else "无"}
+    {request.smells if request.smells else "暂无"}
     """
 
     result = await agent.run(question)
-    # result = "a"
-
+    print(f"结果: {result}")
     # 必须返回符合 AuditReport 的结构
     return {
         "status": "success",
@@ -71,6 +68,8 @@ async def analyze(request: AnalyzeRequest):
 
 # ---------- 启动服务 ----------
 if __name__ == "__main__":
-    # 111
-    agent = AuditAgent()
+    llm_factory = LLMFactory()
+    main_llm = llm_factory.get_llm(4096, 0.1, "mid")
+    compress_llm = llm_factory.get_llm(4096, 0.1, "low")
+    agent = SupervisorAgent(main_llm, compress_llm)
     uvicorn.run(app, host="0.0.0.0", port=8000)

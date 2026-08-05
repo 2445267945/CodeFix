@@ -2,6 +2,9 @@ package com.xd.service;
 
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.ImportDeclaration;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
+import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.stmt.*;
@@ -9,7 +12,11 @@ import com.xd.model.entity.CodeSmell;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import com.github.javaparser.ast.stmt.ForEachStmt;
 
 @Slf4j
@@ -123,4 +130,118 @@ public class CodeParserService {
             }
         });
     }
+
+    /**
+     * 解析 Java 代码结构，返回包名、类名、导入、方法、循环、字段等信息。
+     */
+    public Map<String, Object> parseStructure(String code) {
+        Map<String, Object> result = new HashMap<>();
+        try {
+            CompilationUnit cu = StaticJavaParser.parse(code);
+
+            // 包名
+            cu.getPackageDeclaration().ifPresent(pkg ->
+                    result.put("packageName", pkg.getNameAsString())
+            );
+
+            // 类名（取第一个类）
+            cu.findAll(ClassOrInterfaceDeclaration.class).stream().findFirst()
+                    .ifPresent(clazz -> {
+                        result.put("className", clazz.getNameAsString());
+                        List<String> classAnnotations = clazz.getAnnotations().stream()
+                                .map(ann -> ann.getNameAsString())
+                                .collect(Collectors.toList());
+                        if (!classAnnotations.isEmpty()) {
+                            result.put("classAnnotations", classAnnotations);
+                        }
+                    });
+
+            // 导入列表
+            List<String> imports = cu.findAll(ImportDeclaration.class).stream()
+                    .map(imp -> imp.getNameAsString())
+                    .collect(Collectors.toList());
+            if (!imports.isEmpty()) {
+                result.put("imports", imports);
+            }
+
+            // 方法详情
+            List<Map<String, Object>> methods = cu.findAll(MethodDeclaration.class).stream()
+                    .map(method -> {
+                        Map<String, Object> m = new HashMap<>();
+                        m.put("name", method.getNameAsString());
+                        m.put("returnType", method.getType().asString());
+                        // 参数列表
+                        List<String> params = method.getParameters().stream()
+                                .map(p -> p.getType().asString() + " " + p.getNameAsString())
+                                .collect(Collectors.toList());
+                        m.put("parameters", params);
+                        // 行号范围
+                        method.getRange().ifPresent(range -> {
+                            m.put("lineStart", range.begin.line);
+                            m.put("lineEnd", range.end.line);
+                        });
+                        // 注解
+                        List<String> annotations = method.getAnnotations().stream()
+                                .map(ann -> ann.getNameAsString())
+                                .collect(Collectors.toList());
+                        if (!annotations.isEmpty()) {
+                            m.put("annotations", annotations);
+                        }
+                        return m;
+                    })
+                    .collect(Collectors.toList());
+            result.put("methods", methods);
+
+            // 循环结构（行号标记）
+            List<Map<String, Object>> loops = new ArrayList<>();
+            cu.findAll(ForStmt.class).forEach(loop -> {
+                Map<String, Object> l = new HashMap<>();
+                l.put("type", "for");
+                loop.getRange().ifPresent(r -> l.put("line", r.begin.line));
+                loops.add(l);
+            });
+            cu.findAll(ForEachStmt.class).forEach(loop -> {
+                Map<String, Object> l = new HashMap<>();
+                l.put("type", "foreach");
+                loop.getRange().ifPresent(r -> l.put("line", r.begin.line));
+                loops.add(l);
+            });
+            cu.findAll(WhileStmt.class).forEach(loop -> {
+                Map<String, Object> l = new HashMap<>();
+                l.put("type", "while");
+                loop.getRange().ifPresent(r -> l.put("line", r.begin.line));
+                loops.add(l);
+            });
+            cu.findAll(DoStmt.class).forEach(loop -> {
+                Map<String, Object> l = new HashMap<>();
+                l.put("type", "do-while");
+                loop.getRange().ifPresent(r -> l.put("line", r.begin.line));
+                loops.add(l);
+            });
+            if (!loops.isEmpty()) {
+                result.put("loops", loops);
+            }
+
+            // 字段信息（可选）
+            List<Map<String, Object>> fields = cu.findAll(FieldDeclaration.class).stream()
+                    .flatMap(field -> field.getVariables().stream().map(var -> {
+                        Map<String, Object> f = new HashMap<>();
+                        f.put("name", var.getNameAsString());
+                        f.put("type", field.getCommonType().asString());
+                        var.getRange().ifPresent(r -> f.put("line", r.begin.line));
+                        return f;
+                    }))
+                    .collect(Collectors.toList());
+            if (!fields.isEmpty()) {
+                result.put("fields", fields);
+            }
+
+        } catch (Exception e) {
+            log.error("解析代码结构失败: {}", e.getMessage());
+            result.put("error", "解析失败: " + e.getMessage());
+        }
+        return result;
+    }
+
+
 }

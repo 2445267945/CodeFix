@@ -1,57 +1,70 @@
-import re
-from typing import Dict, Any, Optional
-
+import json
+from typing import Dict, Any
 
 def parse_llm_response(response: str) -> Dict[str, Any]:
     """
-    解析 LLM 返回的 ReAct 格式文本，提取其中的指令。
-
-    Args:
-        response: LLM 返回的原始字符串
+    解析 LLM 返回的 JSON 格式响应。
+    要求 LLM 必须输出合法的 JSON 对象，包含以下可能字段：
+    - thought: str（可选）
+    - action: str（工具名称）
+    - action_input: dict（工具参数）
+    - finish: bool（是否完成）
+    - answer: str（完成时的最终答案）
 
     Returns:
-        字典，包含 type 和对应的数据：
+        统一格式的字典：
         - {"type": "finish", "content": "最终答案"}
-        - {"type": "action", "action": "工具名", "action_input": "JSON参数"}
-        - {"type": "thought", "content": "思考内容"}  (既无 Finish 也无 Action 时)
-        - {"type": "error", "message": "空响应"}     (响应为空时)
+        - {"type": "action", "action": "工具名", "action_input": "JSON字符串"}
+        - {"type": "thought", "content": "思考内容"}
+        - {"type": "error", "message": "错误信息"}
     """
     if not response or not response.strip():
         return {"type": "error", "message": "LLM 返回了空响应"}
 
-    # 1. 优先匹配 Finish（一旦完成，无视后面的内容）
-    finish_match = re.search(r"Finish:\s*(.*)", response, re.DOTALL)
-    if finish_match:
+    try:
+        data = json.loads(response)
+    except json.JSONDecodeError:
+        # 如果输出不是合法 JSON，尝试提取其中的 JSON 部分（兜底）
+        import re
+        json_match = re.search(r'\{.*\}', response, re.DOTALL)
+        if json_match:
+            try:
+                data = json.loads(json_match.group())
+            except:
+                return {"type": "error", "message": "返回内容包含非法 JSON"}
+        else:
+            return {"type": "error", "message": "返回内容不是合法 JSON"}
+
+    # 1. 判断是否为完成信号
+    if data.get("finish") is True:
+        answer_data = data.get("answer", "")
+        # 如果 answer 是字典（即包含 code 和 changes），将其转为 JSON 字符串
+        if isinstance(answer_data, dict):
+            content = json.dumps(answer_data, ensure_ascii=False)
+        else:
+            content = str(answer_data)
         return {
             "type": "finish",
-            "content": finish_match.group(1).strip()
+            "content": content  # 现在包含完整的 JSON 字符串
         }
 
-    # 2. 匹配 Action 和 Action Input（必须同时存在）
-    action_match = re.search(r"Action:\s*(.*)", response)
-    input_match = re.search(r"Action Input:\s*(.*)", response, re.DOTALL)
-
-    if action_match and input_match:
-        action_name = action_match.group(1).strip()
-        action_args = input_match.group(1).strip()
-
-        # 针对代码块进行清洗（防止 AI 在参数外包裹 ```json）
-        if action_args.startswith("```json"):
-            action_args = action_args[7:]
-        if action_args.endswith("```"):
-            action_args = action_args[:-3]
-
-        # 针对 Action Input 里可能包含多余的空格或换行进行清理
-        action_args = action_args.strip()
-
+    # 2. 判断是否为工具调用
+    if "action" in data:
+        action_name = data["action"]
+        action_input = data.get("action_input", {})
+        # 将 action_input 转为 JSON 字符串，以便后续 act 方法解析
+        try:
+            action_input_str = json.dumps(action_input, ensure_ascii=False)
+        except:
+            action_input_str = "{}"
         return {
             "type": "action",
             "action": action_name,
-            "action_input": action_args
+            "action_input": action_input_str
         }
 
-    # 3. 如果既没有 Finish 也没有 Action，那就纯当它是思考过程
+    # 3. 既不是 finish 也不是 action，当作思考
     return {
         "type": "thought",
-        "content": response
+        "content": data.get("thought", response)
     }

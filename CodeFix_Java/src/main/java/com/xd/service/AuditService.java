@@ -1,5 +1,9 @@
 package com.xd.service;
 
+import com.alibaba.fastjson2.JSON;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xd.client.PythonAgentClient;
 import com.xd.convert.AIContentConvert;
 import com.xd.model.dto.AuditRequest;
@@ -14,6 +18,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -34,27 +39,42 @@ public class AuditService {
     @Autowired
     private JavaSyntaxValidator validator;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     public AuditResponse  analyzeCode(AuditRequest request) {
         if (request.getCode().isEmpty()) return null;
         // 1. 生成MD5，查缓存
         String md5 = Md5Utils.MD5Digest(request.getCode());
         AuditResponse cached = cacheService.get(md5);
-        if (cached != null) return cached;
+        if (cached != null) {
+            return cached;
+        }
 
-        // 2. JavaParser提取关键特征
-        List<CodeSmell> smells = parserService.extractSmells(request.getCode());
 
-        // 3. 调用Python Agent深度分析（含重试）
+        // 2. 调用Python Agent深度分析（含重试）
         AuditReport report = handleCode(request.getCode());
-        // 4. 封装响应，存入缓存
-        AuditResponse response = aiContentConvert.buildResponse(report);
-        cacheService.put(md5, response);
+        // 3. 封装响应，存入缓存
+        AuditResponse response = null;
+        Map<String, String> map = null;
+        try {
+            response = aiContentConvert.buildResponse(report);
+            map = objectMapper.readValue(response.getSummary(), new TypeReference<Map<String, String>>() {
+            });
+            response.setFixedCode(map.get("code"));
+            response.setSummary(map.get("summary"));
+            cacheService.put(md5, response);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        } catch (Exception e) {
+            throw new RuntimeException("AI调用异常：", e);
+        }
         return response;
     }
 
 
     public AuditReport handleCode(String originalCode) {
-        // 第一步：语法校验（分诊台）
+        // 1.语法校验
         Optional<String> syntaxError = validator.validate(originalCode);
         String question = "";
         if (syntaxError.isPresent()) {

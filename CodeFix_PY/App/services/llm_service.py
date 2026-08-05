@@ -1,31 +1,42 @@
 import httpx
 import logging
+from typing import Optional
 from App.config import config
 
 logger = logging.getLogger(__name__)
 
 class LLMService:
-    def __init__(self):
+    def __init__(
+            self,
+            api_key: Optional[str] = None,
+            url: Optional[str] = None,
+            model: Optional[str] = None,
+            max_tokens: Optional[int] = None,
+            temperature: Optional[float] = None,
+            thinking: Optional[str] = None,
+    ):
         # 从统一配置读取
-        self.api_key = config.llm.API_KEY
-        self.url = config.llm.BASE_URL
-        self.model = config.llm.MODEL
-        self.timeout = config.llm.TIMEOUT
-        self.max_tokens = config.llm.MAX_TOKENS
-        self.temperature = config.llm.TEMPERATURE
-        self.enthinking = config.llm.ENTHINK
+        self.api_key = api_key or config.llm.API_KEY
+        self.enJsonFormat = config.llm.JSON_FORMAT
+        self.timeout = config.llm.TIMEOUT or 60
+        self.url = url
+        self.model = model
+        self.max_tokens = max_tokens
+        self.temperature = temperature
+        self.enthinking = thinking
         if not self.api_key:
-            logger.warning("警告：未设置 DEEPSEEK_API_KEY，AI 调用会失败")
+            logger.warning("警告：未设置 LLM_API_KEY，AI 调用会失败")
 
         self.headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
         }
+        if self.api_key:
+            self.headers["Authorization"] = f"Bearer {self.api_key}"
         self.client = httpx.AsyncClient(timeout=self.timeout)
 
     async def chat(self, messages: list) -> str:
         """
-        异步调用 DeepSeek 大模型
+        异步调用 LLM 大模型
 
         Args:
             messages: 消息列表，比如 [{"role": "user", "content": "你好"}]
@@ -41,6 +52,8 @@ class LLMService:
             "temperature": self.temperature,
             "thinking": {"type": self.enthinking}
         }
+        if self.enJsonFormat:
+            payload["response_format"] = {"type": "json_object"}
 
         try:
             # 异步发送 POST 请求（不会阻塞 FastAPI 事件循环）
@@ -57,8 +70,8 @@ class LLMService:
             else:
                 # 打印具体错误信息方便调试
                 error_detail = response.text
-                logger.error(f"DeepSeek API 请求失败: {response.status_code}, {error_detail}")
-                raise Exception(f"API 请求失败: {response.status_code} - {error_detail}")
+                logger.error(f"LLM API 请求失败: {response.status_code}, {error_detail}")
+                raise Exception(f"LLM API 请求失败: {response.status_code} - {error_detail}")
 
         except httpx.TimeoutException:
             raise Exception("AI 服务响应超时，请稍后重试")
@@ -69,3 +82,4 @@ class LLMService:
     async def close(self):
         """关闭 HTTP 客户端（优雅退出时调用）"""
         await self.client.aclose()
+

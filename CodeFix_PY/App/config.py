@@ -10,6 +10,7 @@ class LLMConfig:
     # 核心三要素
     API_KEY = os.getenv("LLM_API_KEY")
     BASE_URL = os.getenv("LLM_BASE_URL")
+    JSON_FORMAT = os.getenv("JSON_FORMAT")
     MODEL = os.getenv("LLM_MODEL")
     ENTHINK = os.getenv("LLM_ENTHINK")
 
