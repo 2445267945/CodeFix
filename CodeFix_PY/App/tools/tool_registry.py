@@ -1,6 +1,7 @@
 import httpx, os, json
 from App.models.tool_schemas import TOOL_SCHEMAS
 from App.services.rag_service import search_manual
+from App.services.llm_factory import llm_factory
 
 class ToolRegistry:
     def __init__(self):
@@ -28,9 +29,10 @@ class ToolRegistry:
         return "\n".join(desc_list)
 
 
-# 创建全局工具箱
+# 创建全局工具箱和llm http请求实例
 registry = ToolRegistry()
-
+main_llm = llm_factory.get_llm(4096, 0.1, "mid")
+compress_llm = llm_factory.get_llm(4096, 0.1, "low")
 
 # === 定义工具 ===
 @registry.register(name="get_length", description="测量字符串长度。输入参数: {'text': '字符串'}")
@@ -85,5 +87,35 @@ async def parse_java_code(code: str) -> str:
 )
 async def search_manual_async(query: str, n_results: int = 3) -> str:
     return search_manual(query, n_results=n_results)
+
+
+@registry.register(
+    name="run_explorer",
+    description="调用侦查员 Agent 分析 Java 代码结构。输入: {'code': 'Java源代码'}"
+)
+async def run_explorer(code: str) -> str:
+    """分析 Java 代码结构，返回类、方法、循环等结构化信息。"""
+    from App.agents.worker.explorer_agent import ExplorerAgent  # 延迟导入
+    agent = ExplorerAgent(main_llm, compress_llm)
+    result = await agent.run(code)
+    return result
+
+@registry.register(
+    name="run_fixer",
+    description="调用修复员 Agent 修复 Java 代码。输入: {'code': '原始代码', 'report': '结构分析报告'}（JSON 格式）"
+)
+async def run_fixer(code_and_report: str) -> str:
+    """修复 Java 代码问题。输入应为 JSON 格式：{"code": "...", "report": "..."}"""
+    from App.agents.worker.fixer_agent import FixerAgent  # 延迟导入
+    import json
+    try:
+        data = json.loads(code_and_report)
+    except:
+        return await FixerAgent(main_llm, compress_llm).run(code_and_report)
+    agent = FixerAgent(main_llm, compress_llm)
+    prompt = f"原始代码：\n{data['code']}\n\n结构报告：\n{data['report']}"
+    return await agent.run(prompt)
+
+
 
 

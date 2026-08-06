@@ -51,6 +51,7 @@ class BaseAgent(ABC):
                 self.final_answer = f"Error: AI 推理超时（{self.watch_dog}），已强制终止。"
                 break
             audit_report = await self.step()
+            print(f"当前Agent:{self.name}")
             print(f"===> step{cur_iterations + 1}：【{audit_report[:100]}...】")
             cur_iterations += 1
             if self.status == AgentState.FINISHED:

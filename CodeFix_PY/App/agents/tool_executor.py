@@ -22,6 +22,7 @@ class ToolExecutor(ReActAgent):
             return
         # 1. 获取 LLM 响应
         response = await self.main_llm.chat(self.messages)
+        print(f"======[原始响应]\n{response}\n========[响应结束]\n")
         self.add_message("assistant", response)
         # 2. 使用抽取出来的解析器
         parsed = parse_llm_response(response)

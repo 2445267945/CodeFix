@@ -69,3 +69,5 @@ class LLMFactory:
             temperature=cfg["temperature"],
             thinking=cfg["thinking"],
         )
+
+llm_factory = LLMFactory()
