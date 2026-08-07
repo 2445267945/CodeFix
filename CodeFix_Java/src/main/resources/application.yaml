@@ -12,8 +12,8 @@ mq:
   rocketmq:
     name-server: 192.168.88.130:9876
     consumer:
-      groupName: agent-group
-      topics: agent-status-report
+      groupName: agent_group
+      topics: agent_status_report
 
 py:
   url: http://localhost:8000/analyze
