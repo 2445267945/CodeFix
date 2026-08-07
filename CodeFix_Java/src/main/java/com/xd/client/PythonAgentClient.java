@@ -1,21 +1,25 @@
 package com.xd.client;
 
-import com.xd.model.entity.AuditReport;
+import com.xd.model.dto.AuditReportDTO;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class PythonAgentClient {
 
+    @Value("${py.url}")
+    private String pyUrl;
+
     @Autowired
     private RestTemplate restTemplate;
 
-    public AuditReport callPythonAgent(String code) {
-        Map<String, Object> request = Map.of("code", code);
-        return restTemplate.postForObject("http://localhost:8000/analyze", request, AuditReport.class);
+    public AuditReportDTO callPythonAgent(String code) {
+        Map<String, Object> request = Map.of("code", code, "taskId", UUID.randomUUID());
+        return restTemplate.postForObject(pyUrl, request, AuditReportDTO.class);
     }
 }

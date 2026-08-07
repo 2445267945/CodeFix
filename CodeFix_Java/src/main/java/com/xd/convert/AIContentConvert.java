@@ -1,9 +1,9 @@
 package com.xd.convert;
 
-import com.xd.model.dto.AuditResponse;
-import com.xd.model.entity.AuditReport;
-import com.xd.model.entity.CodeIssue;
-import com.xd.model.entity.IssueStatistics;
+import com.xd.model.vo.AuditResponseVO;
+import com.xd.model.dto.AuditReportDTO;
+import com.xd.model.dto.CodeIssueDTO;
+import com.xd.model.dto.IssueStatisticsDTO;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -11,8 +11,8 @@ import java.util.List;
 @Component
 public class AIContentConvert {
 
-    public AuditResponse buildResponse(AuditReport report) {
-        AuditResponse response = new AuditResponse();
+    public AuditResponseVO buildResponse(AuditReportDTO report) {
+        AuditResponseVO response = new AuditResponseVO();
 
         // 1. 防御性处理：如果报告为空，返回错误响应
         if (report == null) {
@@ -40,14 +40,14 @@ public class AIContentConvert {
         response.setSummary(report.getSummary());
 
         // 4. 复制问题列表并计算统计数据
-        List<CodeIssue> issues = report.getIssues();
+        List<CodeIssueDTO> issues = report.getIssues();
         // 浅拷贝列表（如果担心外部修改，可防御性拷贝，但通常无妨）
         response.setIssues(issues);
 
-        IssueStatistics statistics = new IssueStatistics();
+        IssueStatisticsDTO statistics = new IssueStatisticsDTO();
         if (issues != null && !issues.isEmpty()) {
             int high = 0, medium = 0, low = 0;
-            for (CodeIssue issue : issues) {
+            for (CodeIssueDTO issue : issues) {
                 String severity = issue.getSeverity();
                 if ("HIGH".equalsIgnoreCase(severity)) {
                     high++;

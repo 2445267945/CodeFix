@@ -1,4 +1,4 @@
-package com.xd.model.entity;
+package com.xd.model.dto;
 
 
 import lombok.Data;
@@ -9,7 +9,7 @@ import java.util.List;
  * 由 Python Agent 生成，Java 端二次校验后返回给前端
  */
 @Data
-public class AuditReport {
+public class AuditReportDTO {
 
     /**
      * 状态：success / partial / error（字符串，与 Python 端对齐）
@@ -24,7 +24,7 @@ public class AuditReport {
     /**
      * 发现的所有问题列表
      */
-    private List<CodeIssue> issues;
+    private List<CodeIssueDTO> issues;
 
     /**
      * AI 修复后的完整代码（可能为 null）
@@ -40,5 +40,5 @@ public class AuditReport {
      * 元数据（调试/追踪用，不返回给前端）
      * 这个字段是 AuditReport 独有，AuditResponse 不需要
      */
-    private ReportMetadata metadata;
+    private ReportMetadataDTO metadata;
 }

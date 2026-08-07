@@ -1,12 +1,12 @@
-package com.xd.model.dto;
+package com.xd.model.vo;
 
-import com.xd.model.entity.CodeSmell;
+import com.xd.model.dto.CodeSmellDTO;
 import lombok.Data;
 
 import java.util.List;
 
 @Data
-public class AuditRequest {
+public class AuditRequestVO {
 
     /**
      * 完整的 Java 源代码（必填）
@@ -21,7 +21,7 @@ public class AuditRequest {
     /**
      * Java 端预扫描的嫌疑点列表（可选）
      */
-    private List<CodeSmell> smells;
+    private List<CodeSmellDTO> smells;
 
     /**
      * 项目上下文（可选）

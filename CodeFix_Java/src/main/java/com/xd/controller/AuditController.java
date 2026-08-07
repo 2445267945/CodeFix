@@ -1,7 +1,7 @@
 package com.xd.controller;
 
-import com.xd.model.dto.AuditRequest;
-import com.xd.model.dto.AuditResponse;
+import com.xd.model.vo.AuditRequestVO;
+import com.xd.model.vo.AuditResponseVO;
 import com.xd.service.AuditService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -15,7 +15,7 @@ public class AuditController {
     private AuditService auditService;
 
     @PostMapping("/analyze")
-    public AuditResponse  analyze(@RequestBody AuditRequest request) {
+    public AuditResponseVO analyze(@RequestBody AuditRequestVO request) {
         // 参数校验由Spring Validation自动完成
         return auditService.analyzeCode(request);
     }

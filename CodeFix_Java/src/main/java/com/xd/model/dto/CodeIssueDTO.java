@@ -1,9 +1,9 @@
-package com.xd.model.entity;
+package com.xd.model.dto;
 
 import lombok.Data;
 
 @Data
-public class CodeIssue {
+public class CodeIssueDTO {
 
     /**
      * 问题所在行号

@@ -1,9 +1,9 @@
-package com.xd.model.entity;
+package com.xd.model.dto;
 
 import lombok.Data;
 
 @Data
-public class CodeSmell {
+public class CodeSmellDTO {
 
     /**
      * 嫌疑代码行号

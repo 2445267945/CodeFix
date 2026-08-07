@@ -1,6 +1,6 @@
 package com.xd.model.enums;
 
-public enum AuditTaskStatus {
+public enum AuditTaskStatusEnum {
     CREATED(1, "新建任务"),
     QUEUED(2, "任务排队"),             // 排队等Worker
     AGENT_THINKING(3, "任务执行"),     // Python正在推理（对应CPU的Running）
@@ -15,14 +15,14 @@ public enum AuditTaskStatus {
     public final Integer statusCode;
     public final String statusDesc;
 
-    private AuditTaskStatus(Integer statusCode, String statusDesc) {
+    private AuditTaskStatusEnum(Integer statusCode, String statusDesc) {
         this.statusCode = statusCode;
         this.statusDesc = statusDesc;
     }
 
-    public static AuditTaskStatus getDestByCode(Integer code) {
+    public static AuditTaskStatusEnum getDestByCode(Integer code) {
         if (code == null) return null;
-        for (AuditTaskStatus status : AuditTaskStatus.values()) {
+        for (AuditTaskStatusEnum status : AuditTaskStatusEnum.values()) {
             if (status.statusCode.equals(code)) {
                 return status;
             }

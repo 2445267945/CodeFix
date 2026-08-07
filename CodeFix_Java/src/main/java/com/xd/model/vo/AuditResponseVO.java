@@ -1,7 +1,7 @@
-package com.xd.model.dto;
+package com.xd.model.vo;
 
-import com.xd.model.entity.CodeIssue;
-import com.xd.model.entity.IssueStatistics;
+import com.xd.model.dto.CodeIssueDTO;
+import com.xd.model.dto.IssueStatisticsDTO;
 import lombok.Data;
 import java.util.List;
 
@@ -10,7 +10,7 @@ import java.util.List;
  * 返回给前端或调用方的最终响应体
  */
 @Data
-public class AuditResponse {
+public class AuditResponseVO {
 
     /**
      * 状态码：0=成功，1=部分成功（AI修复失败但有问题列表），-1=失败
@@ -31,12 +31,12 @@ public class AuditResponse {
     /**
      * 问题统计信息
      */
-    private IssueStatistics statistics;
+    private IssueStatisticsDTO statistics;
 
     /**
      * 发现的问题列表（用于前端渲染）
      */
-    private List<CodeIssue> issues;
+    private List<CodeIssueDTO> issues;
 
     /**
      * AI 修复后的完整代码（可直接复制使用）

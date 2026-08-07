@@ -61,6 +61,11 @@
             <artifactId>fastjson2</artifactId>
             <version>2.0.61</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.rocketmq</groupId>
+            <artifactId>rocketmq-client</artifactId>
+            <version>5.3.3</version>
+        </dependency>
 <!--        <dependency>-->
 <!--            <groupId>com.mysql</groupId>-->
 <!--            <artifactId>mysql-connector-j</artifactId>-->

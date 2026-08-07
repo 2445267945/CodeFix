@@ -1,11 +1,11 @@
-package com.xd.model.entity;
+package com.xd.model.dto;
 
 
 import lombok.Data;
 import java.time.LocalDateTime;
 
 @Data
-public class ReportMetadata {
+public class ReportMetadataDTO {
 
     /**
      * 本次分析的唯一ID（用于日志追踪）

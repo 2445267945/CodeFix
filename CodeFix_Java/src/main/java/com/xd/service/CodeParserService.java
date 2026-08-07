@@ -8,7 +8,7 @@ import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.expr.MethodCallExpr;
 import com.github.javaparser.ast.stmt.*;
-import com.xd.model.entity.CodeSmell;
+import com.xd.model.dto.CodeSmellDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import java.util.ArrayList;
@@ -23,8 +23,8 @@ import com.github.javaparser.ast.stmt.ForEachStmt;
 @Service
 public class CodeParserService {
 
-    public List<CodeSmell> extractSmells(String code) {
-        List<CodeSmell> smells = new ArrayList<>();
+    public List<CodeSmellDTO> extractSmells(String code) {
+        List<CodeSmellDTO> smells = new ArrayList<>();
         try {
             // 1. 解析源代码为抽象语法树（AST）
             CompilationUnit cu = StaticJavaParser.parse(code);
@@ -45,7 +45,7 @@ public class CodeParserService {
     // ============================================================
     // 1. 检测 N+1 查询：循环体内调用了 Mapper.select 方法
     // ============================================================
-    private void detectNPlusOne(CompilationUnit cu, List<CodeSmell> smells) {
+    private void detectNPlusOne(CompilationUnit cu, List<CodeSmellDTO> smells) {
         // 查找所有循环结构（for, while, do-while, foreach）
         cu.findAll(ForStmt.class).forEach(loop -> checkLoopForSelect(loop, smells));
         cu.findAll(WhileStmt.class).forEach(loop -> checkLoopForSelect(loop, smells));
@@ -53,7 +53,7 @@ public class CodeParserService {
         cu.findAll(ForEachStmt.class).forEach(loop -> checkLoopForSelect(loop, smells));
     }
 
-    private void checkLoopForSelect(Statement loop, List<CodeSmell> smells) {
+    private void checkLoopForSelect(Statement loop, List<CodeSmellDTO> smells) {
         // 在循环体内查找所有方法调用
         loop.findAll(MethodCallExpr.class).forEach(call -> {
             String callName = call.getNameAsString();
@@ -64,7 +64,7 @@ public class CodeParserService {
                         .map(range -> range.begin.line)
                         .orElse(0);
                 // 构造 CodeSmell 对象
-                CodeSmell smell = new CodeSmell();
+                CodeSmellDTO smell = new CodeSmellDTO();
                 smell.setLineNumber(line);
                 smell.setType("N+1_QUERY");
                 smell.setCodeSnippet(call.toString());
@@ -77,7 +77,7 @@ public class CodeParserService {
     // ============================================================
     // 2. 检测 @Transactional 是否缺少 rollbackFor
     // ============================================================
-    private void detectTransactionalMissingRollback(CompilationUnit cu, List<CodeSmell> smells) {
+    private void detectTransactionalMissingRollback(CompilationUnit cu, List<CodeSmellDTO> smells) {
         cu.findAll(MethodDeclaration.class).forEach(method -> {
             method.getAnnotationByName("Transactional").ifPresent(ann -> {
                 // 检查注解参数中是否包含 rollbackFor
@@ -86,7 +86,7 @@ public class CodeParserService {
                     int line = method.getRange()
                             .map(range -> range.begin.line)
                             .orElse(0);
-                    CodeSmell smell = new CodeSmell();
+                    CodeSmellDTO smell = new CodeSmellDTO();
                     smell.setLineNumber(line);
                     smell.setType("TRANSACTION_MISUSE");
                     smell.setCodeSnippet("@Transactional");
@@ -100,7 +100,7 @@ public class CodeParserService {
     // ============================================================
     // 3. 检测 System.out.println / e.printStackTrace
     // ============================================================
-    private void detectSystemOutAndPrintStackTrace(CompilationUnit cu, List<CodeSmell> smells) {
+    private void detectSystemOutAndPrintStackTrace(CompilationUnit cu, List<CodeSmellDTO> smells) {
         // 查找所有方法调用
         cu.findAll(MethodCallExpr.class).forEach(call -> {
             String callStr = call.toString();
@@ -109,7 +109,7 @@ public class CodeParserService {
                 int line = call.getRange()
                         .map(range -> range.begin.line)
                         .orElse(0);
-                CodeSmell smell = new CodeSmell();
+                CodeSmellDTO smell = new CodeSmellDTO();
                 smell.setLineNumber(line);
                 smell.setType("SYSTEM_OUT_PRINT");
                 smell.setCodeSnippet(callStr);
@@ -121,7 +121,7 @@ public class CodeParserService {
                 int line = call.getRange()
                         .map(range -> range.begin.line)
                         .orElse(0);
-                CodeSmell smell = new CodeSmell();
+                CodeSmellDTO smell = new CodeSmellDTO();
                 smell.setLineNumber(line);
                 smell.setType("PRINT_STACK_TRACE");
                 smell.setCodeSnippet(callStr);

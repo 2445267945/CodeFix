@@ -1,21 +1,19 @@
 package com.xd.service;
 
-import com.alibaba.fastjson2.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xd.client.PythonAgentClient;
 import com.xd.convert.AIContentConvert;
-import com.xd.model.dto.AuditRequest;
-import com.xd.model.dto.AuditResponse;
-import com.xd.model.entity.AuditReport;
-import com.xd.model.entity.CodeSmell;
+import com.xd.model.vo.AuditRequestVO;
+import com.xd.model.vo.AuditResponseVO;
+import com.xd.model.dto.AuditReportDTO;
+import com.xd.model.dto.CodeSmellDTO;
 import com.xd.util.Md5Utils;
 import com.xd.validator.JavaSyntaxValidator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Mono;
 
 import java.util.List;
 import java.util.Map;
@@ -42,27 +40,25 @@ public class AuditService {
     @Autowired
     private ObjectMapper objectMapper;
 
-    public AuditResponse  analyzeCode(AuditRequest request) {
+    public AuditResponseVO analyzeCode(AuditRequestVO request) {
         if (request.getCode().isEmpty()) return null;
         // 1. 生成MD5，查缓存
         String md5 = Md5Utils.MD5Digest(request.getCode());
-        AuditResponse cached = cacheService.get(md5);
+        AuditResponseVO cached = cacheService.get(md5);
         if (cached != null) {
             return cached;
         }
-
-
-        // 2. 调用Python Agent深度分析（含重试）
-        AuditReport report = handleCode(request.getCode());
+        // 2. 调用Agent
+        AuditReportDTO report = handleCode(request.getCode());
         // 3. 封装响应，存入缓存
-        AuditResponse response = null;
+        AuditResponseVO response = null;
         Map<String, String> map = null;
         try {
             response = aiContentConvert.buildResponse(report);
             map = objectMapper.readValue(response.getSummary(), new TypeReference<Map<String, String>>() {
             });
             response.setFixedCode(map.get("code"));
-            response.setSummary(map.get("summary"));
+            response.setSummary(map.get("changes"));
             cacheService.put(md5, response);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
@@ -73,7 +69,7 @@ public class AuditService {
     }
 
 
-    public AuditReport handleCode(String originalCode) {
+    public AuditReportDTO handleCode(String originalCode) {
         // 1.语法校验
         Optional<String> syntaxError = validator.validate(originalCode);
         String question = "";
@@ -84,7 +80,7 @@ public class AuditService {
                     + "\n请直接修复语法错误，无需关注设计规范。\n代码：\n" + originalCode;
         } else {
             // 病例 B：语法正确 -> 提取规则，让 AI 修复设计问题
-            List<CodeSmell> smells = parserService.extractSmells(originalCode);
+            List<CodeSmellDTO> smells = parserService.extractSmells(originalCode);
             question = "代码：\n" + originalCode + "\n预扫描嫌疑点：\n" + smells;
         }
         return pythonClient.callPythonAgent(question);

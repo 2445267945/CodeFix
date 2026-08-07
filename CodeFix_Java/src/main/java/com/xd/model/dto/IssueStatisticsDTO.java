@@ -1,4 +1,4 @@
-package com.xd.model.entity;
+package com.xd.model.dto;
 
 import lombok.Data;
 
@@ -6,7 +6,7 @@ import lombok.Data;
  * 问题统计信息
  */
 @Data
-public class IssueStatistics {
+public class IssueStatisticsDTO {
 
     /**
      * 高危问题数量
