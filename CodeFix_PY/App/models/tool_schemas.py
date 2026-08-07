@@ -14,9 +14,19 @@ class VerifyJavaSyntaxInput(BaseModel):
 class ParseJavaCodeInput(BaseModel):
     code: str = Field(..., description="Java源代码", min_length=1)
 
+# ---------- run_explorer 的入参规则 ----------
+class RunExplorerInput(BaseModel):
+    code: str = Field(..., description="Java源代码", min_length=1)
+
+# ---------- run_fixer 的入参规则 ----------
+class RunFixerInput(BaseModel):
+    code_and_report: str = Field(..., description="JSON格式：{'code': '...', 'report': '...'}", min_length=1)
+
 # ---------- 工具 Schema 注册表 ----------
 TOOL_SCHEMAS = {
     "search_manual": SearchManualInput,
     "verify_java_syntax": VerifyJavaSyntaxInput,
-    "parse_java_code": ParseJavaCodeInput
+    "parse_java_code": ParseJavaCodeInput,
+    "run_explorer": RunExplorerInput,
+    "run_fixer": RunFixerInput
 }

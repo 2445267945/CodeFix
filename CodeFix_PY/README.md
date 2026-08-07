@@ -11,6 +11,11 @@ CodeFix/
 │   │   └── schemas.py            # Pydantic请求/响应模型定义
 │   │
 │   ├── agents/                   # Agent核心：ReAct推理逻辑
+│   │   ├── worker     
+│   │   │   ├── explorer_agent.py
+│   │   │   └── fixer_agent.py
+│   │   ├── supervisor
+│   │   │   └── supervisor_agent.py
 │   │   ├── __init__.py
 │   │   ├── agent_state           # 状态枚举（Agent状态）
 │   │   ├── audit_agent.py        # CodeAuditAgent主类（Agent值初始化）

@@ -1,43 +1,42 @@
-import re
-from ..base_agent import BaseAgent
-from App.agents.worker.explorer_agent import ExplorerAgent
-from App.agents.worker.fixer_agent import FixerAgent
+from App.agents.tool_executor import ToolExecutor
 
-class SupervisorAgent(BaseAgent):
+class SupervisorAgent(ToolExecutor):
     def __init__(self, main_llm, compress_llm):
         super().__init__()
         self.name = "Supervisor"
         self.main_llm = main_llm
         self.compress_llm = compress_llm
         self.window_size = 10
-
-    async def run(self, question: str):
-        print("\n🧠 [主管] 收到任务，开始拆解...")
-        # ----- 阶段一：结构侦查（Explorer） -----
-        print("🔍 [主管] 派发任务给 Explorer（代码结构分析）...")
-        explorer = ExplorerAgent(self.main_llm, self.compress_llm)
-        analysis_report = await explorer.run(
-            f"请分析以下 Java 代码的结构，提取包名、类名、方法、循环和字段信息，并总结潜在风险：\n\n{question}"
-        )
-
-        print(f"📊 [主管] Explorer 完成分析")
-
-        # ----- 阶段二：精准修复（Fixer） -----
-        print("🔧 [主管] 派发任务给 Fixer（代码修复）...")
-        fixer = FixerAgent(self.main_llm, self.compress_llm)
-        final_result = await fixer.run(
-            f"【原始代码】\n{question}\n\n"
-            f"【结构分析报告】\n{analysis_report}"
-        )
-        print(f"📊 [主管] Fixer 修复，完整代码: {final_result}\n")
-        print(f"✅ [主管] Fixer 完成任务。\n")
-
-        # ----- 返回最终结果 -----
-        return final_result
-
-    # 实现抽象方法
-    async def step(self):
-        pass
-
-    def cleanup(self):
-        pass
+        self.systemPrompt = self.systemPrompt = """
+        你是 {name}，一个智能的代码修复任务主管。你的职责是**根据当前状态动态决策**，选择最合适的子 Agent 来完成任务。
+        
+        **可用工具**：
+        - `run_explorer`：分析代码结构，返回结构分析报告（适用于复杂代码、未知代码）。
+        - `run_fixer`：直接修复代码问题，返回修复后的代码和修改说明（适用于已知问题的代码）。
+        
+        **决策原则（自主判断）**：
+        1. **如果代码简单、问题明确**（例如只有语法错误，没有复杂逻辑），你可以直接调用 `run_fixer`，无需先分析结构。
+        2. **如果代码复杂、逻辑深、问题不明确**，建议先调用 `run_explorer` 获取结构信息，再调用 `run_fixer`。
+        3. **如果 `run_fixer` 返回的结果仍有问题**（如校验失败），你可以再次调用 `run_fixer` 进行二次修复。
+        4. **如果多次修复仍失败**，你可以选择输出错误信息并终止。
+        
+        **工作流程（ReAct 循环）**：
+        - **Thought**：分析当前状态（已有什么信息、缺少什么信息），决定下一步行动。
+        - **Action**：根据决策调用合适的工具。
+        - **Observation**：根据工具返回的结果，更新对任务的理解。
+        - **重复**：(...重复Thought/Action/Observation)直到你认为任务已经完成或无法继续。
+        - **Finish**：输出最终结果。
+        
+        **输出格式（必须严格遵守，只输出 JSON）**：
+        - **调用工具时**：
+          {{"thought": "决策理由", "action": "run_explorer", "action_input": {{"code": "..."}}}}
+          或
+          {{"thought": "决策理由", "action": "run_fixer", "action_input": {{"code_and_report": '{{"code": "...", "report": "..."}}'}}}}
+        - **任务完成时**：
+          {{"thought": "总结", "finish": true, "answer": {{"code": "...", "changes": "..."}}}}
+        
+        **注意**：你拥有完全自主权，可以跳过任何步骤，也可以重复步骤。唯一的目标是“修复代码”，路径由你决定。
+        
+        现在开始执行任务。
+        Question: {question}
+        """

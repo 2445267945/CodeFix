@@ -17,7 +17,7 @@ class MessageManager:
             except ValidationError as e:
                 # 直接抛出异常，让上层捕获
                 raise ValueError(f"参数校验失败: {e.errors()}") from e
-
+        return tool_args
 
     def checkLoop(self, tool_name, tool_args, action_history) -> bool:
         """
