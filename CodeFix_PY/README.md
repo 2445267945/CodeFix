@@ -1,65 +1,75 @@
 项目结构
-CodeFix/
-├── app/                          # 主应用目录
+CodeFix_PY/
+│
+├── agents/                          # Agent 核心逻辑层
+│   ├── supervisor/                  # 监督者 Agent
+│   │   ├── __init__.py
+│   │   └── supervisor_agent.py
+│   ├── worker/                      # 工作型 Agent
+│   │   ├── __init__.py
+│   │   ├── explorer_agent.py
+│   │   └── fixer_agent.py
 │   ├── __init__.py
-│   ├── main.py                   # FastAPI 应用入口
-│   ├── config.py                 # 配置文件（API Key、端口、模型参数等）
-│   │
-│   ├── api/                      # API层：处理HTTP请求与响应
+│   ├── agent_state.py               # Agent 状态枚举
+│   ├── audit_agent.py               # CodeAuditAgent 主类
+│   ├── base_agent.py                # Agent 基类（抽象）
+│   ├── prompts.py                   # Prompt 模板
+│   ├── react_agent.py               # ReAct 抽象类
+│   └── tool_executor.py             # ReAct 执行器
+│
+├── api/                             # 表现层（HTTP 接口）
+│   ├── __init__.py
+│   ├── routes.py                    # 路由注册（/analyze, /health 等）
+│   └── schemas.py                   # Pydantic 请求/响应模型
+│
+├── infrastructure/                  # 基础设施层（技术细节）
+│   ├── message/                     # 消息定义
 │   │   ├── __init__.py
-│   │   ├── routes.py             # 路由注册（/analyze, /health）
-│   │   └── schemas.py            # Pydantic请求/响应模型定义
-│   │
-│   ├── agents/                   # Agent核心：ReAct推理逻辑
-│   │   ├── worker     
-│   │   │   ├── explorer_agent.py
-│   │   │   └── fixer_agent.py
-│   │   ├── supervisor
-│   │   │   └── supervisor_agent.py
+│   │   ├── base.py
+│   │   ├── message.py
+│   │   └── types.py
+│   ├── mq/                          # 消息队列（RocketMQ）
 │   │   ├── __init__.py
-│   │   ├── agent_state           # 状态枚举（Agent状态）
-│   │   ├── audit_agent.py        # CodeAuditAgent主类（Agent值初始化）
-│   │   ├── base_agent            # Agent基类（最外层抽象类，调用入口，控制最大迭代次数）
-│   │   ├── react_agent           # ReAct抽象类（控制ReAct的执行模式）
-│   │   ├── prompts.py            # Prompt模板（System Prompt + 工具描述）
-│   │   └── tool_executor.py      # Agent执行器（实现ReAct模式的功能）
-│   │
-│   ├── tools/                    # Agent可调用的工具集合
-│   │   ├── __init__.py
-│   │   ├── java_checker.py       # 调用Java端编译校验接口
-│   │   ├── rag_retriever.py      # 从Chroma向量库检索规范文档
-│   │   ├── code_fixer.py         # 调用LLM生成修复代码
-│   │   └── tool_registry.py      # 工具注册表（Agent根据名称查找工具）
-│   │
-│   ├── services/                 # 业务服务层：封装复杂逻辑
-│   │   ├── __init__.py
-│   │   ├── rag_service.py        # 向量库初始化、加载文档、检索
-│   │   └── llm_service.py        # LLM API调用封装（统一接口，支持切换模型）
-│   │
-│   ├── models/                   # 数据模型（内部使用的领域对象）
-│   │   ├── __init__.py
-│   │   ├── code_smell.py         # CodeSmell实体（行号、类型、严重程度）
-│   │   └── audit_report.py       # AuditReport实体（issues + fixedCode）
-│   │
-│   └── utils/                    # 工具函数
+│   │   ├── consumer.py
+│   │   ├── event_bus.py
+│   │   └── handler.py
+│   └── memory/                      # 内存/会话管理
 │       ├── __init__.py
-│       ├── logger.py             # 统一日志配置
-│       └── json_parser.py        # 解析LLM返回的JSON（含容错处理）
+│       └── message_manager.py
 │
-├── data/                         # 本地数据目录
-│   ├── chroma_db/                # Chroma向量库持久化存储
-│   └── docs/                     # 原始规范文档（《阿里Java手册》等txt/md）
-│
-├── tests/                        # 单元测试
+├── models/                          # 领域模型（数据实体）
 │   ├── __init__.py
-│   ├── test_agent.py
-│   ├── test_tools.py
-│   └── test_api.py
+│   ├── agent_message.py
+│   ├── audit_report.py
+│   ├── code_smell.py
+│   └── tool_schemas.py
 │
-├── .env                          # 环境变量（OPENAI_API_KEY等，不提交）
-├── .env.example                  # 环境变量模板（提交到git）
+├── services/                        # 业务服务层
+│   ├── impl/                        # 服务实现
+│   │   ├── __init__.py
+│   │   └── agent_msg_service.py
+│   ├── __init__.py
+│   ├── base_handler.py
+│   ├── llm_factory.py
+│   ├── llm_service.py
+│   └── rag_service.py
+│
+├── tools/                           # Agent 可调用的工具
+│   ├── __init__.py
+│   ├── java_checker.py
+│   ├── rag_retriever.py
+│   ├── code_fixer.py
+│   └── tool_registry.py
+│
+├── utils/                           # 工具函数（纯函数）
+│   ├── __init__.py
+│   ├── config.py
+│   └── main.py                      # 可能是项目入口
+│
+├── .env                             # 环境变量（不提交）
+├── .env.example                     # 环境变量模板
 ├── .gitignore
-├── requirements.txt              # Python依赖清单
-├── Dockerfile                    # Python服务镜像构建文件
-├── docker-compose.yml            # （可选）多容器编排
-└── README.md                     # 项目说明文档
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+└── README.md

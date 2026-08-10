@@ -1,15 +1,20 @@
 from abc import ABC, abstractmethod
+
 from App.tools.tool_registry import registry
 from .agent_state import AgentState
 import datetime
-from App.memory.message_manager import MessageManager
+from App.infrastructure.memory.message_manager import MessageManager
+from .context.agent_context import AgentContext
 
 
 class BaseAgent(ABC):
-    def __init__(self):
+    def __init__(self, context: AgentContext, base_message = None):
         self.name = "Default"
-        self.main_llm = None # 任务模型
-        self.compress_llm = None # 压缩模型
+        self.context = context # 上下文容器
+        self.main_llm = context.main_llm # 任务模型
+        self.compress_llm = context.compress_llm # 压缩模型
+        self.msg_sender = context.msg_sender # 消息发送器
+        self.base_message = base_message # 消息基类
         self.window_size = 10 # 窗口大小
         self.max_iterations = 30  # 防止死循环
         self.messages = []  # 维护对话历史（上下文）
@@ -27,14 +32,13 @@ class BaseAgent(ABC):
         if len(self.messages) > self.window_size:
             self.messages = self.messages[-self.window_size:]
 
-    def get_context(self):
-        # 构建模型可理解的上下文格式
-        context = " ".join([f"{role}:{content}" for role, content in reversed(self.messages)])
-        return context if context else "系统初始化完成"
+    # def get_context(self):
+    #     # 构建模型可理解的上下文格式
+    #     context = " ".join([f"{role}:{content}" for role, content in reversed(self.messages)])
+    #     return context if context else "系统初始化完成"
 
     async def run(self, question: str):
-        self.status = AgentState.RUNNING
-        # 初始化消息管理类
+        self.status = AgentState.THINKING
         cur_iterations = 0
         tool_desc = registry.get_tools_desc()
         # 构造提示词
@@ -49,15 +53,17 @@ class BaseAgent(ABC):
             if cur_time - self.last_time > datetime.timedelta(seconds=self.watch_dog):
                 self.status = AgentState.ERROR
                 self.final_answer = f"Error: AI 推理超时（{self.watch_dog}），已强制终止。"
+                self.msg_sender.agent_report(self.final_answer, agent=self)
                 break
             audit_report = await self.step()
             print(f"当前Agent:{self.name}")
             print(f"===> step{cur_iterations + 1}：【{audit_report[:100]}...】")
             cur_iterations += 1
             if self.status == AgentState.FINISHED:
+                self.msg_sender.agent_report(self.final_answer, agent=self)
                 break
-
         self.cleanup()
+        self.status = AgentState.IDLE
         return self.final_answer
 
     @abstractmethod

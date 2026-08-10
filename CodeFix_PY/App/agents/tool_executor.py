@@ -3,14 +3,16 @@ import logging
 
 from App.utils.json_parser import parse_llm_response
 from .agent_state import AgentState
+from .context.agent_context import AgentContext
 from .react_agent import ReActAgent
 import datetime
 
 logger = logging.getLogger(__name__)
 
 class ToolExecutor(ReActAgent):
-    def __init__(self):
-        super().__init__()  # 调用父类的构造函数
+
+    def __init__(self, context: AgentContext, base_message = None):
+        super().__init__(context, base_message)
         self.cur_tool_name = None
         self.cur_tool_args = None
         self.action_history = []
@@ -18,12 +20,14 @@ class ToolExecutor(ReActAgent):
 
     async def think(self):
         if self.main_llm == None:
-            logger.error("LLM 未实例化")
+            logger.error(f"{self.name} 的 LLM 未实例化")
             return
         # 1. 获取 LLM 响应
         response = await self.main_llm.chat(self.messages)
-        print(f"======[原始响应]\n{response}\n========[响应结束]\n")
+        # print(f"======[原始响应]\n{response}\n========[响应结束]\n")
         self.add_message("assistant", response)
+        # 推送agent状态和response
+        self.msg_sender.agent_report(response, agent=self)
         # 2. 使用抽取出来的解析器
         parsed = parse_llm_response(response)
         # 3. 根据解析结果执行逻辑
@@ -60,8 +64,11 @@ class ToolExecutor(ReActAgent):
             # 2. 调用校验方法
             validated_args = self.manager.check_tool_Input(tool_name, args, self.tools_schemas)
             # 3. 执行工具
-            func = self.tools[tool_name]["func"]
-            tool_res = await func(**validated_args)
+            tool_res = await self.tools_schemas.execute(
+                tool_name=tool_name,
+                args=validated_args,
+                caller=self
+            )
             # 看门狗续命
             self.last_time += datetime.timedelta(seconds=self.watch_dog)
         except json.JSONDecodeError as e:
@@ -74,6 +81,7 @@ class ToolExecutor(ReActAgent):
         finally:
             # 统一收尾：无论成功或失败，都将结果（或错误信息）包装成 Observation 加入历史
             self.add_message("user", f"Observation: {tool_res}")
+            self.msg_sender.agent_report(tool_res, agent=self)
             return tool_res
 
 

@@ -1,13 +1,17 @@
+from App.agents.context.agent_context import AgentContext
 from App.agents.tool_executor import ToolExecutor
 
 class SupervisorAgent(ToolExecutor):
-    def __init__(self, main_llm, compress_llm):
-        super().__init__()
+    def __init__(self, context: AgentContext, base_message = None):
+        super().__init__(context, base_message)
         self.name = "Supervisor"
-        self.main_llm = main_llm
-        self.compress_llm = compress_llm
+        self.context = context
+        self.base_message = base_message
+        self.main_llm = context.main_llm
+        self.compress_llm = context.compress_llm
+        self.msg_sender = context.msg_sender
         self.window_size = 10
-        self.systemPrompt = self.systemPrompt = """
+        self.systemPrompt = """
         你是 {name}，一个智能的代码修复任务主管。你的职责是**根据当前状态动态决策**，选择最合适的子 Agent 来完成任务。
         
         **可用工具**：

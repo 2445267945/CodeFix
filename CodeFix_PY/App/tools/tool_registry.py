@@ -1,20 +1,23 @@
+import inspect
+
 import httpx, os, json
 from App.models.tool_schemas import TOOL_SCHEMAS
 from App.services.rag_service import search_manual
-from App.services.llm_factory import llm_factory
+
 
 class ToolRegistry:
     def __init__(self):
         self.tools = {}
         self.schemas = {} # 每个工具的参数校验器
 
-    def register(self, name, description):
+    def register(self, name, description, need_caller=False):
         """这是一个装饰器，用来把函数注册进工具箱"""
 
         def decorator(func):
             self.tools[name] = {
                 "func": func,
-                "desc": description
+                "desc": description,
+                "need_caller": need_caller
             }
             if name in TOOL_SCHEMAS:
                 self.schemas[name] = TOOL_SCHEMAS[name]
@@ -28,11 +31,21 @@ class ToolRegistry:
             desc_list.append(f"- {name}: {info['desc']}")
         return "\n".join(desc_list)
 
+    async def execute(self, tool_name: str, args: dict, caller):
+        if tool_name not in self.tools:
+            raise ValueError(
+                f"工具不存在: {tool_name}"
+            )
+        tool = self.tools[tool_name]
+        func = tool["func"]
+        # 为了区分调用agent还是调用普通工具
+        if tool.get("need_caller", False):
+            return await func(**args, caller=caller)
+        return await func(**args)
+
 
 # 创建全局工具箱和llm http请求实例
 registry = ToolRegistry()
-main_llm = llm_factory.get_llm(4096, 0.1, "mid")
-compress_llm = llm_factory.get_llm(4096, 0.1, "low")
 
 # === 定义工具 ===
 @registry.register(name="get_length", description="测量字符串长度。输入参数: {'text': '字符串'}")
@@ -91,31 +104,35 @@ async def search_manual_async(query: str, n_results: int = 3) -> str:
 
 @registry.register(
     name="run_explorer",
-    description="调用侦查员 Agent 分析 Java 代码结构。输入: {'code': 'Java源代码'}"
+    description="调用侦查员 Agent 分析 Java 代码结构。输入: {'code': 'Java源代码'}",
+    need_caller = True
 )
-async def run_explorer(code: str) -> str:
-    """分析 Java 代码结构，返回类、方法、循环等结构化信息。"""
-    from App.agents.worker.explorer_agent import ExplorerAgent  # 延迟导入
-    agent = ExplorerAgent(main_llm, compress_llm)
-    result = await agent.run(code)
-    return result
+async def run_explorer(code: str, caller=None) -> str:
+    if caller is None:
+        raise RuntimeError("run_explorer 执行失败：缺少 caller Agent")
+    from App.agents.worker.explorer_agent import ExplorerAgent
+    agent = ExplorerAgent(context=caller.context, base_message=caller.base_message)
+    return await agent.run(code)
 
 @registry.register(
     name="run_fixer",
-    description="调用修复员 Agent 修复 Java 代码。输入: {'code': '原始代码', 'report': '结构分析报告'}（JSON 格式）"
+    description="调用修复员 Agent 修复 Java 代码。输入: {'code': '原始代码', 'report': '结构分析报告'}（JSON 格式）",
+    need_caller = True
 )
-async def run_fixer(code_and_report: str) -> str:
-    """修复 Java 代码问题。输入应为 JSON 格式：{"code": "...", "report": "..."}"""
-    from App.agents.worker.fixer_agent import FixerAgent  # 延迟导入
-    import json
+async def run_fixer(code_and_report: str, caller=None) -> str:
+    if caller is None:
+        raise RuntimeError("run_fixer 执行失败：缺少 caller Agent")
+    from App.agents.worker.fixer_agent import FixerAgent
     try:
         data = json.loads(code_and_report)
-    except:
-        return await FixerAgent(main_llm, compress_llm).run(code_and_report)
-    agent = FixerAgent(main_llm, compress_llm)
-    prompt = f"原始代码：\n{data['code']}\n\n结构报告：\n{data['report']}"
+        code = data.get("code", "")
+        report = data.get("report", "")
+        prompt = (f"原始代码：\n"f"{code}\n"
+                  f"\n"f"结构报告：\n"f"{report}")
+    except json.JSONDecodeError:
+        prompt = code_and_report
+    agent = FixerAgent(context=caller.context, base_message=caller.base_message)
     return await agent.run(prompt)
-
 
 
 

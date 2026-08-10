@@ -1,5 +1,6 @@
-from App.agents.supervisor.supervisor_agent import SupervisorAgent
-from App.services.llm_factory import LLMFactory
+from App.infrastructure.mq.consumer import Consumer
+from App.infrastructure.mq.handler import Handler
+from App.services.impl.agent_msg_service import AgentMsgService
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional, List
@@ -37,39 +38,53 @@ class AuditReport(BaseModel):
 
 app = FastAPI(title="Java代码审计Agent", version="1.0")
 
-# ---------- 核心分析接口 ----------
-@app.post("/analyze", response_model=AuditReport)
-async def analyze(request: AnalyzeRequest):
-    print(f"收到请求，文件名: {request.fileName}, 代码长度: {len(request.code)}")
-    print(f"Java 端预扫描到的嫌疑点: {request.smells}")
+# # ---------- 核心分析接口 ----------
+# @app.post("/analyze", response_model=AuditReport)
+# async def analyze(request: AnalyzeRequest):
+#     print(f"收到请求，文件名: {request.fileName}, 代码长度: {len(request.code)}")
+#     print(f"Java 端预扫描到的嫌疑点: {request.smells}")
+#
+#     # 1. 构造完整的问题描述，包含代码和预扫描线索
+#     question = f"""
+#     请分析以下 Java 代码，是否有什么语法问题或编码隐患，
+#     代码：
+#     ```java
+#     {request.code}
+#     ```
+#     以下是预扫描的嫌疑点（仅供参考）：
+#     {request.smells if request.smells else "暂无"}
+#     """
+#
+#     result = await agent.run(question)
+#     print(f"结果: {result}")
+#     # 必须返回符合 AuditReport 的结构
+#     return {
+#         "status": "success",
+#         "healthScore": 85,
+#         "issues": [],  # 这里可以先为空，后续根据实际审计结果填充
+#         "fixedCode": request.code,
+#         "summary": str(result) if result else "审计完成，无问题",
+#         "metadata": {"agent_result": str(result)}
+#     }
 
-    # 1. 构造完整的问题描述，包含代码和预扫描线索
-    question = f"""
-    请分析以下 Java 代码，是否有什么语法问题或编码隐患，
-    代码：
-    ```java
-    {request.code}
-    ```
-    以下是预扫描的嫌疑点（仅供参考）：
-    {request.smells if request.smells else "暂无"}
-    """
+def start_consumers():
+    """启动所有 MQ 消费者"""
+    # 1. 创建处理器并注册
+    handler = Handler()
+    handler.register("AGENT_TASK", AgentMsgService())  # 对应 types.py 中的映射
 
-    result = await agent.run(question)
-    print(f"结果: {result}")
-    # 必须返回符合 AuditReport 的结构
-    return {
-        "status": "success",
-        "healthScore": 85,
-        "issues": [],  # 这里可以先为空，后续根据实际审计结果填充
-        "fixedCode": request.code,
-        "summary": str(result) if result else "审计完成，无问题",
-        "metadata": {"agent_result": str(result)}
-    }
+    # 2. 创建消费者
+    consumer = Consumer(
+        topic="agent_task_topic",
+        group="cid_task_group",
+        handler=handler.handle
+    )
+    # 3. 启动消费者
+    consumer.start()
+    return consumer
 
 # ---------- 启动服务 ----------
 if __name__ == "__main__":
-    llm_factory = LLMFactory()
-    main_llm = llm_factory.get_llm(4096, 0.1, "mid")
-    compress_llm = llm_factory.get_llm(4096, 0.1, "low")
-    agent = SupervisorAgent(main_llm, compress_llm)
+    # 先启动消费者，再启动 FastAPI
+    consumer = start_consumers()
     uvicorn.run(app, host="0.0.0.0", port=8000)

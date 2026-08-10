@@ -2,7 +2,7 @@ package com.xd.controller;
 
 import com.xd.model.vo.AuditRequestVO;
 import com.xd.model.vo.AuditResponseVO;
-import com.xd.service.AuditService;
+import com.xd.service.impl.AuditHandlerServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuditController {
 
     @Autowired
-    private AuditService auditService;
+    private AuditHandlerServiceImpl auditService;
 
     @PostMapping("/analyze")
     public AuditResponseVO analyze(@RequestBody AuditRequestVO request) {

@@ -1,60 +1,82 @@
 项目结构
-CodeFix/
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/
-│   │   │       └── audit/
-│   │   │           ├── JavaAuditApplication.java      # Spring Boot 启动类
-│   │   │           │
-│   │   │           ├── controller/                    # 控制器层：接收HTTP请求
-│   │   │           │   ├── AuditController.java       # /api/audit 代码分析接口
-│   │   │           │   └── HealthController.java      # /health 健康检查
-│   │   │           │
-│   │   │           ├── service/                       # 业务服务层
-│   │   │           │   ├── AuditService.java          # 核心分析服务（编排流程）
-│   │   │           │   ├── CodeParserService.java     # JavaParser解析服务
-│   │   │           │   └── CacheService.java          # Redis缓存管理
-│   │   │           │
-│   │   │           ├── client/                        # 外部调用客户端
-│   │   │           │   └── PythonAgentClient.java     # 调用Python服务的Feign/WebClient
-│   │   │           │
-│   │   │           ├── model/                         # 数据模型（内部流转）
-│   │   │           │   ├── dto/                       # 数据传输对象（API契约）
-│   │   │           │   │   ├── AuditRequest.java      # 请求体
-│   │   │           │   │   └── AuditResponse.java     # 响应体
-│   │   │           │   ├── entity/                    # 领域实体（内部使用）
-│   │   │           │   │   ├── CodeSmell.java         # 代码异味实体
-│   │   │           │   │   └── AuditReport.java       # 审计报告实体
-│   │   │           │   └── enums/                     # 枚举
-│   │   │           │       └── SmellSeverity.java     # 严重等级（HIGH/MEDIUM/LOW）
-│   │   │           │
-│   │   │           ├── config/                        # 配置类
-│   │   │           │   ├── WebClientConfig.java       # WebClient Bean配置
-│   │   │           │   ├── RedisConfig.java           # Redis序列化配置
-│   │   │           │   └── AsyncConfig.java           # 线程池配置
-│   │   │           │
-│   │   │           ├── validator/                     # 校验器（二次编译校验）
-│   │   │           │   └── JavaSyntaxValidator.java   # 用JavaParser校验修复后的代码
-│   │   │           │
-│   │   │           ├── exception/                     # 异常处理
-│   │   │           │   ├── GlobalExceptionHandler.java # 全局异常处理器
-│   │   │           │   └── BusinessException.java     # 自定义业务异常
-│   │   │           │
-│   │   │           └── util/                          # 工具类
-│   │   │               ├── Md5Utils.java              # 代码MD5生成
-│   │   │               └── JsonUtils.java             # JSON序列化工具
-│   │   │
-│   │   └── resources/
-│   │       ├── application.yml                        # 主配置文件
-│   │       ├── application-dev.yml                    # 开发环境配置
-│   │       └── application-prod.yml                   # 生产环境配置
-│   │
-│   └── test/                                          # 单元测试
-│       └── java/com/audit/
-│           ├── CodeParserServiceTest.java
-│           └── AuditServiceTest.java
+CodeFix_Java/
+├── .idea/                              # IDEA 项目配置
 │
-├── pom.xml                                            # Maven依赖管理
-├── Dockerfile                                         # Java服务镜像
-└── README.md                                          # 项目说明
+├── src/
+│   └── main/
+│       └── java/
+│           └── com.xd/
+│               │
+│               ├── CodeFixApplication.java        # Spring Boot 启动类
+│               │
+│               ├── client/                        # 外部服务客户端
+│               │   └── (外部API调用封装)
+│               │
+│               ├── config/                        # 配置类
+│               │   ├── AppConfig.java             # 应用通用配置
+│               │   ├── RedisConfig.java           # Redis 配置
+│               │   ├── RocketMQConsumerConfig.java # RocketMQ 消费者配置
+│               │   ├── RocketMQProducerConfig.java # RocketMQ 生产者配置
+│               │   └── WebConfig.java             # Web 配置（CORS、拦截器等）
+│               │
+│               ├── controller/                    # 控制器层（HTTP 接口）
+│               │   ├── AuditController.java       # 审计/审查接口
+│               │   ├── JavaParserController.java  # Java 解析接口
+│               │   └── ValidateController.java    # 校验接口
+│               │
+│               ├── convert/                       # 对象转换器
+│               │   └── AIContentConvert.java      # AI 内容转换
+│               │
+│               ├── exception/                     # 异常处理
+│               │   ├── BusinessException.java     # 业务异常
+│               │   ├── GlobalExceptionHandler.java # 全局异常处理器
+│               │   └── MqSendException.java       # MQ 发送异常
+│               │
+│               ├── interceptors/                  # 拦截器
+│               │   └── RateLimitInterceptor.java  # 限流拦截器
+│               │
+│               ├── mapper/                        # MyBatis Mapper 层
+│               │   └── (XxxMapper.java)
+│               │
+│               ├── model/                         # 数据模型层
+│               │   ├── do/                        # 数据对象（持久层）
+│               │   │   └── (XxxDO.java)
+│               │   ├── dto/                       # 数据传输对象（业务层）
+│               │   │   ├── AgentMessageDTO.java
+│               │   │   ├── AuditReportDTO.java
+│               │   │   ├── CodeIssueDTO.java
+│               │   │   ├── CodeSmellDTO.java
+│               │   │   ├── IssueStatisticsDTO.java
+│               │   │   └── ReportMetadataDTO.java
+│               │   ├── enums/                     # 枚举类
+│               │   │   ├── AuditTaskStatusEnum.java
+│               │   │   └── SmellSeverityEnum.java
+│               │   └── vo/                        # 视图对象（展现层）
+│               │       └── (XxxVO.java)
+│               │
+│               ├── mq/                            # 消息队列
+│               │   └── message/                   # 消息定义
+│               │       ├── BaseMessage.java       # 消息基类
+│               │       ├── MessageHandler.java    # 消息处理器
+│               │       ├── MQListener.java        # MQ 监听器
+│               │       └── MQProducer.java        # MQ 生产者
+│               │
+│               ├── service/                       # 业务服务层
+│               │   ├── impl/                      # 服务实现
+│               │   │   ├── AuditHandlerService.java
+│               │   │   └── TaskDispatcher.java
+│               │   └── (接口定义)
+│               │
+│               ├── util/                          # 工具类
+│               │   └── (XxxUtil.java)
+│               │
+│               └── validator/                     # 校验器
+│                   └── JavaSyntaxValidator.java   # Java 语法校验
+│
+├── resources/                      # 资源文件
+│   ├── application.yml
+│   ├── application-dev.yml
+│   └── mapper/
+│
+├── pom.xml                         # Maven 依赖配置
+└── target/                         # 编译输出

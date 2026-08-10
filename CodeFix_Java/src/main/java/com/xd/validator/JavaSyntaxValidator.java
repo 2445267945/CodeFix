@@ -20,7 +20,6 @@ public class JavaSyntaxValidator {
     public Optional<String> validate(String code) {
         if (code.isEmpty()) return Optional.of("代码内容为空，无法解析");
         try {
-            log.info("===> 校验代码：{}", code);
             StaticJavaParser.parse(code);
             return Optional.empty(); // 校验通过，没有错误
         } catch (ParseProblemException e) {

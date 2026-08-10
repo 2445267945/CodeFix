@@ -12,8 +12,11 @@ mq:
   rocketmq:
     name-server: 192.168.88.130:9876
     consumer:
-      groupName: agent_group
-      topics: agent_status_report
+      groupName: cid_status_group
+      topics: agent_status_topic
+    producer:
+      groupName: cid_task_group
+      topics: agent_task_topic
 
 py:
   url: http://localhost:8000/analyze

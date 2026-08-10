@@ -1,9 +1,10 @@
 package com.xd.config;
 
-import com.xd.mq.Listener;
+import com.xd.mq.MQListener;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
 import org.apache.rocketmq.client.exception.MQClientException;
+import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
 import org.apache.rocketmq.remoting.protocol.heartbeat.MessageModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,24 +17,24 @@ import java.util.List;
 
 @Slf4j
 @Configuration
-public class RocketMQConfig {
+public class RocketMQConsumerConfig {
     // 配置项大家自定义即可
     @Value("${mq.rocketmq.name-server}")
     private String nameSrvAddr;
 
     @Value("${mq.rocketmq.consumer.groupName}")
-    private String groupName;
+    private String consumerGroup;
 
     @Value("#{'${mq.rocketmq.consumer.topics}'.split(',')}")
     private List<String> topicList;
 
     @Autowired
-    private Listener registerMessageListener;
+    private MQListener registerMessageListener;
 
     @Bean
     public DefaultMQPushConsumer getRocketMQConsumer() throws RuntimeException {
-        if (StringUtils.isEmpty(groupName)){
-            throw new RuntimeException("groupName is null !!!");
+        if (StringUtils.isEmpty(consumerGroup)){
+            throw new RuntimeException("consumerGroup is null !!!");
         }
         if (StringUtils.isEmpty(nameSrvAddr)){
             throw new RuntimeException("namesrvAddr is null !!!");
@@ -41,7 +42,7 @@ public class RocketMQConfig {
         if(StringUtils.isEmpty(topicList)){
             throw new RuntimeException("topics is null !!!");
         }
-        DefaultMQPushConsumer consumer = new DefaultMQPushConsumer(groupName);
+        DefaultMQPushConsumer consumer = new DefaultMQPushConsumer(consumerGroup);
         consumer.setNamesrvAddr(nameSrvAddr);
         consumer.registerMessageListener(registerMessageListener);
         /**
@@ -69,12 +70,13 @@ public class RocketMQConfig {
                 }
             });
             consumer.start();
-            log.info("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}",groupName,topicList,nameSrvAddr);
+            log.info("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}",consumerGroup,topicList,nameSrvAddr);
         }catch (MQClientException e){
-            log.error("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}",groupName,topicList,nameSrvAddr,e);
+            log.error("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}",consumerGroup,topicList,nameSrvAddr,e);
             throw new RuntimeException(e);
         }
         return consumer;
     }
+
 
 }

@@ -1,4 +1,4 @@
-package com.xd.service;
+package com.xd.service.impl;
 
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;

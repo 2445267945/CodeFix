@@ -1,4 +1,4 @@
-package com.xd.service;
+package com.xd.service.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xd.model.vo.AuditResponseVO;
@@ -19,7 +19,7 @@ public class CacheService {
         return objectMapper.convertValue(auditResponseObj, AuditResponseVO.class);
     }
 
-    public void put(String md5, AuditResponseVO auditResponse) {
+    public void put(String md5, String auditResponse) {
         redisTemplate.opsForValue().setIfAbsent(md5, auditResponse);
     }
 }

@@ -10,12 +10,12 @@ import java.util.List;
  */
 @Data
 public class AuditReportDTO {
-
+    private String taskId;
     /**
-     * 状态：success / partial / error（字符串，与 Python 端对齐）
+     * 状态 Python 端对齐
      */
     private String status;
-
+    private String statusCode;
     /**
      * 整体健康度评分（0-100）
      */

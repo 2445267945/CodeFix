@@ -21,10 +21,26 @@ class AgentState(Enum):
     EXECUTING = "工具执行中"  # 正在执行工具函数（本地计算，不阻塞）
 
     # ========== 阻塞态（重点修改） ==========
-    BLOCKED = "外部阻塞"  # ⭐ 统一表示正在等待外部响应（IO/网络）
+    BLOCKED = "外部阻塞"  # 统一表示正在等待外部响应（IO/网络）
     # 通过附加字段或日志来区分具体阻塞原因（校验、检索、LLM 调用等）
 
     # ========== 终态 ==========
     FINISHED = "完成"
     ERROR = "错误"
     IDLE = "空闲"
+
+    @classmethod
+    def from_name(cls, name: str) -> "AgentState":
+        """按枚举名解析：from_name('THINKING') → AgentState.THINKING"""
+        try:
+            return cls[name.upper()]
+        except KeyError:
+            raise ValueError(f"未知 AgentState 名称: {name}")
+
+    @classmethod
+    def from_value(cls, value: str) -> "AgentState":
+        """按中文 value 解析：from_value('推理中') → AgentState.THINKING"""
+        for state in cls:
+            if state.value == value:
+                return state
+        raise ValueError(f"未知 AgentState 值: {value}")
