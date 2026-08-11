@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 
 class Consumer:
-    def __init__(self, topic: str, group: str, handler):
+    def __init__(self, topics: dict, group: str, handler):
         self.endpoints = config.mq.ROCKETMQ_NAMESRV_ADDR
-        self.topic = topic
+        self.topics = topics
         self.group = group
         self.handler = handler
         self.running = False
@@ -20,11 +20,10 @@ class Consumer:
         credentials = Credentials("", "")
         mq_config = ClientConfiguration(self.endpoints, credentials)
 
-        # ★ 必须和最小示例一致：位置参数，第三参是订阅 dict
         self.consumer = SimpleConsumer(
             mq_config,
             group,
-            {topic: FilterExpression("*")}
+            self.topics
         )
 
     def start(self):
@@ -37,7 +36,7 @@ class Consumer:
 
         thread = threading.Thread(target=self.poll_loop, daemon=True)
         thread.start()
-        logger.info(f"Consumer 已启动，监听 topic: {self.topic}, group: {self.group}")
+        logger.info(f"Consumer 已启动，监听 topic: {self.topics}, group: {self.group}")
 
     def poll_loop(self):
         while self.running:

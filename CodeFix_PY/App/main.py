@@ -1,10 +1,11 @@
-from App.infrastructure.mq.consumer import Consumer
-from App.infrastructure.mq.handler import Handler
-from App.services.impl.agent_msg_service import AgentMsgService
 from fastapi import FastAPI
 from pydantic import BaseModel
 from typing import Optional, List
+from App.bootstrap.mq_bootstrap import MQBootstrap
+from contextlib import asynccontextmanager
 import uvicorn
+
+
 
 # ---------- 定义请求/响应模型（与 Java 端对齐） ----------
 class CodeSmell(BaseModel):
@@ -36,7 +37,6 @@ class AuditReport(BaseModel):
     summary: str
     metadata: dict
 
-app = FastAPI(title="Java代码审计Agent", version="1.0")
 
 # # ---------- 核心分析接口 ----------
 # @app.post("/analyze", response_model=AuditReport)
@@ -66,25 +66,22 @@ app = FastAPI(title="Java代码审计Agent", version="1.0")
 #         "summary": str(result) if result else "审计完成，无问题",
 #         "metadata": {"agent_result": str(result)}
 #     }
+mq_bootstrap = MQBootstrap()
 
-def start_consumers():
-    """启动所有 MQ 消费者"""
-    # 1. 创建处理器并注册
-    handler = Handler()
-    handler.register("AGENT_TASK", AgentMsgService())  # 对应 types.py 中的映射
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    mq_bootstrap.start()
+    try:
+        yield
+    finally:
+        mq_bootstrap.stop()
 
-    # 2. 创建消费者
-    consumer = Consumer(
-        topic="agent_task_topic",
-        group="cid_task_group",
-        handler=handler.handle
-    )
-    # 3. 启动消费者
-    consumer.start()
-    return consumer
+app = FastAPI(
+    title="Java代码审计Agent",
+    version="1.0",
+    lifespan=lifespan
+)
 
 # ---------- 启动服务 ----------
 if __name__ == "__main__":
-    # 先启动消费者，再启动 FastAPI
-    consumer = start_consumers()
     uvicorn.run(app, host="0.0.0.0", port=8000)

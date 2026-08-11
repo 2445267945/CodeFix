@@ -30,6 +30,9 @@ class VectorDBConfig:
 class MQConfig:
     # MQ地址
     ROCKETMQ_NAMESRV_ADDR = os.getenv("ROCKETMQ_NAMESRV_ADDR")
+    ROCKETMQ_GROUP_NAME = os.getenv("ROCKETMQ_GROUP_NAME")
+    ROCKETMQ_TOPIC = os.getenv("ROCKETMQ_TOPIC")
+    MESSAGE_TYPE = os.getenv("MESSAGE_TYPE")
 
 class Config:
     llm = LLMConfig()
