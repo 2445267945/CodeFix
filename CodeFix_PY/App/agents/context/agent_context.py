@@ -7,3 +7,4 @@ class AgentContext:
     main_llm: Any
     compress_llm: Any
     msg_sender: Any
+    working_memory_store: Any

@@ -1,5 +1,6 @@
 from pydantic import ValidationError
 from App.agents.prompts import COMPRESS_PROMPT_TEMPLATE
+from App.models.history_message import HistoryMessage
 
 TOOL_LIMITS = {
     "search_manual": 3,
@@ -53,7 +54,7 @@ class MessageManager:
         return False
 
 
-    async def compress_history_msg(self, window_size, messages, llm):
+    async def compress_history_msg(self, window_size, messages, llm, history_summary: str = ""):
         """
         检查消息长度，若超过阈值则调用 LLM 压缩旧消"
         :param keep_recent:
@@ -62,27 +63,24 @@ class MessageManager:
         :return:
         """
         compress_threshold = 0.7
-        keep_recent = window_size * 0.3
+        keep_ratio = 0.3
+
         msg_len = len(messages)
+
+        # 未达到阈值，不压缩
         if msg_len / window_size < compress_threshold:
-            return
-        # 分割消息
-        keep = round(keep_recent)
+            return history_summary, messages
+
+        keep = max(1, round(window_size * keep_ratio))
+
         head = messages[:-keep]
         tail = messages[-keep:]
 
-        # 构造压缩提示词
-        compress_prompt = COMPRESS_PROMPT_TEMPLATE.format(head=head)
-        # 调用 LLM 生成摘要
+        compress_prompt = COMPRESS_PROMPT_TEMPLATE.format(history_summary=history_summary, head=head)
         try:
             summary_response = await llm.chat([{"role": "user", "content": compress_prompt}])
-            summary_text = summary_response.strip()
+            new_summary = HistoryMessage(role="system", content=summary_response.strip())
         except Exception as e:
-            # 若生成摘要失败，降级为简单截断
-            print(f"摘要生成失败，使用简单截断: {e}")
-            summary_text = f"[系统摘要] 前 {len(head)} 轮对话已压缩。"
-
-        # 重建消息列表：摘要作为 system 消息 + 最近保留的消息
-        messages = [{"role": "system", "content": f"【历史摘要】{summary_text}"}] + tail
-
-        print(f"上下文已压缩：丢弃了 {len(head)} 条旧消息，保留最近 {keep} 条。")
+            print(f"摘要生成失败，保留原历史摘要并直接截断: {e}")
+            new_summary = history_summary
+        return new_summary, tail

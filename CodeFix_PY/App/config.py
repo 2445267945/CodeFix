@@ -34,9 +34,13 @@ class MQConfig:
     ROCKETMQ_TOPIC = os.getenv("ROCKETMQ_TOPIC")
     MESSAGE_TYPE = os.getenv("MESSAGE_TYPE")
 
+class RedisConfig:
+    REDIS_URL = os.getenv("REDIS_URL")
+
 class Config:
     llm = LLMConfig()
     vector_db = VectorDBConfig()
     mq = MQConfig()
+    redis = RedisConfig()
 
 config = Config()

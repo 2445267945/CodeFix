@@ -26,9 +26,13 @@ class ToolExecutor(ReActAgent):
             self.msg_sender.agent_report(agent = self, event = "ERROR", output = {"error": self.final_answer})
             return
         # 1. 获取 LLM 响应
+        llm_messages = []
+        if self.history_summary:
+            llm_messages.append(self.history_summary.model_dump())
+        llm_messages.extend(self.messages)
         print(f"当前AI：{self.name}")
         try:
-            response = await self.main_llm.chat(self.messages)
+            response = await self.main_llm.chat(llm_messages)
             print(f"原始响应---：{response}")
         except Exception as e:
             logger.exception(f"{self.name} LLM 调用失败")
@@ -88,7 +92,7 @@ class ToolExecutor(ReActAgent):
             tool_res = f"Error: 工具执行失败 - {str(e)}"
         finally:
             # 统一收尾：无论成功或失败，都将结果（或错误信息）包装成 Observation 加入历史
-            self.add_message("user", f"Observation: {tool_res}")
+            self.add_message("assistant", f"Observation: {tool_res}")
             self.msg_sender.agent_report(agent = self, event = "TOOL_RESULT", output = tool_res)
             return tool_res
 

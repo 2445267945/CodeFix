@@ -10,6 +10,8 @@ from App.infrastructure.mq.event_bus import event_bus
 from App.models.agent_message import AgentMessage
 from App.services.base_handler import BaseMsgHandler
 from App.services.llm_factory import llm_factory
+from .redis_working_memory_store import RedisWorkingMemoryStore
+from ...infrastructure.redis.redis_client import redis_service
 
 logger = logging.getLogger(__name__)
 main_llm = llm_factory.get_llm(4096, 0.1, "mid")
@@ -18,7 +20,9 @@ compress_llm = llm_factory.get_llm(4096, 0.1, "low")
 class AgentMsgService(BaseMsgHandler):
     """处理 AGENT_MSG 类型的消息"""
     def __init__(self):
-        self.context = AgentContext(main_llm = main_llm, compress_llm = compress_llm, msg_sender = self)
+        working_memory_store = RedisWorkingMemoryStore(redis_service)
+        self.context = AgentContext(main_llm = main_llm, compress_llm = compress_llm, msg_sender = self,
+                                    working_memory_store=working_memory_store)
         self.loop = asyncio.new_event_loop()
         self.thread = threading.Thread(
             target=self.run_loop,
