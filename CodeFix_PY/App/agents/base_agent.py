@@ -5,6 +5,7 @@ from .agent_state import AgentState
 import datetime
 from App.infrastructure.memory.message_manager import MessageManager
 from .context.agent_context import AgentContext
+from ..models.agent_result import AgentResult
 
 
 class BaseAgent(ABC):
@@ -17,6 +18,7 @@ class BaseAgent(ABC):
         self.base_message = base_message # 消息基类
         self.window_size = 10 # 窗口大小
         self.max_iterations = 30  # 防止死循环
+        self.current_step = 0 # 当前步数
         self.messages = []  # 维护对话历史（上下文）
         self.systemPrompt = None # 系统提示词
         self.tools = registry.tools # 工具
@@ -39,32 +41,38 @@ class BaseAgent(ABC):
 
     async def run(self, question: str):
         self.status = AgentState.THINKING
-        cur_iterations = 0
-        tool_desc = registry.get_tools_desc()
-        # 构造提示词
-        prompt = self.systemPrompt.format(name=self.name, tool_desc=tool_desc, question=question)
-        self.add_message("user", prompt)
-        self.last_time = datetime.datetime.now()
-        # 进入ReAct循环
-        while self.status !=  AgentState.FINISHED and cur_iterations < self.max_iterations:
-            await self.manager.compress_history_msg(self.window_size, self.messages, self.compress_llm)
-            cur_time = datetime.datetime.now()
-            # 当前时间 - 过去时间 > 30s(watch_dog) ? 超时 : 未超时更新过去时间;
-            if cur_time - self.last_time > datetime.timedelta(seconds=self.watch_dog):
-                self.status = AgentState.ERROR
-                self.final_answer = f"Error: AI 推理超时（{self.watch_dog}），已强制终止。"
-                self.msg_sender.agent_report(self.final_answer, agent=self)
-                break
-            audit_report = await self.step()
-            print(f"当前Agent:{self.name}")
-            print(f"===> step{cur_iterations + 1}：【{audit_report[:100]}...】")
-            cur_iterations += 1
-            if self.status == AgentState.FINISHED:
-                self.msg_sender.agent_report(self.final_answer, agent=self)
-                break
-        self.cleanup()
-        self.status = AgentState.IDLE
-        return self.final_answer
+        try:
+            tool_desc = registry.get_tools_desc()
+            # 构造提示词
+            prompt = self.systemPrompt.format(name=self.name, tool_desc=tool_desc, question=question)
+            self.add_message("user", prompt)
+            self.last_time = datetime.datetime.now()
+            # 进入ReAct循环
+            while self.status not in (AgentState.FINISHED, AgentState.ERROR):
+                self.current_step += 1
+                await self.manager.compress_history_msg(self.window_size, self.messages, self.compress_llm)
+                cur_time = datetime.datetime.now()
+                # 当前时间 - 过去时间 > 30s(watch_dog) ? 超时 : 未超时更新过去时间;
+                if cur_time - self.last_time > datetime.timedelta(seconds=self.watch_dog):
+                    self.status = AgentState.ERROR
+                    self.final_answer = {"error": f"Error: AI 推理超时（{self.watch_dog}），已强制终止。"}
+                    self.msg_sender.agent_report(agent=self, event="ERROR", output=self.final_answer)
+                    break
+                await self.step()
+                if self.current_step >= self.max_iterations:
+                    self.status = AgentState.ERROR
+                    self.final_answer = {"error": f"Error: 超过最大推理步数 {self.max_iterations}"}
+                    break
+                if self.status is AgentState.FINISHED:
+                    return AgentResult.ok(agent_name=self.name, result=self.final_answer, iterations=self.current_step)
+            return AgentResult.fail(agent_name=self.name, result=self.final_answer, iterations=self.current_step)
+        except Exception as e:
+            self.status = AgentState.ERROR
+            self.final_answer = {"error": str(e)}
+            return AgentResult.fail(agent_name=self.name, result=self.final_answer, iterations=self.current_step)
+        finally:
+            self.status = AgentState.IDLE
+            self.cleanup()
 
     @abstractmethod
     def step(self):

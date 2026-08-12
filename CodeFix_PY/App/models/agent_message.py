@@ -15,6 +15,8 @@ class AgentMessage(BaseMessage):
     code: str = ""
     smells: list = []
     # ===== Python → Java 时填充 =====
+    event: str = ""
+    step: int = 0
     agent_name: str = Field(default="", alias="agentName")
     parent_agent: Optional[str] = Field(default=None, alias="parentAgent")
     status: str = ""

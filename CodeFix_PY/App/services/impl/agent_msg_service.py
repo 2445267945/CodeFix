@@ -1,7 +1,7 @@
 import logging
 import asyncio
+import threading
 import time
-from App.agents.agent_state import AgentState
 from App.agents.base_agent import BaseAgent
 from App.agents.context.agent_context import AgentContext
 from App.agents.supervisor.supervisor_agent import SupervisorAgent
@@ -19,7 +19,12 @@ class AgentMsgService(BaseMsgHandler):
     """处理 AGENT_MSG 类型的消息"""
     def __init__(self):
         self.context = AgentContext(main_llm = main_llm, compress_llm = compress_llm, msg_sender = self)
-
+        self.loop = asyncio.new_event_loop()
+        self.thread = threading.Thread(
+            target=self.run_loop,
+            daemon=True
+        )
+        self.thread.start()
     def handle(self, message: BaseMessage) -> None:
         """统一入口方法"""
         # 此时 message 已经是 AgentMessage 类型（codec解析过了）
@@ -31,7 +36,7 @@ class AgentMsgService(BaseMsgHandler):
 
         try:
             # 执行主Agent推理
-            asyncio.run(self.run_agent(msg))
+            future = asyncio.run_coroutine_threadsafe(self.run_agent(msg), self.loop)
         except Exception as e:
             logger.error(f"任务 {msg.task_id} 执行失败: {e}")
             event_bus.publish(AgentMessage.status_report(
@@ -41,17 +46,20 @@ class AgentMsgService(BaseMsgHandler):
                 thought=f"执行异常: {str(e)}"
             ))
 
+    def run_loop(self):
+        asyncio.set_event_loop(self.loop)
+        self.loop.run_forever()
+
     async def run_agent(self, msg: AgentMessage) -> None:
         agent = SupervisorAgent(context=self.context, base_message=msg)
         await agent.run(msg.question)
 
-    def agent_report(self, res, agent: BaseAgent):
-        # res 可能是中间 thought，也可能是最终 answer
-        output = res if isinstance(res, dict) else {"content": res}
-        msg = self.assemble(output, agent)
+    def agent_report(self, agent: BaseAgent, event: str, output: dict):
+        output = output if isinstance(output, dict) else {"content": output}
+        msg = self.assemble(event=event, agent=agent, output=output)
         event_bus.publish("agent_status_topic", msg.model_dump_json(by_alias=True))
 
-    def assemble(self, output, agent: BaseAgent) -> AgentMessage:
+    def assemble(self, event, agent: BaseAgent, output) -> AgentMessage:
         """从当前 Agent 状态构造回传 Java 的消息（信封沿用原任务）"""
         msg = agent.base_message
         return AgentMessage(
@@ -60,9 +68,11 @@ class AgentMsgService(BaseMsgHandler):
             task_id = msg.task_id,
             session_id = msg.session_id,
             type = "AGENT_STATUS",  # 回传用独立 type，便于 Java 路由
-            agent_nam = agent.name,
+            agent_name = agent.name,
+            event = event,
+            step = agent.current_step,
             status = agent.status.value,
-            output = output or {},
+            output = output
         )
 
 

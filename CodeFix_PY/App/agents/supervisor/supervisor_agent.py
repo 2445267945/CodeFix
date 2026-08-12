@@ -19,10 +19,15 @@ class SupervisorAgent(ToolExecutor):
         - `run_fixer`：直接修复代码问题，返回修复后的代码和修改说明（适用于已知问题的代码）。
         
         **决策原则（自主判断）**：
-        1. **如果代码简单、问题明确**（例如只有语法错误，没有复杂逻辑），你可以直接调用 `run_fixer`，无需先分析结构。
-        2. **如果代码复杂、逻辑深、问题不明确**，建议先调用 `run_explorer` 获取结构信息，再调用 `run_fixer`。
-        3. **如果 `run_fixer` 返回的结果仍有问题**（如校验失败），你可以再次调用 `run_fixer` 进行二次修复。
-        4. **如果多次修复仍失败**，你可以选择输出错误信息并终止。
+        1. 如果代码简单且问题明确，可以直接调用 run_fixer。
+        2. 如果代码复杂、问题不明确，先调用 run_explorer。
+        3. run_fixer 返回后，必须检查：
+           - 是否返回有效的最终代码；
+           - 是否完成必要的语法验证；
+           - 是否覆盖原始报告中的所有 risk_points。
+        4. 如果任意风险没有明确解决，必须再次调用 run_fixer。
+        5. 只有确认所有已知风险均已处理后，才能输出 finish。
+        6. 不要仅根据子 Agent 的 reason 或“修复完成”文字判断任务是否完成。
         
         **工作流程（ReAct 循环）**：
         - **Thought**：分析当前状态（已有什么信息、缺少什么信息），决定下一步行动。
@@ -32,14 +37,26 @@ class SupervisorAgent(ToolExecutor):
         - **Finish**：输出最终结果。
         
         **输出格式（必须严格遵守，只输出 JSON）**：
-        - **调用工具时**：
-          {{"thought": "决策理由", "action": "run_explorer", "action_input": {{"code": "..."}}}}
-          或
-          {{"thought": "决策理由", "action": "run_fixer", "action_input": {{"code_and_report": '{{"code": "...", "report": "..."}}'}}}}
-        - **任务完成时**：
-          {{"thought": "总结", "finish": true, "answer": {{"code": "...", "changes": "..."}}}}
-        
-        **注意**：你拥有完全自主权，可以跳过任何步骤，也可以重复步骤。唯一的目标是“修复代码”，路径由你决定。
+        你必须严格输出一个合法 JSON Object。 
+        禁止输出： 
+        - Markdown 
+        - ```json 
+        - JSON 前后的解释文字 
+        - 多个 JSON Object 
+        - 非 JSON 格式内容 
+        每次模型响应只能是以下两种结构之一。
+          1：调用子 Agent
+          {{"type": "tool_call", "reason": "为什么需要调用这个子 Agent", "tool": "run_explorer", "arguments": {{"code": "完整 Java 源代码"}}}}
+          或者
+          {{"type": "tool_call", "reason": "为什么需要调用这个子 Agent", "tool": "run_fixer", "arguments": {{"code": "完整 Java 源代码", "report": {{"summary": "结构分析报告", "risk_points": []}}}}}}
+          2：任务完成
+          成功：{{"type": "finish", "reason": "任务已经完成", "answer":{{"code": "最终 Java 代码", "changes": "具体修改内容" }}}}
+          失败：{{"type": "finish", "reason": "任务无法继续完成", "answer": {{"code": "", "changes": "", "error": "失败原因" }}}}
+          
+        **注意**：
+        你可以根据当前状态自主选择 run_explorer 或 run_fixer，
+        但不得跳过完成任务所必需的验证。
+        只有确认最终代码已经处理所有已知风险后，才能 finish。
         
         现在开始执行任务。
         Question: {question}

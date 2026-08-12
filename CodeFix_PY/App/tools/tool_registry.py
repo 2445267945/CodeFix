@@ -119,18 +119,13 @@ async def run_explorer(code: str, caller=None) -> str:
     description="调用修复员 Agent 修复 Java 代码。输入: {'code': '原始代码', 'report': '结构分析报告'}（JSON 格式）",
     need_caller = True
 )
-async def run_fixer(code_and_report: str, caller=None) -> str:
+async def run_fixer(code: str, report: dict, caller=None) -> str:
     if caller is None:
         raise RuntimeError("run_fixer 执行失败：缺少 caller Agent")
     from App.agents.worker.fixer_agent import FixerAgent
-    try:
-        data = json.loads(code_and_report)
-        code = data.get("code", "")
-        report = data.get("report", "")
-        prompt = (f"原始代码：\n"f"{code}\n"
-                  f"\n"f"结构报告：\n"f"{report}")
-    except json.JSONDecodeError:
-        prompt = code_and_report
+    report_text = json.dumps(report, ensure_ascii=False, indent=2)
+    prompt = (f"原始代码：\n"f"{code}\n"
+              f"\n"f"结构报告：\n"f"{report_text}")
     agent = FixerAgent(context=caller.context, base_message=caller.base_message)
     return await agent.run(prompt)
 

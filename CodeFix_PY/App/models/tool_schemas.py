@@ -20,7 +20,8 @@ class RunExplorerInput(BaseModel):
 
 # ---------- run_fixer 的入参规则 ----------
 class RunFixerInput(BaseModel):
-    code_and_report: str = Field(..., description="JSON格式：{'code': '...', 'report': '...'}", min_length=1)
+    code: str = Field(..., min_length=1, description="原始 Java 代码")
+    report: dict = Field(..., description="结构化代码分析报告")
 
 # ---------- 工具 Schema 注册表 ----------
 TOOL_SCHEMAS = {

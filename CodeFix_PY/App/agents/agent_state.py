@@ -16,18 +16,18 @@ class AgentState(Enum):
     - JAVA.COMPLETED      ←  PYTHON.FINISHED（成功完成）
     - JAVA.NEED_RETRY     ←  PYTHON.ERROR（异常退出，需要重试）
     """
-    # ========== 运行态 ==========
-    THINKING = "推理中"  # 正在调用 LLM 进行推理（CPU/GPU 密集）
-    EXECUTING = "工具执行中"  # 正在执行工具函数（本地计算，不阻塞）
-
-    # ========== 阻塞态（重点修改） ==========
-    BLOCKED = "外部阻塞"  # 统一表示正在等待外部响应（IO/网络）
-    # 通过附加字段或日志来区分具体阻塞原因（校验、检索、LLM 调用等）
-
-    # ========== 终态 ==========
-    FINISHED = "完成"
-    ERROR = "错误"
-    IDLE = "空闲"
+    # Agent 尚未开始运行
+    IDLE = "IDLE"
+    # 正在调用 LLM 进行推理
+    THINKING = "THINKING"
+    # 正在执行 Tool
+    EXECUTING = "EXECUTING"
+    # 正在等待外部系统返回
+    BLOCKED = "BLOCKED"
+    # Agent 正常完成
+    FINISHED = "FINISHED"
+    # Agent 执行异常
+    ERROR = "ERROR"
 
     @classmethod
     def from_name(cls, name: str) -> "AgentState":

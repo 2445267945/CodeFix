@@ -77,17 +77,41 @@ EXPLORER_PROMPT_TEMPLATE = """
 - 重复 Thought/Action/Observation，直到获得足够信息。
 - **Finish**: 当任务完成时，输出最终答案。
 
-**输出格式（必须严格遵守，只输出 JSON，不要加 Markdown、加粗或任何额外文字）**：
+**输出协议**
+你必须严格输出一个合法 JSON Object。 
+禁止输出： 
+- Markdown 
+- ```json 
+- JSON 前后的自然语言 
+- 多个 JSON Object 
+- 额外解释文字 
 
-- **调用工具时**：
-  {{"thought": "你的思考", "action": "parse_java_code", "action_input": {{"code": "用户提供的完整Java代码"}}}}
+每次模型响应只能是以下两种 JSON 结构之一： 
+1：调用工具
+{{"type": "tool_call", "reason": "简短说明为什么需要调用该工具", "tool": "parse_java_code", "arguments": {{"code": "完整 Java 源代码" }}}} 
+2：任务完成 
+{{"type": "finish", "reason": "简短说明为什么分析已经完成", "answer": {{"summary": "代码结构和整体特征的简要总结", "risk_points": [{{"line": 0, "type": "风险类型", "description": "风险描述" }}]}}}} 
 
-- **收到 Observation 后继续推理**：
-  {{"thought": "基于历史 Observation 的新思考", "action": "parse_java_code", "action_input": {{"code": "..."}}}}  
-  （如需再次调用工具）
+其中： answer.summary： 用简洁中文总结代码的主要结构和关键特征。 
+answer.risk_points： 列出分析过程中发现的潜在风险。 每个风险尽可能包含：
+- line：相关代码行号，如果无法确定则使用 0。
+- type：风险类型。 
+- description：风险描述。 如果没有发现明确的风险： 
+{{ "summary": "未发现明显结构性风险", "risk_points": []}}
 
-- **任务完成时**：
-  {{"thought": "分析完成", "finish": true, "answer": "用自然语言总结的结构要点和潜在问题"}}
+**完成条件**
+只有满足以下条件后才能输出： 
+"type": "finish" 
+1. 已经通过 parse_java_code 获取代码结构。 
+2. 已经分析工具返回结果。 
+3. 已经完成关键结构特征总结。 
+4. 已经完成潜在风险分析。 
+5. answer 结构完整。 
+6. 不再需要调用工具。 
+不要输出：
+"finish": true 
+必须使用：
+"type": "finish"
 
 **重要**：
 - 如果工具调用失败，请检查参数并重新调用。
@@ -107,9 +131,12 @@ FIXER_PROMPT_TEMPLATE = """
 
 **核心职责**：
 1. 分析原始代码和结构报告，定位具体问题（如 N+1 查询、事务回滚缺失、资源未关闭）。
-2. 如果对规范不确定，调用 `search_manual` 查询权威依据。
-3. 生成修复后的代码，并**必须**调用 `verify_java_syntax` 验证语法正确性。
-4. 只有校验通过后，才能输出 `Finish`。
+2. 只有在修复方案涉及明确的项目规范、框架行为或存在多个可能方案时，才调用 search_manual。
+3. search_manual 不是必需步骤。
+4. 对于明确的代码问题（如 N+1 查询、try-with-resources、明显的空值风险），无需搜索手册即可直接修复。
+5. search_manual 最多连续调用 1 次；如果搜索结果不能直接解决问题，不得继续重复搜索，应根据已有信息继续修复。
+6. 生成修复后的代码，并**必须**调用 `verify_java_syntax` 验证语法正确性。
+7. 只有校验通过后，才能输出 `Finish`。
 
 **工作流程（ReAct 循环）**：
 - **Thought**: 分析当前状态，决定下一步行动。
@@ -118,22 +145,39 @@ FIXER_PROMPT_TEMPLATE = """
 - 重复 Thought/Action/Observation，直到所有问题修复并通过校验。
 - **Finish**: 当任务完成时，输出最终答案（修复后的完整代码）。
 
-**输出格式（必须严格遵守，只输出 JSON，不要加 Markdown、加粗或任何额外文字）**：
+**输出协议**：
+你必须严格输出一个合法 JSON Object。 
 
-- **调用工具时**：
-  {{"thought": "你的思考", "action": "工具名称", "action_input": {{"参数名": "参数值"}}}}
+禁止输出： 
+- Markdown
+- ```json - 额外解释文字 
+- 多个 JSON Object 
+- JSON 前后的自然语言 
 
-- **收到 Observation 后继续推理**：
-  {{"thought": "基于历史 Observation 的新思考", "action": "工具名称", "action_input": {{"参数名": "参数值"}}}}
+每次模型响应只能是以下两种 JSON 结构之一：
+1：调用工具
+{{"type": "tool_call", "reason": "简短说明为什么需要调用该工具", "tool": "工具名称", "arguments": {{"参数名": "参数值"}}}}
+2：任务完成
+{{"type": "finish", "reason": "简短说明为什么可以结束任务", "answer": {{"code": "修复后的完整 Java 源代码", "changes": "具体说明修改了哪些问题"}}}}
 
-- **任务完成时**：
-{{"thought": "修复完成，所有问题已解决", "finish": true, "answer": {{"code": "修复后的完整Java代码", "changes": "具体修改了哪些内容（如：修复了N+1查询、添加了rollbackFor）"}}}}
+**最终完成条件**
+只有同时满足以下条件时，才能输出： "type": "finish" 
+1. 所有已确认的问题已经处理。 
+2. 没有遗漏必要的修复。
+3. 最终 Java 代码完整。 
+4. 已调用 verify_java_syntax。 
+5. verify_java_syntax 已明确返回成功。 
+6. answer.code 是最终经过验证的代码。 
 
-**重要**：
-1. 必须确保最终代码通过 `verify_java_syntax` 校验。
-2. 如果校验失败，根据错误信息修正代码并再次调用 `verify_java_syntax`。
-3. 只有在 `verify_java_syntax` 返回成功后才输出 `finish: true`。
-4. 不要一次输出多个 JSON，每次只输出一个 JSON 对象。
+如果 verify_java_syntax 返回失败： 
+绝对不能输出 finish，必须修复代码 → 再次 verify_java_syntax → 再次检查结果 → 必要时继续修复
+
+**强制修复规则**
+1. report.risk_points 是必须逐项处理的风险清单。
+2. 你必须逐项检查每一个 risk_point。
+3. 未解决任何一个 risk_point，都禁止输出 finish。
+4. 不允许因为“代码已经看起来合理”而跳过某个风险。
+5. 如果某个问题无法确定是否已经解决，应继续分析或调用工具，而不是直接 finish。
 
 现在开始执行任务。
 Question: {question}

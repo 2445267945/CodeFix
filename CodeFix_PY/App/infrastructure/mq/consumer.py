@@ -44,7 +44,6 @@ class Consumer:
                 messages = self.consumer.receive(16, 60)  # max_num, invisible_seconds
                 if not messages:
                     continue
-
                 for msg in messages:
                     try:
                         body = msg.body.decode("utf-8")

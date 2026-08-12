@@ -68,7 +68,6 @@ def search_manual(query: str, n_results: int = None) -> str:
     if n_results is None:
         n_results = config.vector_db.N_RESULTS
 
-    print(f"[DEBUG] search_manual 收到 query: '{query}'")
     results = collection.query(
         query_texts=[query],
         n_results=n_results

@@ -29,7 +29,6 @@ class Handler:
         """
         # 1. 解析消息（根据type得到具体子类）
         message = MessageCodec.decode(raw_json)
-
         # 2. 根据type找到对应的handler
         handler = self.handlers.get(message.type)
 

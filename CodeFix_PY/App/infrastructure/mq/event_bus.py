@@ -21,7 +21,7 @@ class EventBus:
         msg.topic = topic
         msg.body = str(payload).encode('utf-8')
         send_receipt = self.producer.send(msg)
-        print(f"消息发送成功，Topic: {topic}, MessageId: {send_receipt.message_id}")
+        # print(f"消息发送成功，Topic: {topic}, MessageId: {send_receipt.message_id}")
 
 
 event_bus = EventBus(endpoints=config.mq.ROCKETMQ_NAMESRV_ADDR)

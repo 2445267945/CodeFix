@@ -1,6 +1,12 @@
 from pydantic import ValidationError
 from App.agents.prompts import COMPRESS_PROMPT_TEMPLATE
 
+TOOL_LIMITS = {
+    "search_manual": 3,
+    "verify_java_syntax": 5,
+    "run_explorer": 2,
+    "run_fixer": 3,
+}
 
 class MessageManager:
     def check_tool_Input(self, tool_name, tool_args, tools_schemas):
@@ -21,18 +27,28 @@ class MessageManager:
 
     def checkLoop(self, tool_name, tool_args, action_history) -> bool:
         """
-        检测AI是不是重复的调用同一个工具和传入同样的参数，如果是则代表死循环了
-        :param tool_name:
-        :param tool_args:
-        :return:
+        检测 Agent 是否陷入重复工具调用或工具调用次数过多。
+
+        规则：
+        1. 最近 3 次完全相同的工具 + 参数 -> 死循环
+        2. 同一个工具调用次数超过该工具限制 -> 死循环
         """
-        action_signature = f"{tool_name}:{tool_args}"  # 生成动作指纹
-        # 检测重复
+        action_signature = f"{tool_name}:{tool_args}"
+        # 先加入当前动作
         action_history.append(action_signature)
-        if len(action_history) > 3:
+        # 只保留最近 5 次
+        if len(action_history) > 5:
             action_history.pop(0)
-        if len(action_history) == 3 and len(set(action_history)) == 1:
-            # 连续3轮完全一样的动作 → 死循环
+        # 规则1：最近3次完全相同
+        if len(action_history) >= 3:
+            if len(set(action_history[-3:])) == 1:
+                return True
+        # 规则2：同一个工具调用次数达到上限
+        tool_count = sum(
+            1 for action in action_history
+            if action.startswith(f"{tool_name}:")
+        )
+        if tool_count >= TOOL_LIMITS.get(tool_name, 5):
             return True
         return False
 
