@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 
 
 class WorkingMemory(BaseModel):
+    run_id: str
     task_id: str
     session_id: str
     agent_name: str

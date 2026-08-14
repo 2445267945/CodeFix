@@ -26,6 +26,9 @@ public class AgentTaskMessage extends BaseMessage {
      */
     private List<CodeSmellDTO> smells;
 
+    private String command;
+    private String runId;
+
     /**
      * 扩展位：优先级、超时、回调 topic 等，不破坏老字段
      */

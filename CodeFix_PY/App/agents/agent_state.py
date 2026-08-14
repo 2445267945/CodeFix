@@ -22,6 +22,8 @@ class AgentState(Enum):
     THINKING = "THINKING"
     # 正在执行 Tool
     EXECUTING = "EXECUTING"
+    # 任务被取消
+    CANCELLED = "CANCELLED"
     # 正在等待外部系统返回
     BLOCKED = "BLOCKED"
     # Agent 正常完成

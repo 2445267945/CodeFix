@@ -111,8 +111,9 @@ async def run_explorer(code: str, caller=None) -> str:
     if caller is None:
         raise RuntimeError("run_explorer 执行失败：缺少 caller Agent")
     from App.agents.worker.explorer_agent import ExplorerAgent
-    agent = ExplorerAgent(context=caller.context, base_message=caller.base_message)
-    return await agent.run(code)
+    agent = ExplorerAgent(context=caller.context, base_message=caller.base_message, parent_agent=caller.name)
+    res = await agent.run(code)
+    return res.model_dump()
 
 @registry.register(
     name="run_fixer",
@@ -126,8 +127,9 @@ async def run_fixer(code: str, report: dict, caller=None) -> str:
     report_text = json.dumps(report, ensure_ascii=False, indent=2)
     prompt = (f"原始代码：\n"f"{code}\n"
               f"\n"f"结构报告：\n"f"{report_text}")
-    agent = FixerAgent(context=caller.context, base_message=caller.base_message)
-    return await agent.run(prompt)
+    agent = FixerAgent(context=caller.context, base_message=caller.base_message, parent_agent=caller.name)
+    res = await agent.run(prompt)
+    return res.model_dump()
 
 
 

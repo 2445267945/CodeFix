@@ -15,6 +15,8 @@ class AgentMessage(BaseMessage):
     code: str = ""
     smells: list = []
     # ===== Python → Java 时填充 =====
+    run_id: str = Field(default="", alias="runId")
+    command: str = ""
     event: str = ""
     step: int = 0
     agent_name: str = Field(default="", alias="agentName")

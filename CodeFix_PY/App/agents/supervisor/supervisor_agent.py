@@ -2,9 +2,10 @@ from App.agents.context.agent_context import AgentContext
 from App.agents.tool_executor import ToolExecutor
 
 class SupervisorAgent(ToolExecutor):
-    def __init__(self, context: AgentContext, base_message = None):
+    def __init__(self, context: AgentContext, base_message = None, parent_agent = None):
         super().__init__(context, base_message)
         self.name = "Supervisor"
+        self.parent_agent = parent_agent
         self.context = context
         self.base_message = base_message
         self.main_llm = context.main_llm

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xd.mapper.AgentEventMapper">
+    <resultMap id="BaseResultMap" type="com.xd.model.entity.AgentEventDO">
+        <id property="id" column="id"/>
+        <result property="messageId" column="message_id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="runId" column="run_id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="agentName" column="agent_name"/>
+        <result property="parentAgent" column="parent_agent"/>
+        <result property="event" column="event"/>
+        <result property="step" column="step"/>
+        <result property="status" column="status"/>
+        <result property="output" column="output"/>
+        <result property="eventTimestamp" column="event_timestamp"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,
+        message_id,
+        task_id,
+        run_id,
+        session_id,
+        agent_name,
+        parent_agent,
+        event,
+        step,
+        status,
+        `output`,
+        event_timestamp
+    </sql>
+
+    <insert id="insertAgentEvent" parameterType="com.xd.model.entity.AgentEventDO">
+        INSERT INTO agent_event (
+            message_id,
+            run_id,
+            task_id,
+            session_id,
+            agent_name,
+            parent_agent,
+            event,
+            step,
+            status,
+            output,
+            event_timestamp
+        )
+        VALUES (
+                   #{messageId},
+                   #{runId},
+                   #{taskId},
+                   #{sessionId},
+                   #{agentName},
+                   #{parentAgent},
+                   #{event},
+                   #{step},
+                   #{status},
+                   #{output},
+                   #{eventTimestamp}
+               )
+    </insert>
+
+    <select id="selectByTaskId" parameterType="java.lang.String" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_event
+        WHERE task_id = #{taskId}
+        ORDER BY event_timestamp ASC, id ASC
+    </select>
+
+    <select id="selectByTaskIdAndRunId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_event
+        WHERE task_id = #{taskId}
+        AND run_id = #{runId}
+        ORDER BY event_timestamp ASC, id ASC
+
+    </select>
+</mapper>

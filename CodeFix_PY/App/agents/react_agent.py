@@ -6,8 +6,8 @@ from .context.agent_context import AgentContext
 
 
 class ReActAgent(BaseAgent):
-    def __init__(self, context: AgentContext, base_message = None):
-        super().__init__(context, base_message)
+    def __init__(self, context: AgentContext, base_message = None, parent_agent: str | None = None):
+        super().__init__(context, base_message, parent_agent)
 
     async def step(self):
         should_act = await self.think()

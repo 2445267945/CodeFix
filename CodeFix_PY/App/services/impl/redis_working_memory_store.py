@@ -12,13 +12,14 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
         self.redis = redis_service.client
 
     @staticmethod
-    def _key(session_id: str, task_id: str, agent_name: str) -> str:
-        return f"agent:wm:{session_id}:{task_id}:{agent_name}"
+    def _key(session_id: str, task_id: str, run_id: str, agent_name: str) -> str:
+        return f"agent:wm:{session_id}:{task_id}:{run_id}:{agent_name}"
 
     async def save(self, memory: WorkingMemory) -> None:
-        key = self._key(memory.session_id, memory.task_id, memory.agent_name)
+        key = self._key(memory.session_id, memory.task_id, memory.run_id, memory.agent_name)
         data = {
             "task_id": memory.task_id,
+            "run_id": memory.run_id,
             "session_id": memory.session_id,
             "agent_name": memory.agent_name,
             "step": str(memory.step),
@@ -33,12 +34,13 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
         await self.redis.hset(key, mapping=data)
         await self.redis.expire(key, self.TTL)
 
-    async def load(self, session_id: str, task_id: str, agent_name: str) -> WorkingMemory | None:
-        key = self._key(session_id, task_id, agent_name)
+    async def load(self, session_id: str, task_id: str, run_id: str, agent_name: str) -> WorkingMemory | None:
+        key = self._key(session_id, task_id, run_id, agent_name)
         data = await self.redis.hgetall(key)
         if not data:
             return None
         return WorkingMemory(
+            run_id=data["run_id"],
             task_id=data["task_id"],
             session_id=data["session_id"],
             agent_name=data["agent_name"],
@@ -51,6 +53,6 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
             )
         )
 
-    async def clear(self, session_id: str, task_id: str, agent_name: str) -> None:
-        key = self._key(session_id, task_id, agent_name)
+    async def clear(self, session_id: str, task_id: str, run_id: str, agent_name: str) -> None:
+        key = self._key(session_id, task_id, run_id, agent_name)
         await self.redis.delete(key)

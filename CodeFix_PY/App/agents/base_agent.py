@@ -10,8 +10,9 @@ from ..models.agent_result import AgentResult
 
 
 class BaseAgent(ABC):
-    def __init__(self, context: AgentContext, base_message = None):
+    def __init__(self, context: AgentContext, base_message = None, parent_agent: str | None = None):
         self.name = "Default"
+        self.parent_agent = parent_agent
         self.context = context # 上下文容器
         self.main_llm = context.main_llm # 任务模型
         self.compress_llm = context.compress_llm # 压缩模型
@@ -37,14 +38,17 @@ class BaseAgent(ABC):
         if len(self.messages) > self.window_size:
             self.messages = self.messages[-self.window_size:]
 
-    async def run(self, question: str):
+    async def run(self, question: str, resume: bool = False):
         self.status = AgentState.THINKING
+        restored = False
         try:
-            restored = await self.restore_working_memory()
-            # 判断是否应该记忆恢复
+            if resume:
+                restored = await self.restore_working_memory()
+                if not restored:
+                    raise RuntimeError(f"任务 {self.base_message.task_id} " f"没有可恢复的 checkpoint")
+                # START / RETRY：从全新上下文开始
             if not restored:
                 tool_desc = registry.get_tools_desc()
-                # 构造提示词
                 prompt = self.systemPrompt.format(name=self.name, tool_desc=tool_desc, question=question)
                 self.add_message("user", prompt)
             self.last_time = datetime.datetime.now()
@@ -74,8 +78,8 @@ class BaseAgent(ABC):
             return AgentResult.fail(agent_name=self.name, result=self.final_answer, iterations=self.current_step)
         except Exception as e:
             self.status = AgentState.ERROR
-            self.final_answer = {"error": str(e)}
-            print(self.final_answer)
+            if self.final_answer is None:
+                self.final_answer = {"error": f"{self.name} 执行失败", "status": self.status.value}
             return AgentResult.fail(agent_name=self.name, result=self.final_answer, iterations=self.current_step)
 
     # 恢复记忆
@@ -85,6 +89,7 @@ class BaseAgent(ABC):
         memory = await self.working_memory_store.load(
             session_id=self.base_message.session_id,
             task_id=self.base_message.task_id,
+            run_id=self.base_message.run_id,
             agent_name=self.name
         )
         if memory is None:
@@ -101,6 +106,7 @@ class BaseAgent(ABC):
         if self.base_message is None:
             return
         memory = WorkingMemory(
+            run_id=self.base_message.run_id,
             task_id=self.base_message.task_id,
             session_id=self.base_message.session_id,
             agent_name=self.name,
@@ -119,6 +125,7 @@ class BaseAgent(ABC):
         await self.working_memory_store.clear(
             session_id=self.base_message.session_id,
             task_id=self.base_message.task_id,
+            run_id=self.base_message.run_id,
             agent_name=self.name,
         )
 

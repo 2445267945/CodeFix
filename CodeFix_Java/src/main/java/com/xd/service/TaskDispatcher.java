@@ -1,5 +1,7 @@
 package com.xd.service;
 
+import org.springframework.stereotype.Service;
+
 public interface TaskDispatcher {
     /**
      * 分发消息

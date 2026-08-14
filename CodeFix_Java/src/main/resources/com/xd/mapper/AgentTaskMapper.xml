@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xd.mapper.AgentTaskMapper">
+    <resultMap id="BaseResultMap" type="com.xd.model.entity.AgentTaskDO">
+        <id property="id" column="id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="runId" column="run_id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="version" column="version"/>
+        <result property="question" column="question"/>
+        <result property="code" column="code"/>
+        <result property="smells" column="smells"/>
+        <result property="status" column="task_status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,
+        task_id,
+        session_id,
+        run_id,
+        version,
+        question,
+        code,
+        smells,
+        status,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insertAgentTask" parameterType="com.xd.model.entity.AgentTaskDO">
+        INSERT INTO agent_task (
+            task_id,
+            session_id,
+            run_id,
+            version,
+            question,
+            code,
+            smells,
+            status,
+            created_at,
+            updated_at
+        )
+        VALUES (
+             #{taskId},
+             #{sessionId},
+             #{runId},
+             #{version},
+             #{question},
+             #{code},
+             #{smells},
+             #{status},
+             #{createdAt},
+             #{updatedAt}
+               )
+    </insert>
+
+    <update id="updateTask">
+        UPDATE agent_task
+        <set>
+            <if test="runId != null">
+                run_id = #{runId},
+            </if>
+            <if test="status != null">
+                status = #{status},
+            </if>
+            <if test="question != null">
+                question = #{question},
+            </if>
+            <if test="code != null">
+                code = #{code},
+            </if>
+            <if test="updatedAt != null">
+                updated_at = #{updatedAt},
+            </if>
+        </set>
+        WHERE task_id = #{taskId}
+    </update>
+
+    <select id="selectByTaskId" parameterType="java.lang.String" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_task
+        WHERE task_id = #{taskId}
+    </select>
+
+    <select id="selectTaskResult" resultType="com.xd.model.entity.TaskResultDO">
+        SELECT
+            t.task_id AS taskId,
+            t.run_id AS runId,
+            t.status AS taskStatus,
+            e.message_id AS messageId,
+            e.event AS event,
+            e.output AS output,
+            e.event_timestamp AS eventTimestamp
+        FROM agent_task t
+        LEFT JOIN agent_event e
+        ON e.task_id = t.task_id
+            AND e.run_id = t.run_id
+            AND e.event = 'FINISH'
+        WHERE t.task_id = #{taskId}
+        ORDER BY e.event_timestamp DESC
+            LIMIT 1
+    </select>
+</mapper>

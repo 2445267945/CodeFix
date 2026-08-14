@@ -8,11 +8,12 @@ import com.xd.service.TaskDispatcher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
 @Slf4j
-@Component
+@Service
 public class TaskDispatcherImpl implements TaskDispatcher {
 
     // Spring 会自动注入所有 MessageHandlerService 的实现类
