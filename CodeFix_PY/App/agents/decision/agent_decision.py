@@ -10,7 +10,7 @@ class ToolCallDecision(BaseModel):
     LLM 决定调用工具。
     """
 
-    type: Literal["tool_call"]
+    type: Literal["tool_call.py"]
     reason: str = ""
     tool: str
     arguments: dict[str, Any] = Field(default_factory=dict)

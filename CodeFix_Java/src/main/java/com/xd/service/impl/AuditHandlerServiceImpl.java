@@ -3,12 +3,11 @@ package com.xd.service.impl;
 import com.alibaba.fastjson2.JSON;
 import com.xd.model.dto.AgentMessageDTO;
 import com.xd.model.dto.AuditTaskCreateDTO;
+import com.xd.model.vo.AgentChatStreamVO;
 import com.xd.model.vo.AuditRequestVO;
 import com.xd.model.vo.TaskCreateVO;
 import com.xd.mq.MessageHandler;
-import com.xd.service.AgentEventService;
-import com.xd.service.AgentTaskService;
-import com.xd.service.AuditHandlerService;
+import com.xd.service.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,7 +23,15 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
     @Autowired
     private AgentEventService agentEventService;
     @Autowired
+    private AgentRunService agentRunService;
+    @Autowired
     private TransactionTemplate transactionTemplate;
+    @Autowired
+    private AgentSseService agentSseService;
+    @Autowired
+    private AgentChatAssemblerService agentChatAssemblerService;
+    @Autowired
+    private AgentConversationService agentConversationService;
 
     /**
      * 兼容旧版接口。
@@ -32,9 +39,7 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
      */
     @Override
     public String analyzeCode(AuditRequestVO request) {
-        if (request == null
-                || request.getCode() == null
-                || request.getCode().isBlank()) {
+        if (request == null || request.getCode() == null || request.getCode().isBlank()) {
             throw new IllegalArgumentException("Java代码不能为空");
         }
         AuditTaskCreateDTO dto = new AuditTaskCreateDTO();
@@ -79,6 +84,10 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
                 agentEventService.insertAgentEvent(messageDTO);
                 // 当前 Task 状态
                 agentTaskService.updateTaskStatus(messageDTO);
+                // 3. 当前 Run 状态
+                agentRunService.updateRun(messageDTO);
+                // 4. 只有 Root Agent FINISH 才生成 Assistant ChatMessage
+                agentConversationService.saveAssistantMessage(messageDTO);
             });
         } catch (Exception e) {
             log.error(
@@ -91,7 +100,9 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
             // 让MQ消费框架知道这次消费失败
             throw e;
         }
-        // 3. TODO 事务成功提交之后，再推给前端
+        AgentChatStreamVO assemble = agentChatAssemblerService.assemble(messageDTO);
+        // 3. 事务成功提交之后，再推给前端
+        agentSseService.send(assemble);
         log.debug(
                 "Agent事件持久化成功: taskId={}, runId={}, event={}",
                 messageDTO.getTaskId(),

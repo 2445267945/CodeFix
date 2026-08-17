@@ -24,18 +24,39 @@ class ToolRegistry:
             return func
         return decorator
 
-    def get_tools_desc(self):
-        """生成一段话，告诉 AI 有哪些工具"""
+    def get_tools_desc(self, allowed_tools=None):
+        if allowed_tools is None:
+            allowed_tools = self.tools.keys()
         desc_list = []
-        for name, info in self.tools.items():
+        for name in allowed_tools:
+            if name not in self.tools:
+                continue
+            info = self.tools[name]
             desc_list.append(f"- {name}: {info['desc']}")
         return "\n".join(desc_list)
 
+    # 统一的Tool定义
+    def get_tool_definitions(self, allowed_tools: tuple[str, ...]) -> list[dict]:
+        definitions = []
+        for name in allowed_tools:
+            if name not in self.tools:
+                continue
+            info = self.tools[name]
+            schema = self.schemas.get(name)
+            if schema is None:
+                raise ValueError(f"工具缺少 Schema: {name}")
+            definitions.append({
+                "name": name,
+                "description": info["desc"],
+                "parameters": schema.model_json_schema(),
+            })
+        return definitions
+
     async def execute(self, tool_name: str, args: dict, caller):
         if tool_name not in self.tools:
-            raise ValueError(
-                f"工具不存在: {tool_name}"
-            )
+            raise ValueError(f"工具不存在: {tool_name}")
+        if tool_name not in caller.allowed_tools:
+            raise PermissionError(f"Agent {caller.name} 无权使用工具: {tool_name}")
         tool = self.tools[tool_name]
         func = tool["func"]
         # 为了区分调用agent还是调用普通工具
@@ -111,7 +132,12 @@ async def run_explorer(code: str, caller=None) -> str:
     if caller is None:
         raise RuntimeError("run_explorer 执行失败：缺少 caller Agent")
     from App.agents.worker.explorer_agent import ExplorerAgent
-    agent = ExplorerAgent(context=caller.context, base_message=caller.base_message, parent_agent=caller.name)
+    agent = ExplorerAgent(
+        context=caller.context,
+        run_context=caller.run_context,
+        base_message=caller.base_message,
+        parent_agent=caller.name
+    )
     res = await agent.run(code)
     return res.model_dump()
 
@@ -127,9 +153,114 @@ async def run_fixer(code: str, report: dict, caller=None) -> str:
     report_text = json.dumps(report, ensure_ascii=False, indent=2)
     prompt = (f"原始代码：\n"f"{code}\n"
               f"\n"f"结构报告：\n"f"{report_text}")
-    agent = FixerAgent(context=caller.context, base_message=caller.base_message, parent_agent=caller.name)
+    agent = FixerAgent(
+        context=caller.context,
+        run_context=caller.run_context,
+        base_message=caller.base_message,
+        parent_agent=caller.name
+    )
     res = await agent.run(prompt)
     return res.model_dump()
 
 
+@registry.register(
+    name="list_files",
+    description="列出当前 Workspace 中的文件和目录。输入: {'path': '可选的相对目录'}",
+    need_caller=True
+)
+async def list_files(path: str = "", caller=None) -> list:
+    if caller is None:
+        raise RuntimeError("list_files 执行失败：缺少 caller Agent")
+    workspace = caller.run_context.workspace
+    directory = workspace.resolve(path or ".")
+    if not directory.exists():
+        raise FileNotFoundError(f"路径不存在: {path}")
+    if not directory.is_dir():
+        raise ValueError(f"不是目录: {path}")
+    return [
+        {
+            "name": p.name,
+            "type": "directory" if p.is_dir() else "file"
+        }
+        for p in sorted(directory.iterdir())
+    ]
 
+@registry.register(
+    name="read_file",
+    description="读取当前 Workspace 中指定文件。输入: {'file_name': '相对文件路径'}",
+    need_caller=True
+)
+async def read_file(file_name: str, caller=None) -> str:
+    if caller is None:
+        raise RuntimeError("read_file 执行失败：缺少 caller Agent")
+    workspace = caller.run_context.workspace
+    target = workspace.resolve(file_name)
+    if not target.exists():
+        raise FileNotFoundError(f"文件不存在: {file_name}")
+    if not target.is_file():
+        raise ValueError(f"不是文件: {file_name}")
+    return target.read_text(encoding="utf-8")
+
+@registry.register(
+    name="write_file",
+    description="写入当前 Workspace 中指定文件。输入: {'file_name': '相对文件路径', 'content': '文件内容'}",
+    need_caller=True
+)
+async def write_file(file_name: str, content: str, caller=None) -> str:
+    if caller is None:
+        raise RuntimeError("write_file 执行失败：缺少 caller Agent")
+    workspace = caller.run_context.workspace
+    target = workspace.resolve(file_name)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+    return f"文件写入成功: {file_name}"
+
+@registry.register(
+    name="search_file",
+    description="在当前 Workspace 中搜索文本。输入: {'query': '搜索内容', 'path': '可选目录'}",
+    need_caller=True
+)
+async def search_file(query: str, path: str = "", caller=None) -> list:
+    if caller is None:
+        raise RuntimeError("search_file 执行失败：缺少 caller Agent")
+    workspace = caller.run_context.workspace
+    base = workspace.resolve(path or ".")
+    results = []
+    for file in base.rglob("*"):
+        if not file.is_file():
+            continue
+        try:
+            content = file.read_text(encoding="utf-8")
+        except (UnicodeDecodeError, OSError):
+            continue
+        if query in content:
+            results.append({
+                "file": str(file.relative_to(workspace.root_path))
+            })
+
+    return results
+
+@registry.register(
+    name="delete_file",
+    description=(
+        "删除当前 Workspace 中指定的文件。"
+        "输入参数: {'file_name': 'Workspace 内的相对文件路径'}"
+        "只能删除 Workspace 内的文件，不能删除 Workspace 外部路径。"
+    ),
+    need_caller=True
+)
+async def delete_file(file_name: str,caller=None) -> str:
+    if caller is None:
+        raise RuntimeError("delete_file 执行失败：缺少 caller Agent")
+    workspace = caller.run_context.workspace
+    target = workspace.resolve(file_name)
+    if not target.exists():
+        raise FileNotFoundError(f"文件不存在: {file_name}")
+    if not target.is_file():
+        raise ValueError(f"目标不是文件，拒绝删除: {file_name}")
+    try:
+        target.unlink()
+    except OSError as e:
+        raise RuntimeError(f"删除文件失败: {file_name}") from e
+
+    return f"文件删除成功: {file_name}"

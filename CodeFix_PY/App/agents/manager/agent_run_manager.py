@@ -1,4 +1,5 @@
 import asyncio
+import logging
 
 from App.agents.agent_state import AgentState
 from App.agents.context.agent_context import AgentContext
@@ -7,6 +8,7 @@ from App.models.enum.agent_event import AgentEvent
 from App.models.agent_message import AgentMessage
 from App.models.agent_running import AgentRunning
 
+logger = logging.getLogger(__name__)
 
 class AgentRunManager:
 
@@ -27,7 +29,8 @@ class AgentRunManager:
         return asyncio.run_coroutine_threadsafe(self.run(msg, resume=True), self.loop)
 
     async def run(self, msg: AgentMessage, resume: bool = False):
-        agent = SupervisorAgent(context=self.context, base_message=msg, parent_agent=None)
+        run_context = self.context.create_run_context(msg)
+        agent = SupervisorAgent(context=self.context, run_context=run_context, base_message=msg, parent_agent=None)
         task = asyncio.current_task()
         run = AgentRunning(
             task_id=msg.task_id,
@@ -41,7 +44,11 @@ class AgentRunManager:
         self.running[msg.task_id] = run
 
         try:
-            await agent.run(msg.question, resume)
+            if resume:
+                session_context = None
+            else:
+                session_context = msg.session_context
+            await agent.run(msg.question, resume, session_context)
         except asyncio.CancelledError:
             await self.handle_cancelled(run)
             raise

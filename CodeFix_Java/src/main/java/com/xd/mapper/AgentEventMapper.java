@@ -13,4 +13,5 @@ public interface AgentEventMapper {
     List<AgentEventDO> selectByTaskId(String taskId);
 
     List<AgentEventDO> selectByTaskIdAndRunId(String taskId, String runId);
+
 }

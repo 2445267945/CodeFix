@@ -14,7 +14,8 @@ public enum AuditTaskStatusEnum {
     WAITING_RETRY(6, "WAITING_RETRY", "等待任务重试"),
     // ===== 终态 =====
     NEED_RETRY(8, "ERROR", "任务失败，需重试"),
-    COMPLETED(9, "FINISHED", "任务结束");
+    COMPLETED(9, "FINISHED", "任务结束"),
+    CANCELLED(10, "CANCELLED", "任务取消")
     ;
 
     public final Integer statusCode;

@@ -1,14 +1,12 @@
 from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field
 
-
 class AgentResult(BaseModel):
     success: bool
     agent_name: str
-    result: Dict[str, Any] = Field(default_factory=dict)
-    error: Optional[str] = None
-    iterations: int = 0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    result: dict[str, Any] | str = ""
+    error: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
     def ok(cls, agent_name: str, result: Dict[str, Any], iterations: int, metadata: Optional[Dict[str, Any]] = None) -> "AgentResult":

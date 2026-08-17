@@ -37,10 +37,14 @@ class MQConfig:
 class RedisConfig:
     REDIS_URL = os.getenv("REDIS_URL")
 
+class WorkspaceConfig:
+    WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT")
+
 class Config:
     llm = LLMConfig()
     vector_db = VectorDBConfig()
     mq = MQConfig()
     redis = RedisConfig()
+    ws = WorkspaceConfig()
 
 config = Config()

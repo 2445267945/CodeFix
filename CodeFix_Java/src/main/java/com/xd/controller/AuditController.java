@@ -1,11 +1,9 @@
 package com.xd.controller;
 
 import com.xd.model.vo.AuditRequestVO;
-import com.xd.model.vo.AuditResponseVO;
 import com.xd.service.impl.AuditHandlerServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-
 
 @RestController
 @RequestMapping("/api/audit")

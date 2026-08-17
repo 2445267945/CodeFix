@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xd.mapper.WorkSpaceMapper">
+
+    <resultMap id="BaseResultMap"
+               type="com.xd.model.entity.WorkspaceDO">
+
+        <id property="id" column="id"/>
+
+        <result property="workspaceId"
+                column="workspace_id"/>
+
+        <result property="sessionId"
+                column="session_id"/>
+
+        <result property="name"
+                column="name"/>
+
+        <result property="rootPath"
+                column="root_path"/>
+
+        <result property="status"
+                column="status"/>
+
+        <result property="createdAt"
+                column="created_at"/>
+
+        <result property="updatedAt"
+                column="updated_at"/>
+
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,
+        workspace_id,
+        session_id,
+        name,
+        root_path,
+        status,
+        created_at,
+        updated_at
+    </sql>
+
+    <insert id="insertWorkspace"
+            parameterType="com.xd.model.entity.WorkspaceDO"
+            useGeneratedKeys="true"
+            keyProperty="id">
+
+        INSERT INTO agent_workspace (
+        workspace_id,
+        session_id,
+        name,
+        root_path,
+        status,
+        created_at,
+        updated_at
+        )
+        VALUES (
+        #{workspaceId},
+        #{sessionId},
+        #{name},
+        #{rootPath},
+        #{status},
+        #{createdAt},
+        #{updatedAt}
+        )
+
+    </insert>
+
+    <select id="selectByWorkspaceId"
+            parameterType="java.lang.String"
+            resultMap="BaseResultMap">
+
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_workspace
+        WHERE workspace_id = #{workspaceId}
+
+    </select>
+
+    <select id="selectBySessionId"
+            parameterType="java.lang.String"
+            resultMap="BaseResultMap">
+
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_workspace
+        WHERE session_id = #{sessionId}
+
+    </select>
+
+    <update id="updateWorkspace"
+            parameterType="com.xd.model.entity.WorkspaceDO">
+
+        UPDATE agent_workspace
+
+        <set>
+
+            <if test="name != null">
+                name = #{name},
+            </if>
+
+            <if test="rootPath != null">
+                root_path = #{rootPath},
+            </if>
+
+            <if test="status != null">
+                status = #{status},
+            </if>
+
+            <if test="updatedAt != null">
+                updated_at = #{updatedAt},
+            </if>
+
+        </set>
+
+        WHERE workspace_id = #{workspaceId}
+
+    </update>
+
+</mapper>

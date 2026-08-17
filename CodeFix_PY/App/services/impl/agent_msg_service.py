@@ -32,8 +32,12 @@ class AgentMsgService(BaseMsgHandler):
             AgentCommand.CANCEL: self.handle_cancel
         }
         working_memory_store = RedisWorkingMemoryStore(redis_service)
-        self.context = AgentContext(main_llm = main_llm, compress_llm = compress_llm, msg_sender = self,
-                                    working_memory_store=working_memory_store)
+        self.context = AgentContext(
+            main_llm = main_llm, compress_llm = compress_llm,
+            msg_sender = self,
+            working_memory_store=working_memory_store,
+
+        )
         self.loop = asyncio.new_event_loop()
         self.run_manager = AgentRunManager(
             loop=self.loop,
@@ -74,7 +78,7 @@ class AgentMsgService(BaseMsgHandler):
         msg = agent.base_message
         return AgentMessage(
             version = "1.0",
-            timestamp = int(time.time()),
+            timestamp = int(time.time() * 1000),
             run_id = msg.run_id,
             task_id = msg.task_id,
             session_id = msg.session_id,

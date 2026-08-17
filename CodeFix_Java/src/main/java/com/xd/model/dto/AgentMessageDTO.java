@@ -1,6 +1,7 @@
 package com.xd.model.dto;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.xd.model.context.SessionContext;
 import com.xd.mq.message.BaseMessage;
 import lombok.Builder;
 import lombok.Data;
@@ -11,10 +12,6 @@ import java.util.Map;
 @Data
 @Builder
 public class AgentMessageDTO extends BaseMessage {
-    // ===== Java → Python 时填充 =====
-    private String question;      // 用户问题/指令
-    private String code;          // 待审计的代码
-    private List<String> smells;
     // ===== Python → Java 时填充 =====
     private String event;
     private String runId;

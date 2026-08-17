@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 
+from App.agents.agent_model.llm_message import LLMMessage
+
 
 class WorkingMemory(BaseModel):
     run_id: str
@@ -10,4 +12,4 @@ class WorkingMemory(BaseModel):
     status: str
     question: str
     history_summary: str = ""
-    recent_messages: list[dict] = Field(default_factory=list)
+    recent_messages: list[LLMMessage] = Field(default_factory=list)

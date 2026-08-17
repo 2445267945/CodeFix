@@ -61,4 +61,49 @@
         FROM agent_run
         WHERE task_id = #{taskId}
     </select>
+
+    <select id="selectByTaskId" parameterType="java.lang.String" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_run
+        WHERE task_id = #{taskId}
+        ORDER BY attempt DESC, id DESC
+    </select>
+
+    <update id="updateRun">
+        UPDATE agent_run
+        <set>
+            <if test="status != null">
+                status = #{status},
+            </if>
+            <if test="startedAt != null">
+                started_at = #{startedAt},
+            </if>
+            <if test="endedAt != null">
+                ended_at = #{endedAt},
+            </if>
+            <if test="errorMessage != null">
+                error_message = #{errorMessage},
+            </if>
+        </set>
+        WHERE run_id = #{runId}
+    </update>
+
+    <select id="selectByTaskIdAndRunId" resultMap="BaseResultMap">
+        SELECT
+            id,
+            run_id,
+            task_id,
+            session_id,
+            attempt,
+            status,
+            started_at,
+            ended_at,
+            error_message,
+            created_at
+        FROM agent_run
+        WHERE task_id = #{taskId}
+          AND run_id = #{runId}
+            LIMIT 1
+    </select>
 </mapper>

@@ -1,5 +1,11 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+from App.agents.context.agent_run_context import AgentRunContext
+from App.config import config
+from App.models.agent_message import AgentMessage
+from App.models.workspace_info import WorkspaceInfo
 
 
 @dataclass(frozen=True)
@@ -8,3 +14,15 @@ class AgentContext:
     compress_llm: Any
     msg_sender: Any
     working_memory_store: Any
+
+    def create_run_context(self, msg: AgentMessage):
+        workspace = WorkspaceInfo(
+            workspace_id=msg.workspace_id,
+            root_path=Path(config.ws.WORKSPACE_ROOT) / msg.workspace_id
+        )
+        return AgentRunContext(
+            task_id=msg.task_id,
+            run_id=msg.run_id,
+            session_id=msg.session_id,
+            workspace=workspace
+        )

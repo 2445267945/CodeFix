@@ -22,7 +22,7 @@ public class AgentTaskDO {
     private String smells;
 
     private Integer status;
-
+    private String output;
     private Long createdAt;
 
     private Long updatedAt;
