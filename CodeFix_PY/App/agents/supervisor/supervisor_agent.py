@@ -3,8 +3,9 @@ from App.agents.context.agent_run_context import AgentRunContext
 from App.agents.manager.agent_tool_manager import AgentToolSet
 from App.agents.tool_executor import ToolExecutor
 
+
 class SupervisorAgent(ToolExecutor):
-    def __init__(self, context: AgentContext, run_context: AgentRunContext, base_message = None, parent_agent = None):
+    def __init__(self, context: AgentContext, run_context: AgentRunContext, base_message=None, parent_agent=None):
         super().__init__(context, run_context, base_message)
         self.name = "Supervisor"
         self.run_context = run_context

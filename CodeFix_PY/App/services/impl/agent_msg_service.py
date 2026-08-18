@@ -4,7 +4,6 @@ import threading
 import time
 from uuid import uuid4
 
-
 from App.agents.base_agent import BaseAgent
 from App.agents.context.agent_context import AgentContext
 from App.infrastructure.message.base_message import BaseMessage
@@ -22,8 +21,10 @@ logger = logging.getLogger(__name__)
 main_llm = llm_factory.get_llm(4096, 0.1, "mid")
 compress_llm = llm_factory.get_llm(4096, 0.1, "low")
 
+
 class AgentMsgService(BaseMsgHandler):
     """处理 AGENT_MSG 类型的消息"""
+
     def __init__(self):
         self.command_handlers = {
             AgentCommand.START: self.handle_start,
@@ -33,8 +34,8 @@ class AgentMsgService(BaseMsgHandler):
         }
         working_memory_store = RedisWorkingMemoryStore(redis_service)
         self.context = AgentContext(
-            main_llm = main_llm, compress_llm = compress_llm,
-            msg_sender = self,
+            main_llm=main_llm, compress_llm=compress_llm,
+            msg_sender=self,
             working_memory_store=working_memory_store,
 
         )
@@ -62,7 +63,7 @@ class AgentMsgService(BaseMsgHandler):
                 return
             handler(msg)
         except Exception as e:
-            logger.exception( "任务 %s 执行失败", msg.task_id)
+            logger.exception("任务 %s 执行失败", msg.task_id)
 
     def run_loop(self):
         asyncio.set_event_loop(self.loop)
@@ -77,19 +78,19 @@ class AgentMsgService(BaseMsgHandler):
         """从当前 Agent 状态构造回传 Java 的消息（信封沿用原任务）"""
         msg = agent.base_message
         return AgentMessage(
-            version = "1.0",
-            timestamp = int(time.time() * 1000),
-            run_id = msg.run_id,
-            task_id = msg.task_id,
-            session_id = msg.session_id,
-            message_id = str(uuid4()),
-            type = "AGENT_STATUS",  # 回传用独立 type，便于 Java 路由
-            agent_name = agent.name,
-            parent_agent = agent.parent_agent,
-            event = event,
-            step = agent.current_step,
-            status = agent.status.value,
-            output = output
+            version="1.0",
+            timestamp=int(time.time() * 1000),
+            run_id=msg.run_id,
+            task_id=msg.task_id,
+            session_id=msg.session_id,
+            message_id=str(uuid4()),
+            type="AGENT_STATUS",  # 回传用独立 type，便于 Java 路由
+            agent_name=agent.name,
+            parent_agent=agent.parent_agent,
+            event=event,
+            step=agent.current_step,
+            status=agent.status.value,
+            output=output
         )
 
     def handle_start(self, msg):
@@ -103,5 +104,6 @@ class AgentMsgService(BaseMsgHandler):
 
     def handle_cancel(self, msg):
         return self.run_manager.cancel(msg.task_id, msg.run_id)
+
 
 agent_msg_service = AgentMsgService()

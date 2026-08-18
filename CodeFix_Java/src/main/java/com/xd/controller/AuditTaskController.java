@@ -38,7 +38,7 @@ public class AuditTaskController {
 
     /**
      * 建立 Task 的实时事件流
-     * <p>
+     
      * 前端建立连接后，Java 会持续向该连接推送：
      * - Agent THINK
      * - TOOL_CALL

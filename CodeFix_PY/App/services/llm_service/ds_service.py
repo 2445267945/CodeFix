@@ -15,13 +15,13 @@ logger = logging.getLogger(__name__)
 
 class DeepSeekLLM(LLMClient):
     def __init__(
-        self,
-        api_key: Optional[str] = None,
-        url: Optional[str] = None,
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        thinking: Optional[str] = None,
+            self,
+            api_key: Optional[str] = None,
+            url: Optional[str] = None,
+            model: Optional[str] = None,
+            max_tokens: Optional[int] = None,
+            temperature: Optional[float] = None,
+            thinking: Optional[str] = None,
     ):
         self.api_key = api_key or config.llm.API_KEY
         self.en_json_format = config.llm.JSON_FORMAT
@@ -75,7 +75,7 @@ class DeepSeekLLM(LLMClient):
             response = await self.client.post(self.url, headers=self.headers, json=payload)
             if response.status_code != 200:
                 error_detail = response.text
-                logger.error( "LLM 服务返回错误: status=%s, detail=%s", response.status_code, error_detail)
+                logger.error("LLM 服务返回错误: status=%s, detail=%s", response.status_code, error_detail)
                 raise RuntimeError(f"LLM API 请求失败: " f"{response.status_code} - {error_detail}")
 
             result = response.json()
@@ -104,11 +104,12 @@ class DeepSeekLLM(LLMClient):
                 )
             return LLMResponse(content=content, reasoning_content=reasoning_content, tool_calls=tool_calls, raw=result)
         except httpx.TimeoutException as e:
-            logger.error("LLM 请求超时",exc_info=True)
+            logger.error("LLM 请求超时", exc_info=True)
             raise RuntimeError("AI 服务响应超时，请稍后重试") from e
         except httpx.HTTPError as e:
-            logger.error("LLM HTTP 请求异常",exc_info=True)
+            logger.error("LLM HTTP 请求异常", exc_info=True)
             raise RuntimeError(f"LLM HTTP 请求异常: {e}") from e
+
     async def close(self):
         await self.client.aclose()
 

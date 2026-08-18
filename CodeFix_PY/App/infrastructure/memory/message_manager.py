@@ -11,6 +11,7 @@ TOOL_LIMITS = {
     "run_fixer": 3,
 }
 
+
 class MessageManager:
     def check_tool_Input(self, tool_name, tool_args, tools_schemas):
         """
@@ -55,7 +56,6 @@ class MessageManager:
             return True
         return False
 
-
     async def compress_history_msg(self, window_size, messages, llm, history_summary: str = ""):
         """
         当消息数量达到窗口阈值时：
@@ -97,7 +97,6 @@ class MessageManager:
             new_summary = history_summary
         return new_summary, tail
 
-
     def format_message_for_compression(self, message: LLMMessage) -> str:
         parts = [f"role={message.role}"]
 
@@ -122,7 +121,6 @@ class MessageManager:
         if message.tool_call_id:
             parts.append(f"tool_call_id={message.tool_call_id}")
         return "\n".join(parts)
-
 
     def split_message_groups(self, messages: list[LLMMessage], keep_messages: int) \
             -> tuple[list[LLMMessage], list[LLMMessage]]:
@@ -175,7 +173,8 @@ class MessageManager:
                 }
                 i += 1
                 # 收集后续对应的 tool message
-                while (i < len(messages) and messages[i].role == "tool" and messages[i].tool_call_id in expected_tool_ids):
+                while (i < len(messages) and messages[i].role == "tool" and messages[
+                    i].tool_call_id in expected_tool_ids):
                     group.append(messages[i])
                     expected_tool_ids.discard(messages[i].tool_call_id)
                     i += 1

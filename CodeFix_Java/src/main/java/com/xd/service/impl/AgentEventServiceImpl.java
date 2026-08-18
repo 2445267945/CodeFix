@@ -7,11 +7,15 @@ import com.xd.model.dto.AgentMessageDTO;
 import com.xd.model.entity.AgentEventDO;
 import com.xd.model.vo.AgentEventVO;
 import com.xd.service.AgentEventService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
+@Slf4j
 @Service
 public class AgentEventServiceImpl implements AgentEventService {
 
@@ -21,7 +25,7 @@ public class AgentEventServiceImpl implements AgentEventService {
     private ObjectMapper objectMapper;
 
     @Override
-    public void insertAgentEvent(AgentMessageDTO dto) {
+    public AgentEventDO insertAgentEvent(AgentMessageDTO dto) {
         AgentEventDO event = new AgentEventDO();
         event.setMessageId(dto.getMessageId());
         event.setTaskId(dto.getTaskId());
@@ -39,7 +43,15 @@ public class AgentEventServiceImpl implements AgentEventService {
         }
         event.setEventTimestamp(dto.getTimestamp());
 
-        agentEventMapper.insertAgentEvent(event);
+        try {
+            int inserted = agentEventMapper.insertAgentEvent(event);
+            if (inserted == 0) {
+                return null; // 已存在
+            }
+        } catch (DuplicateKeyException e) {
+            log.info("Agent Event 重复消息，忽略: taskId={}, runId={}, messageId={}", event.getTaskId(), event.getRunId(), event.getMessageId());
+        }
+        return event;
     }
 
     @Override

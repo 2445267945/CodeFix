@@ -145,32 +145,8 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         if (output == null || output.isEmpty()) {
             return "任务已完成。";
         }
-        Object answerObj = output.get("answer");
-        if (!(answerObj instanceof Map<?, ?> answer)) {
-            Object reason = output.get("reason");
-            return reason != null ? String.valueOf(reason) : "任务已完成。";
-        }
-        StringBuilder content = new StringBuilder();
-        Object summaryObj = answer.get("summary");
-        if (summaryObj != null) {
-            String summary = String.valueOf(summaryObj);
-            if (!summary.isBlank()) {
-                content.append(summary);
-            }
-        }
-        Object changesObj = answer.get("changes");
-        if (changesObj != null) {
-            String changes = String.valueOf(changesObj);
-            if (!changes.isBlank()) {
-                if (content.length() > 0) {
-                    content.append("\n\n");
-                }
-                content.append("修改说明：\n").append(changes);
-            }
-        }
-        if (content.length() == 0) {
-            return "任务已完成。";
-        }
-        return content.toString();
+        String content = String.valueOf(output.get("content"));
+        String reasoning = String.valueOf(output.get("reasoning"));
+        return !content.isEmpty() ? content : reasoning;
     }
 }

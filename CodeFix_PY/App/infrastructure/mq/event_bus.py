@@ -4,6 +4,7 @@ from rocketmq.v5.model import Message
 from rocketmq import Credentials
 from App.config import config
 
+
 class EventBus:
     def __init__(self, endpoints: str):
         # 1. 配置客户端

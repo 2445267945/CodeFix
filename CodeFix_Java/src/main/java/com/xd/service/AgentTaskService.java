@@ -20,7 +20,7 @@ public interface AgentTaskService {
 
     /**
      * 创建 Task 的第一阶段入口
-     * <p>
+     *
      * 新建审计任务时使用
      */
     TaskCreateVO createTask(AuditTaskCreateDTO request);
@@ -33,46 +33,66 @@ public interface AgentTaskService {
     /**
      * 查询某个 Session 下的 Task
      */
-    List<TaskDetailVO> getTasksBySessionId(String sessionId);
+    List<TaskDetailVO> getTasksBySessionId(
+            String sessionId
+    );
 
     /**
      * 查询单个 Task
      */
-    TaskDetailVO getTask(String taskId);
+    TaskDetailVO getTask(
+            String taskId
+    );
 
     /**
      * 查询 Task 的 Event
-     * <p>
+     *
      * runId 为空时查询当前 Run
      */
-    List<AgentEventVO> getTaskEvents(String taskId, String runId);
+    List<AgentEventVO> getTaskEvents(
+            String taskId,
+            String runId
+    );
 
     /**
      * 更新 Task 状态
-     * <p>
+     *
      * Python → Java Agent Event
      */
-    void updateTaskStatus(AgentMessageDTO agentMessageDTO);
+    void updateTaskStatus(
+            AgentMessageDTO agentMessageDTO
+    );
 
     /**
      * Resume 当前 Run
      */
-    TaskOperateVO resumeTask(String taskId, String runId);
+    TaskOperateVO resumeTask(
+            String taskId,
+            String runId
+    );
 
     /**
      * Retry，创建新的 Run
      */
-    TaskOperateVO retryTask(String taskId);
+    TaskOperateVO retryTask(
+            String taskId
+    );
 
     /**
      * Cancel 当前 Run
      */
-    TaskOperateVO cancelTask(String taskId, String runId);
+    TaskOperateVO cancelTask(
+            String taskId,
+            String runId
+    );
 
     /**
      * 查询 Task Result
-     * <p>
+     *
      * runId 为空时查询当前 Run
      */
-    TaskResultVO getTaskResult(String taskId, String runId);
+    TaskResultVO getTaskResult(
+            String taskId,
+            String runId
+    );
 }

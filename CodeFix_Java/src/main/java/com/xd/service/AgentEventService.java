@@ -8,7 +8,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 
 public interface AgentEventService {
-    public void insertAgentEvent(AgentMessageDTO agentMessageDTO);
+    AgentEventDO insertAgentEvent(AgentMessageDTO agentMessageDTO);
 
 
     /**

@@ -33,7 +33,7 @@
         event_timestamp
     </sql>
 
-    <insert id="insertAgentEvent" parameterType="com.xd.model.entity.AgentEventDO">
+    <insert id="insertAgentEvent" parameterType="com.xd.model.entity.AgentEventDO" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
         INSERT INTO agent_event (
             message_id,
             run_id,

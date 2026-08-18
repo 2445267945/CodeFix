@@ -1,28 +1,43 @@
 package com.xd.assembler;
 
 import com.alibaba.fastjson2.JSON;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xd.context.AgentChatAssembleContext;
 import com.xd.model.entity.AgentEventDO;
+import com.xd.model.entity.AgentFileChangeDO;
 import com.xd.model.vo.AgentChatBlockVO;
+import com.xd.model.vo.FileChangeVO;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
 
+@Slf4j
 @Component
 public class AgentChatBlockAssembler {
 
-    public List<AgentChatBlockVO> assemble(List<AgentEventDO> events) {
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    public List<AgentChatBlockVO> assemble(List<AgentEventDO> events, AgentChatAssembleContext context) {
 
         if (events == null || events.isEmpty()) {
             return Collections.emptyList();
         }
 
-        List<AgentEventDO> sortedEvents = events.stream().sorted(Comparator.comparing(AgentEventDO::getEventTimestamp, Comparator.nullsLast(Long::compareTo))).toList();
+        if (context == null) {
+            context = AgentChatAssembleContext.builder().build();
+        }
+
+        List<AgentEventDO> sortedEvents = events.stream().filter(Objects::nonNull).sorted(Comparator.comparing(AgentEventDO::getEventTimestamp, Comparator.nullsLast(Long::compareTo))).toList();
 
         List<AgentChatBlockVO> blocks = new ArrayList<>();
 
         /*
          * TOOL_CALL -> TOOL_RESULT
-         * 通过 toolCallId 进行关联。
+         *
+         * 通过 toolCallId 关联。
          */
         Map<String, AgentChatBlockVO> pendingToolBlocks = new HashMap<>();
 
@@ -51,7 +66,7 @@ public class AgentChatBlockAssembler {
                     break;
 
                 case "TOOL_RESULT":
-                    handleToolResult(event, pendingToolBlocks);
+                    handleToolResult(event, pendingToolBlocks, context);
                     break;
 
                 case "ERROR":
@@ -65,7 +80,7 @@ public class AgentChatBlockAssembler {
                 case "FINISH":
                     /*
                      * FINISH 不进入 Block。
-                     * 最终回答由 ChatMessage -> FinalAnswerVO。
+                     * 最终回答来自 ChatMessage。
                      */
                     break;
 
@@ -83,7 +98,7 @@ public class AgentChatBlockAssembler {
 
     /**
      * THINK：
-     * <p>
+     
      * reasoning 有内容时才生成 UI Block。
      * THINK 中的 toolCalls 不再转换，
      * 因为后面会有真正的 TOOL_CALL Event。
@@ -110,7 +125,7 @@ public class AgentChatBlockAssembler {
 
     /**
      * TOOL_CALL：
-     * <p>
+     
      * 先生成 running Block，
      * 等 TOOL_RESULT 到来以后更新。
      */
@@ -133,17 +148,27 @@ public class AgentChatBlockAssembler {
         return block;
     }
 
-    /**
-     * TOOL_RESULT：
-     * <p>
-     * 根据 toolCallId 找到之前的 TOOL_CALL Block，
-     * 将其更新为 completed / failed。
-     */
-    private void handleToolResult(AgentEventDO event, Map<String, AgentChatBlockVO> pendingToolBlocks) {
+    private void handleToolResult(AgentEventDO event, Map<String, AgentChatBlockVO> pendingToolBlocks, AgentChatAssembleContext context) {
+
+        if (event == null) {
+            return;
+        }
 
         Map<String, Object> data = parseJson(event.getOutput());
 
-        String toolCallId = toStringValue(data.get("toolCallId"));
+        if (data == null || data.isEmpty()) {
+            return;
+        }
+
+        /*
+         * TOOL_RESULT 与 TOOL_CALL
+         * 通过 toolCallId 关联。
+         */
+        String toolCallId = extractToolCallId(event.getOutput());
+
+        if (isBlank(toolCallId)) {
+            return;
+        }
 
         AgentChatBlockVO block = pendingToolBlocks.get(toolCallId);
 
@@ -151,36 +176,45 @@ public class AgentChatBlockAssembler {
             return;
         }
 
-        // TOOL_RESULT 正常到达 => UI Block 完成
+        /*
+         * TOOL_RESULT 到达后，
+         * 更新原 TOOL_CALL Block 状态。
+         */
         block.setStatus(resolveResultStatus(event));
 
+        /*
+         * 更新执行摘要。
+         */
         block.setSummary(buildCompletedSummary(block.getAction(), data));
 
+        /*
+         * 如果 result.type == file_change，
+         * 这里继续处理文件变更信息。
+         *
+         * context 中已经包含：
+         *
+         * eventId -> AgentFileChangeDO
+         *
+         * 可以用于历史数据回填 diffId。
+         */
+        applyFileChange(event, block, data, context);
+
+        /*
+         * 当前 Event 记录为来源事件。
+         */
         List<String> sourceEventIds = block.getSourceEventIds();
 
         if (sourceEventIds == null) {
             sourceEventIds = new ArrayList<>();
+
             block.setSourceEventIds(sourceEventIds);
         }
 
-        sourceEventIds.add(String.valueOf(event.getId()));
+        String eventId = event.getId() == null ? null : String.valueOf(event.getId());
 
-        applyFileChange(block, data);
-    }
-
-    private AgentChatBlockVO assembleError(AgentEventDO event) {
-
-        AgentChatBlockVO block = baseBlock(event);
-
-        block.setType("review");
-        block.setAction("ERROR");
-        block.setStatus("failed");
-        block.setLevel("error");
-        block.setTitle("执行失败");
-        block.setContent(safeOutput(event.getOutput()));
-        block.setSummary("Agent 执行失败");
-
-        return block;
+        if (eventId != null && !sourceEventIds.contains(eventId)) {
+            sourceEventIds.add(eventId);
+        }
     }
 
     private AgentChatBlockVO assembleUnknown(AgentEventDO event) {
@@ -191,6 +225,79 @@ public class AgentChatBlockAssembler {
         block.setAction("EXECUTE");
         block.setStatus(resolveStatus(event));
         block.setSummary(safeOutput(event.getOutput()));
+
+        return block;
+    }
+
+    private AgentChatBlockVO assembleError(AgentEventDO event) {
+
+        if (event == null) {
+            return null;
+        }
+
+        AgentChatBlockVO block = new AgentChatBlockVO();
+
+        /*
+         * ERROR 属于独立的错误 Block，
+         * 不参与 TOOL_CALL / TOOL_RESULT 关联。
+         */
+        block.setType("error");
+
+        block.setId(String.valueOf(event.getId()));
+
+        block.setAgent(event.getAgentName());
+
+        block.setStatus("failed");
+
+        block.setTimestamp(event.getEventTimestamp());
+
+        /*
+         * ERROR Event 的 output 可能是：
+         *
+         * 1. 普通字符串
+         * 2. JSON
+         *
+         * 当前统一先保留原始内容作为 detail。
+         */
+        String output = event.getOutput();
+
+        if (output != null && !output.isBlank()) {
+
+            block.setDetail(output);
+
+            /*
+             * 尝试从 JSON 中提取更友好的错误信息。
+             */
+            try {
+                Map<String, Object> data = parseJson(output);
+
+                if (data != null && !data.isEmpty()) {
+
+                    Object error = data.get("error");
+
+                    if (error != null) {
+                        block.setSummary(String.valueOf(error));
+                    } else {
+                        Object message = data.get("message");
+
+                        if (message != null) {
+                            block.setSummary(String.valueOf(message));
+                        } else {
+                            block.setSummary("Agent 执行失败");
+                        }
+                    }
+
+                } else {
+                    block.setSummary("Agent 执行失败");
+                }
+
+            } catch (Exception e) {
+                block.setSummary("Agent 执行失败");
+            }
+
+        } else {
+            block.setSummary("Agent 执行失败");
+        }
 
         return block;
     }
@@ -312,52 +419,138 @@ public class AgentChatBlockAssembler {
 
     /**
      * 先保留文件变化入口。
-     * <p>
+     
      * 当前真实 Event 示例还没有给出 write/edit 的 result 格式，
      * 所以这里暂不强行解析 addedLines/diff 等字段。
      */
-    private void applyFileChange(AgentChatBlockVO block, Map<String, Object> data) {
+    private void applyFileChange(AgentEventDO event, AgentChatBlockVO block, Map<String, Object> data, AgentChatAssembleContext context) {
 
-        if (!"WRITE".equals(block.getAction())) {
+        if (event == null || block == null || data == null) {
             return;
         }
 
-        Object result = data.get("result");
+        /*
+         * TOOL_RESULT 当前结构：
+         *
+         * {
+         *   "tool": "write_file",
+         *   "result": {
+         *      "type": "file_change",
+         *      "filePath": "...",
+         *      "operation": "modified",
+         *      "addedLines": 10,
+         *      "removedLines": 3,
+         *      "diff": "..."
+         *   },
+         *   "toolCallId": "..."
+         * }
+         */
+        Object resultObject = data.get("result");
 
-        if (!(result instanceof Map<?, ?> resultMap)) {
+        if (!(resultObject instanceof Map<?, ?> resultMap)) {
             return;
         }
 
-        Object filePath = resultMap.get("filePath");
+        /*
+         * file_change 类型位于 result 内部。
+         */
+        Object type = resultMap.get("type");
 
-        Object operation = resultMap.get("operation");
-
-        Object addedLines = resultMap.get("addedLines");
-
-        Object removedLines = resultMap.get("removedLines");
-
-        Object diffId = resultMap.get("diffId");
-
-        if (filePath != null) {
-            block.setType("file_change");
-            block.setFilePath(String.valueOf(filePath));
+        if (!"file_change".equals(String.valueOf(type))) {
+            return;
         }
 
-        if (operation != null) {
-            block.setOperation(String.valueOf(operation));
+        /*
+         * Python Tool Result
+         * -> Java FileChangeVO
+         */
+        FileChangeVO change = parseFileChange((Map<String, Object>) resultMap);
+
+        if (change == null) {
+            return;
         }
 
-        if (addedLines != null) {
-            block.setAddedLines(toInteger(addedLines));
+        /*
+         * 将原来的普通 Tool Block
+         * 转换成 FileChange Block。
+         */
+        block.setType("file_change");
+
+        block.setFilePath(change.getFilePath());
+
+        block.setOperation(change.getOperation());
+
+        block.setAddedLines(change.getAddedLines());
+
+        block.setRemovedLines(change.getRemovedLines());
+
+        /*
+         * 历史数据：
+         *
+         * AgentEvent.id
+         *      ↓
+         * AgentChatAssembleContext.fileChanges
+         *      ↓
+         * AgentFileChangeDO
+         *      ↓
+         * diffId
+         */
+        if (context != null && context.getFileChanges() != null && event.getId() != null) {
+
+            AgentFileChangeDO fileChange = context.getFileChanges().get(event.getId());
+
+            if (fileChange != null) {
+                block.setDiffId(fileChange.getDiffId());
+            }
+        }
+    }
+
+    private FileChangeVO parseFileChange(Map<String, Object> resultMap) {
+
+        if (resultMap == null || resultMap.isEmpty()) {
+            return null;
         }
 
-        if (removedLines != null) {
-            block.setRemovedLines(toInteger(removedLines));
+        /*
+         * 当前 Python FileChangeResult：
+         *
+         * {
+         *   "type": "file_change",
+         *   "filePath": "...",
+         *   "operation": "created",
+         *   "addedLines": 10,
+         *   "removedLines": 0,
+         *   "diff": "..."
+         * }
+         */
+        if (!"file_change".equals(String.valueOf(resultMap.get("type")))) {
+            return null;
         }
 
-        if (diffId != null) {
-            block.setDiffId(String.valueOf(diffId));
+        FileChangeVO fileChange = new FileChangeVO();
+
+        fileChange.setType(stringValue(resultMap.get("type")));
+
+        fileChange.setFilePath(stringValue(resultMap.get("filePath")));
+
+        fileChange.setOperation(stringValue(resultMap.get("operation")));
+
+        fileChange.setAddedLines(integerValue(resultMap.get("addedLines")));
+
+        fileChange.setRemovedLines(integerValue(resultMap.get("removedLines")));
+
+        fileChange.setDiff(stringValue(resultMap.get("diff")));
+
+        /*
+         * 基础校验：
+         * 文件路径和 operation 是必须的。
+         */
+        if (isBlank(fileChange.getFilePath()) || isBlank(fileChange.getOperation())) {
+
+            return null;
         }
+
+        return fileChange;
     }
 
     private String extractToolCallId(String output) {
@@ -470,5 +663,25 @@ public class AgentChatBlockAssembler {
     private boolean isBlank(String value) {
 
         return value == null || value.isBlank();
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private Integer integerValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

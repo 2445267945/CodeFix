@@ -19,8 +19,7 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id
-        ,
+        id,
         diff_id,
         session_id,
         task_id,
@@ -35,28 +34,32 @@
     </sql>
 
     <insert id="insert">
-        INSERT INTO agent_file_change (diff_id,
-                                       session_id,
-                                       task_id,
-                                       run_id,
-                                       event_id,
-                                       file_path,
-                                       operation,
-                                       added_lines,
-                                       removed_lines,
-                                       diff_text,
-                                       created_at)
-        VALUES (#{diffId},
-                #{sessionId},
-                #{taskId},
-                #{runId},
-                #{eventId},
-                #{filePath},
-                #{operation},
-                #{addedLines},
-                #{removedLines},
-                #{diffText},
-                #{createdAt})
+        INSERT INTO agent_file_change (
+            diff_id,
+            session_id,
+            task_id,
+            run_id,
+            event_id,
+            file_path,
+            operation,
+            added_lines,
+            removed_lines,
+            diff_text,
+            created_at
+        )
+        VALUES (
+            #{diffId},
+            #{sessionId},
+            #{taskId},
+            #{runId},
+            #{eventId},
+            #{filePath},
+            #{operation},
+            #{addedLines},
+            #{removedLines},
+            #{diffText},
+            #{createdAt}
+        )
     </insert>
 
     <select id="selectByDiffId" resultMap="BaseResultMap">

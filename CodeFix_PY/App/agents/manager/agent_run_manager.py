@@ -10,6 +10,7 @@ from App.models.agent_running import AgentRunning
 
 logger = logging.getLogger(__name__)
 
+
 class AgentRunManager:
 
     def __init__(self, loop: asyncio.AbstractEventLoop, context: AgentContext):
@@ -79,7 +80,7 @@ class AgentRunManager:
         return True
 
     # 本指重新执行start，用run_id区别同一个任务的两次执行
-    def retry(self,  msg: AgentMessage):
+    def retry(self, msg: AgentMessage):
         self.start(msg)
 
     def get(self, task_id: str):
@@ -96,4 +97,3 @@ class AgentRunManager:
             return False
         self.running.pop(task_id, None)
         return True
-

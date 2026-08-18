@@ -34,6 +34,7 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
         ↓
     Redis
     """
+
     async def save(self, memory: WorkingMemory) -> None:
         key = self._key(memory.session_id, memory.task_id, memory.run_id, memory.agent_name)
         recent_messages = [
@@ -71,6 +72,7 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
       ↓
     list[LLMMessage]
     """
+
     async def load(self, session_id: str, task_id: str, run_id: str, agent_name: str) -> WorkingMemory | None:
         key = self._key(session_id, task_id, run_id, agent_name)
         data = await self.redis.hgetall(key)
@@ -92,7 +94,6 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
             history_summary=data.get("history_summary", ""),
             recent_messages=recent_messages
         )
-
 
     async def clear(self, session_id: str, task_id: str, run_id: str, agent_name: str) -> None:
         key = self._key(session_id, task_id, run_id, agent_name)

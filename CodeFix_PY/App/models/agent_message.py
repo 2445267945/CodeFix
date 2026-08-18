@@ -27,5 +27,3 @@ class AgentMessage(BaseMessage):
     status: str = ""
     thought: str = ""
     output: dict = Field(default_factory=dict)
-
-

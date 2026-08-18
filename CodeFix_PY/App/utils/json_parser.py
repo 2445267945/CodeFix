@@ -47,5 +47,5 @@ def parse_llm_response(response: str) -> AgentDecision:
     try:
         return agent_decision_adapter.validate_python(data)
     except ValidationError as e:
-        logger.warning("LLM 输出不符合 AgentDecision Schema: %s",e)
+        logger.warning("LLM 输出不符合 AgentDecision Schema: %s", e)
         raise AgentDecisionParseError(f"LLM 输出不符合 AgentDecision Schema: {e}") from e

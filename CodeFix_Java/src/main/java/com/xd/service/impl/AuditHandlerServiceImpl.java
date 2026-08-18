@@ -1,10 +1,13 @@
 package com.xd.service.impl;
 
 import com.alibaba.fastjson2.JSON;
+import com.xd.context.AgentMessageProcessContext;
 import com.xd.model.dto.AgentMessageDTO;
 import com.xd.model.dto.AuditTaskCreateDTO;
+import com.xd.model.entity.AgentEventDO;
 import com.xd.model.vo.AgentChatStreamVO;
 import com.xd.model.vo.AuditRequestVO;
+import com.xd.model.vo.FileChangeVO;
 import com.xd.model.vo.TaskCreateVO;
 import com.xd.mq.MessageHandler;
 import com.xd.service.*;
@@ -31,6 +34,8 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
     @Autowired
     private AgentChatAssemblerService agentChatAssemblerService;
     @Autowired
+    private AgentFileChangeService agentFileChangeService;
+    @Autowired
     private AgentConversationService agentConversationService;
 
     /**
@@ -52,7 +57,7 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
 
     /**
      * MQ / Agent状态消息入口
-     * <p>
+     
      * Python -> Java
      */
     @Override
@@ -70,23 +75,34 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
         }
         log.info("收到Agent事件: taskId={}, runId={}, agent={}, event={}, step={}, status={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getAgentName(), messageDTO.getEvent(), messageDTO.getStep(), messageDTO.getStatus());
         // 2. Event + Task 状态必须同事务
+        AgentMessageProcessContext messageProcessContext;
         try {
-            transactionTemplate.executeWithoutResult(status -> {
+
+            messageProcessContext = transactionTemplate.execute(status -> {
+                AgentMessageProcessContext.AgentMessageProcessContextBuilder builder = AgentMessageProcessContext.builder();
                 // 历史事件
-                agentEventService.insertAgentEvent(messageDTO);
+                AgentEventDO eventDO = agentEventService.insertAgentEvent(messageDTO);
                 // 当前 Task 状态
                 agentTaskService.updateTaskStatus(messageDTO);
                 // 3. 当前 Run 状态
                 agentRunService.updateRun(messageDTO);
-                // 4. 只有 Root Agent FINISH 才生成 Assistant ChatMessage
+                // 4. 文件变动信息解析并持久化
+                FileChangeVO fileChange = agentFileChangeService.parse(messageDTO);
+                if (fileChange != null) {
+                    String diffId = agentFileChangeService.save(messageDTO, eventDO, fileChange);
+                    builder.diffId(diffId);
+                }
+                // 5. 只有 Root Agent FINISH 才生成 Assistant ChatMessage
                 agentConversationService.saveAssistantMessage(messageDTO);
+
+                return builder.build();
             });
         } catch (Exception e) {
             log.error("Agent事件持久化失败: taskId={}, runId={}, messageId={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getMessageId(), e);
             // 让MQ消费框架知道这次消费失败
             throw e;
         }
-        AgentChatStreamVO assemble = agentChatAssemblerService.assemble(messageDTO);
+        AgentChatStreamVO assemble = agentChatAssemblerService.assemble(messageDTO, messageProcessContext);
         // 3. 事务成功提交之后，再推给前端
         agentSseService.send(assemble);
         log.debug("Agent事件持久化成功: taskId={}, runId={}, event={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getEvent());

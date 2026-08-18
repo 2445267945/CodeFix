@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import asyncio
 
+
 @dataclass
 class AgentRunning:
     task_id: str

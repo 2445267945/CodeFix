@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 class OllamaLLM(LLMClient):
 
     def __init__(
-        self,
-        api_key: Optional[str] = None,
-        url: Optional[str] = None,
-        model: Optional[str] = None,
-        max_tokens: Optional[int] = None,
-        temperature: Optional[float] = None,
-        thinking: Optional[str] = None,
+            self,
+            api_key: Optional[str] = None,
+            url: Optional[str] = None,
+            model: Optional[str] = None,
+            max_tokens: Optional[int] = None,
+            temperature: Optional[float] = None,
+            thinking: Optional[str] = None,
     ):
-        self.url = url or "http://localhost:11434/v1/chat/completions"
+        self.url = url
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
@@ -49,9 +49,9 @@ class OllamaLLM(LLMClient):
         )
 
     async def chat(
-        self,
-        messages: list[LLMMessage],
-        tools: list[dict] | None = None,
+            self,
+            messages: list[LLMMessage],
+            tools: list[dict] | None = None,
     ) -> LLMResponse:
 
         payload_messages = [
@@ -193,7 +193,7 @@ class OllamaLLM(LLMClient):
 
     @staticmethod
     def to_ollama_message(
-        message: LLMMessage,
+            message: LLMMessage,
     ) -> dict:
 
         result = {

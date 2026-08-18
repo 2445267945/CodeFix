@@ -7,7 +7,8 @@ from .context.agent_run_context import AgentRunContext
 
 
 class ReActAgent(BaseAgent):
-    def __init__(self, context: AgentContext, run_context: AgentRunContext, base_message = None, parent_agent: str | None = None):
+    def __init__(self, context: AgentContext, run_context: AgentRunContext, base_message=None,
+                 parent_agent: str | None = None):
         super().__init__(context, run_context, base_message, parent_agent)
 
     async def step(self):
@@ -19,6 +20,7 @@ class ReActAgent(BaseAgent):
     @abstractmethod
     async def think(self):
         pass
+
     @abstractmethod
     async def act(self):
         pass

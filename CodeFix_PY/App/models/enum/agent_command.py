@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class AgentCommand(str, Enum):
     START = "START"
     RESUME = "RESUME"

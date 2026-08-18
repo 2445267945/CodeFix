@@ -3,6 +3,7 @@ from dataclasses import asdict, is_dataclass
 from App.agents.agent_model.llm_message import LLMMessage
 from App.agents.agent_model.tool_call import ToolCall
 
+
 # 序列话
 def serialize_message(message: LLMMessage) -> dict:
     if is_dataclass(message):
@@ -12,6 +13,7 @@ def serialize_message(message: LLMMessage) -> dict:
     if isinstance(message, dict):
         return message
     raise TypeError(f"不支持的消息类型: {type(message)}")
+
 
 # 反序列化
 def deserialize_message(data: dict) -> LLMMessage:
@@ -33,6 +35,6 @@ def deserialize_message(data: dict) -> LLMMessage:
         content=data.get("content"),
         reasoning_content=data.get("reasoning_content"),
         tool_calls=tool_calls,
-        tool_call_id=data.get( "tool_call_id"),
+        tool_call_id=data.get("tool_call_id"),
         name=data.get("name"),
     )

@@ -2,53 +2,61 @@ package com.xd.service.impl;
 
 import com.xd.assembler.AgentChatBlockAssembler;
 import com.xd.assembler.AgentChatStreamAssembler;
+import com.xd.context.AgentChatAssembleContext;
+import com.xd.context.AgentMessageProcessContext;
 import com.xd.mapper.AgentTaskMapper;
 import com.xd.mapper.ChatMessageMapper;
 import com.xd.model.dto.AgentMessageDTO;
-import com.xd.model.entity.AgentEventDO;
-import com.xd.model.entity.AgentRunDO;
-import com.xd.model.entity.AgentTaskDO;
-import com.xd.model.entity.ChatMessageDO;
+import com.xd.model.entity.*;
 import com.xd.model.vo.AgentChatBlockVO;
 import com.xd.model.vo.AgentChatStreamVO;
 import com.xd.model.vo.AgentChatTurnVO;
 import com.xd.model.vo.AgentChatViewVO;
 import com.xd.service.AgentChatAssemblerService;
 import com.xd.service.AgentEventService;
+import com.xd.service.AgentFileChangeService;
 import com.xd.service.AgentRunService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService {
+    @Autowired
+    private AgentEventService agentEventService;
 
-    private final AgentEventService agentEventService;
+    @Autowired
+    private AgentRunService agentRunService;
 
-    private final AgentRunService agentRunService;
+    @Autowired
+    private AgentTaskMapper agentTaskMapper;
 
-    private final AgentTaskMapper agentTaskMapper;
+    @Autowired
+    private ChatMessageMapper chatMessageMapper;
 
-    private final ChatMessageMapper chatMessageMapper;
+    @Autowired
+    private AgentFileChangeService agentFileChangeService;
 
-    private final AgentChatBlockAssembler agentChatBlockAssembler;
+    @Autowired
+    private AgentChatBlockAssembler agentChatBlockAssembler;
 
-    private final AgentChatStreamAssembler agentChatStreamAssembler;
+    @Autowired
+    private AgentChatStreamAssembler agentChatStreamAssembler;
 
 
     /**
      * 组装一个 Session 的完整 Agent Chat。
-     * <p>
+     
      * Session
      * ├── Task 1 -> Turn 1
      * ├── Task 2 -> Turn 2
      * └── Task 3 -> Turn 3
-     * <p>
+     
      * 当前 Task 和当前 Run 由参数明确指定。
      */
     @Override
@@ -65,24 +73,40 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
 
         /*
          * 2. 按 Task 创建时间正序
-         *
-         * turns[]：
-         * 最早 Task → 最新 Task
          */
-        List<AgentTaskDO> sortedTasks = tasks.stream().filter(Objects::nonNull).sorted(Comparator.comparing(AgentTaskDO::getCreatedAt, Comparator.nullsLast(Long::compareTo))).toList();
+        List<AgentTaskDO> sortedTasks = tasks.stream().filter(Objects::nonNull).sorted(Comparator.comparing(AgentTaskDO::getCreatedAt, Comparator.nullsLast(Long::compareTo)).thenComparing(AgentTaskDO::getId, Comparator.nullsLast(Long::compareTo))).toList();
 
         /*
-         * 3. 组装 View
+         * 3. 批量查询当前 Session 下所有 FileChange
+         */
+        List<String> taskIds = sortedTasks.stream().map(AgentTaskDO::getTaskId).filter(Objects::nonNull).toList();
+
+        List<AgentFileChangeDO> fileChanges = taskIds.isEmpty() ? List.of() : agentFileChangeService.getByTaskIds(taskIds);
+
+        /*
+         * 4. 构建：
+         *
+         * eventId -> FileChange
+         *
+         * 后续历史 Block 只需要通过 event.id
+         * 在内存 Map 中找到 diffId。
+         */
+        Map<Long, AgentFileChangeDO> fileChangeMap = fileChanges.stream().filter(Objects::nonNull).filter(change -> change.getEventId() != null).collect(Collectors.toMap(AgentFileChangeDO::getEventId, Function.identity(), (a, b) -> a));
+
+        /*
+         * 5. 构造历史组装 Context
+         */
+        AgentChatAssembleContext context = AgentChatAssembleContext.builder().fileChanges(fileChangeMap).build();
+
+        /*
+         * 6. 组装 View
          */
         AgentChatViewVO chat = new AgentChatViewVO();
 
         chat.setSessionId(sessionId);
 
         /*
-         * 4. Session 最新 Task = 当前 Task
-         *
-         * 因为每次新消息都会创建新的 Task，
-         * 所以最后一个 Task 就是当前 Task。
+         * Session 最新 Task = 当前 Task
          */
         AgentTaskDO currentTask = sortedTasks.isEmpty() ? null : sortedTasks.get(sortedTasks.size() - 1);
 
@@ -93,13 +117,16 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
         }
 
         /*
-         * 5. 每一个 Task = 一个 Chat Turn
+         * 7. 每个 Task = 一个 Chat Turn
+         *
+         * 注意：
+         * 下一步才把 context 传给 assembleTurn。
          */
         List<AgentChatTurnVO> turns = new ArrayList<>();
 
         for (AgentTaskDO task : sortedTasks) {
 
-            AgentChatTurnVO turn = assembleTurn(task);
+            AgentChatTurnVO turn = assembleTurn(task, context);
 
             if (turn != null) {
                 turns.add(turn);
@@ -111,33 +138,52 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
         return chat;
     }
 
+    private Map<Long, AgentFileChangeDO> loadFileChanges(List<AgentTaskDO> tasks) {
+
+        if (tasks == null || tasks.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<String> taskIds = tasks.stream().map(AgentTaskDO::getTaskId).filter(Objects::nonNull).toList();
+
+        if (taskIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        List<AgentFileChangeDO> changes = agentFileChangeService.getByTaskIds(taskIds);
+
+        if (changes == null || changes.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        return changes.stream().filter(Objects::nonNull).filter(change -> change.getEventId() != null).collect(Collectors.toMap(AgentFileChangeDO::getEventId, Function.identity(), (a, b) -> a));
+    }
 
     /**
      * 实时消息组装。
-     * <p>
+     
      * 这个方法保持不变。
      */
     @Override
-    public AgentChatStreamVO assemble(AgentMessageDTO agentMessageDTO) {
-
-        return agentChatStreamAssembler.assemble(agentMessageDTO);
+    public AgentChatStreamVO assemble(AgentMessageDTO agentMessageDTO, AgentMessageProcessContext messageProcessContext) {
+        return agentChatStreamAssembler.assemble(agentMessageDTO, messageProcessContext);
     }
 
 
     /**
      * 一个 Task = 一个 Chat Turn。
-     * <p>
+     
      * Task 当前 runId 指向最新 Run。
-     * <p>
+     
      * Retry：
-     * <p>
+     
      * Task T001
      * ├── Run R001
      * └── Run R002  <- task.runId
-     * <p>
+     
      * 最终 Turn 使用 R002 的 Event。
      */
-    private AgentChatTurnVO assembleTurn(AgentTaskDO task) {
+    private AgentChatTurnVO assembleTurn(AgentTaskDO task, AgentChatAssembleContext context) {
 
         if (task == null || task.getTaskId() == null) {
             return null;
@@ -153,9 +199,8 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
          *
          * 不按 runId 查询。
          *
-         * 原因：
-         * Retry 后 USER Message 可能属于旧 Run，
-         * 但它仍然属于这个 Task / Turn。
+         * Retry 后：
+         * USER Message 仍然属于这个 Task / Turn。
          * --------------------------------------------------
          */
         List<ChatMessageDO> messages = chatMessageMapper.selectByTaskIdAndRunId(taskId, null);
@@ -167,7 +212,6 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
         /*
          * --------------------------------------------------
          * 2. 用户消息
-         * 一个 Task 对应一条 USER Message。
          * --------------------------------------------------
          */
         ChatMessageDO userMessage = findUserMessage(messages);
@@ -176,8 +220,7 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
          * --------------------------------------------------
          * 3. 当前 Task 当前 Run 的 Event
          *
-         * Task.runId 就是当前最新 Run。
-         * Retry 后这里自然得到新的 Run。
+         * Task.runId = 当前最新 Run。
          * --------------------------------------------------
          */
         List<AgentEventDO> events = new ArrayList<>();
@@ -193,25 +236,26 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
 
         /*
          * --------------------------------------------------
-         * 4. 构建 Turn
+         * 4. 构建 Agent
+         *
+         * Context 继续向下传递。
+         * --------------------------------------------------
+         */
+        AgentChatViewVO.AgentMessageVO agent = buildAgentMessage(messages, events, context);
+
+        /*
+         * --------------------------------------------------
+         * 5. 构建 Turn
          * --------------------------------------------------
          */
         AgentChatTurnVO turn = new AgentChatTurnVO();
 
-        /*
-         * Task 就是这一轮，所以：
-         * turnId 不再存在。
-         *
-         * 如果你的 AgentChatTurnVO 还有 turnId，
-         * 建议已经删除。
-         */
         turn.setTaskId(taskId);
-
         turn.setRunId(currentRunId);
 
         turn.setUser(buildUserMessage(userMessage));
 
-        turn.setAgent(buildAgentMessage(messages, events));
+        turn.setAgent(agent);
 
         return turn;
     }
@@ -220,7 +264,7 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
     /**
      * 组装一个 Turn 的 Agent 部分。
      */
-    private AgentChatViewVO.AgentMessageVO buildAgentMessage(List<ChatMessageDO> messages, List<AgentEventDO> events) {
+    private AgentChatViewVO.AgentMessageVO buildAgentMessage(List<ChatMessageDO> messages, List<AgentEventDO> events, AgentChatAssembleContext context) {
 
         AgentChatViewVO.AgentMessageVO agent = new AgentChatViewVO.AgentMessageVO();
 
@@ -231,14 +275,21 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
 
         /*
          * Event -> UI Block
+         *
+         * Context 中已经提前准备好了：
+         *
+         * eventId -> AgentFileChangeDO
+         *
+         * 下一层 AgentChatBlockAssembler
+         * 会利用它为 FileChangeBlock 回填 diffId。
          */
-        agent.setBlocks(agentChatBlockAssembler.assemble(events));
+        agent.setBlocks(agentChatBlockAssembler.assemble(events, context));
 
         /*
          * Assistant 最终回答
          *
-         * 从 ChatMessage 取，
-         * 不从 FINISH Event 取。
+         * 仍然来自 ChatMessage，
+         * 不从 FINISH Event 获取。
          */
         agent.setFinalAnswer(buildFinalAnswer(messages));
 
@@ -269,14 +320,14 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
 
     /**
      * 组装最终 Assistant 回答。
-     * <p>
+     
      * 一个 Task / Turn 的 Assistant
      * 取这个 Task 下最后一条 Assistant Message。
-     * <p>
+     
      * Retry 后：
      * R001 ERROR
      * R002 FINISH
-     * <p>
+     
      * 最终 Assistant Message 会属于 R002。
      */
     private AgentChatViewVO.FinalAnswerVO buildFinalAnswer(List<ChatMessageDO> messages) {
@@ -303,9 +354,9 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
 
     /**
      * Task 下的 User Message。
-     * <p>
+     
      * 一个 Task 应该只有一条 USER Message。
-     * <p>
+     
      * 使用最早一条作为保护。
      */
     private ChatMessageDO findUserMessage(List<ChatMessageDO> messages) {
@@ -333,7 +384,7 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
 
     /**
      * 主 Agent：
-     * <p>
+     
      * Supervisor 优先。
      * 没有则取第一个有效 Agent。
      */

@@ -1,6 +1,7 @@
-import inspect
-
+import difflib
 import httpx, os, json
+
+from App.tools.tool_model.file_change_result import FileChangeResult
 from App.models.tool_schemas import TOOL_SCHEMAS
 from App.services.rag_service import search_manual
 
@@ -8,7 +9,7 @@ from App.services.rag_service import search_manual
 class ToolRegistry:
     def __init__(self):
         self.tools = {}
-        self.schemas = {} # 每个工具的参数校验器
+        self.schemas = {}  # 每个工具的参数校验器
 
     def register(self, name, description, need_caller=False):
         """这是一个装饰器，用来把函数注册进工具箱"""
@@ -22,6 +23,7 @@ class ToolRegistry:
             if name in TOOL_SCHEMAS:
                 self.schemas[name] = TOOL_SCHEMAS[name]
             return func
+
         return decorator
 
     def get_tools_desc(self, allowed_tools=None):
@@ -68,12 +70,15 @@ class ToolRegistry:
 # 创建全局工具箱和llm http请求实例
 registry = ToolRegistry()
 
+
 # === 定义工具 ===
 @registry.register(name="get_length", description="测量字符串长度。输入参数: {'text': '字符串'}")
 def get_length(text) -> int:
     return len(text)
 
-@registry.register(name="verify_java_syntax", description="验证 Java 代码语法是否正确。输入参数: {'code': 'Java 源代码字符串'}")
+
+@registry.register(name="verify_java_syntax",
+                   description="验证 Java 代码语法是否正确。输入参数: {'code': 'Java 源代码字符串'}")
 async def verify_java_syntax(code: str) -> str:
     """
     验证Java代码语法，返回校验结果。如果通过返回成功信息，否则返回具体错误
@@ -88,6 +93,7 @@ async def verify_java_syntax(code: str) -> str:
             return "语法校验通过，代码正确！"
         else:
             return f"语法校验失败：{data['error']}"
+
 
 @registry.register(
     name="parse_java_code",
@@ -109,6 +115,7 @@ async def parse_java_code(code: str) -> str:
         except Exception as e:
             return f"Error: 调用 Java 解析服务失败 - {str(e)}"
 
+
 @registry.register(
     name="search_manual",
     description="""
@@ -126,7 +133,7 @@ async def search_manual_async(query: str, n_results: int = 3) -> str:
 @registry.register(
     name="run_explorer",
     description="调用侦查员 Agent 分析 Java 代码结构。输入: {'code': 'Java源代码'}",
-    need_caller = True
+    need_caller=True
 )
 async def run_explorer(code: str, caller=None) -> str:
     if caller is None:
@@ -141,10 +148,11 @@ async def run_explorer(code: str, caller=None) -> str:
     res = await agent.run(code)
     return res.model_dump()
 
+
 @registry.register(
     name="run_fixer",
     description="调用修复员 Agent 修复 Java 代码。输入: {'code': '原始代码', 'report': '结构分析报告'}（JSON 格式）",
-    need_caller = True
+    need_caller=True
 )
 async def run_fixer(code: str, report: dict, caller=None) -> str:
     if caller is None:
@@ -185,6 +193,7 @@ async def list_files(path: str = "", caller=None) -> list:
         for p in sorted(directory.iterdir())
     ]
 
+
 @registry.register(
     name="read_file",
     description="读取当前 Workspace 中指定文件。输入: {'file_name': '相对文件路径'}",
@@ -201,19 +210,49 @@ async def read_file(file_name: str, caller=None) -> str:
         raise ValueError(f"不是文件: {file_name}")
     return target.read_text(encoding="utf-8")
 
+
 @registry.register(
     name="write_file",
     description="写入当前 Workspace 中指定文件。输入: {'file_name': '相对文件路径', 'content': '文件内容'}",
     need_caller=True
 )
-async def write_file(file_name: str, content: str, caller=None) -> str:
+async def write_file(file_name: str, content: str, caller=None) -> dict:
     if caller is None:
         raise RuntimeError("write_file 执行失败：缺少 caller Agent")
-    workspace = caller.run_context.workspace
-    target = workspace.resolve(file_name)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
-    return f"文件写入成功: {file_name}"
+    try:
+        workspace = caller.run_context.workspace
+        target = workspace.resolve(file_name)
+        existed = target.exists()
+        old_content = (target.read_text(encoding="utf-8") if existed else "")
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        new_content = content
+        diff_text, added, removed = build_diff(old_content, new_content)
+        return FileChangeResult(
+            file_path=file_name,
+            operation="modified" if existed else "created",
+            added_lines=added,
+            removed_lines=removed,
+            diff=diff_text
+        ).model_dump(by_alias=True)
+    except Exception as e:
+        print(f"write_file 执行失败：{e}")
+
+
+def build_diff(old_content: str, new_content: str):
+    old_lines = old_content.splitlines(keepends=True)
+    new_lines = new_content.splitlines(keepends=True)
+    diff_text = "".join(difflib.unified_diff(old_lines, new_lines, fromfile="before", tofile="after"))
+    added_lines = 0
+    removed_lines = 0
+    for line in difflib.ndiff(old_content.splitlines(), new_content.splitlines()):
+        if line.startswith("+ "):
+            added_lines += 1
+        elif line.startswith("- "):
+            removed_lines += 1
+    return (diff_text, added_lines, removed_lines)
+
 
 @registry.register(
     name="search_file",
@@ -237,19 +276,19 @@ async def search_file(query: str, path: str = "", caller=None) -> list:
             results.append({
                 "file": str(file.relative_to(workspace.root_path))
             })
-
     return results
+
 
 @registry.register(
     name="delete_file",
     description=(
-        "删除当前 Workspace 中指定的文件。"
-        "输入参数: {'file_name': 'Workspace 内的相对文件路径'}"
-        "只能删除 Workspace 内的文件，不能删除 Workspace 外部路径。"
+            "删除当前 Workspace 中指定的文件。"
+            "输入参数: {'file_name': 'Workspace 内的相对文件路径'}"
+            "只能删除 Workspace 内的文件，不能删除 Workspace 外部路径。"
     ),
     need_caller=True
 )
-async def delete_file(file_name: str,caller=None) -> str:
+async def delete_file(file_name: str, caller=None) -> dict:
     if caller is None:
         raise RuntimeError("delete_file 执行失败：缺少 caller Agent")
     workspace = caller.run_context.workspace
@@ -259,8 +298,20 @@ async def delete_file(file_name: str,caller=None) -> str:
     if not target.is_file():
         raise ValueError(f"目标不是文件，拒绝删除: {file_name}")
     try:
+        # 删除前读取原始内容
+        old_content = target.read_text(encoding="utf-8")
         target.unlink()
     except OSError as e:
         raise RuntimeError(f"删除文件失败: {file_name}") from e
 
-    return f"文件删除成功: {file_name}"
+    # 删除文件：
+    # before 有内容
+    # after 为空
+    diff_text, added_lines, removed_lines = build_diff(old_content, "")
+    return FileChangeResult(
+        file_path=file_name,
+        operation="deleted",
+        added_lines=added_lines,
+        removed_lines=removed_lines,
+        diff=diff_text
+    ).model_dump(by_alias=True)

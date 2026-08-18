@@ -8,7 +8,7 @@ import java.util.List;
 @Mapper
 public interface AgentEventMapper {
 
-    public void insertAgentEvent(AgentEventDO agentEventDO);
+    int insertAgentEvent(AgentEventDO agentEventDO);
 
     List<AgentEventDO> selectByTaskId(String taskId);
 

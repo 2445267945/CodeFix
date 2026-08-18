@@ -15,28 +15,29 @@ from ..models.session_context import SessionContext
 
 
 class BaseAgent(ABC):
-    def __init__(self, context: AgentContext, run_context: AgentRunContext, base_message = None, parent_agent: str | None = None):
+    def __init__(self, context: AgentContext, run_context: AgentRunContext, base_message=None,
+                 parent_agent: str | None = None):
         self.name = "Default"
-        self.parent_agent = parent_agent # 父agent名字
-        self.allowed_tools: tuple[str, ...] = () # 当前agent允许使用的工具
-        self.context = context # 上下文容器（全局）
-        self.run_context = run_context # 单次执行的上下文容器（局部）
-        self.main_llm = context.main_llm # 任务模型
-        self.compress_llm = context.compress_llm # 压缩模型
-        self.msg_sender = context.msg_sender # 消息发送器
-        self.working_memory_store = context.working_memory_store # 工作内容记忆snapshot
-        self.base_message = base_message # 消息基类
-        self.window_size = 50 # 窗口大小
+        self.parent_agent = parent_agent  # 父agent名字
+        self.allowed_tools: tuple[str, ...] = ()  # 当前agent允许使用的工具
+        self.context = context  # 上下文容器（全局）
+        self.run_context = run_context  # 单次执行的上下文容器（局部）
+        self.main_llm = context.main_llm  # 任务模型
+        self.compress_llm = context.compress_llm  # 压缩模型
+        self.msg_sender = context.msg_sender  # 消息发送器
+        self.working_memory_store = context.working_memory_store  # 工作内容记忆snapshot
+        self.base_message = base_message  # 消息基类
+        self.window_size = 50  # 窗口大小
         self.max_iterations = 30  # 防止死循环
-        self.current_step = 0 # 当前步数
+        self.current_step = 0  # 当前步数
         self.messages: list[LLMMessage] = []  # 维护对话历史（上下文）
-        self.systemPrompt = None # 系统提示词
-        self.tools = registry.tools # 工具
-        self.tools_schemas = registry # 工具入参规则
-        self.final_answer = None # 最终回复
-        self.status = AgentState.IDLE # Agent状态
-        self.last_time = None # 上一次模型开始执行时间
-        self.watch_dog = 30 # 看门狗存活时长上限
+        self.systemPrompt = None  # 系统提示词
+        self.tools = registry.tools  # 工具
+        self.tools_schemas = registry  # 工具入参规则
+        self.final_answer = None  # 最终回复
+        self.status = AgentState.IDLE  # Agent状态
+        self.last_time = None  # 上一次模型开始执行时间
+        self.watch_dog = 30  # 看门狗存活时长上限
         self.history_summary = ""
         self.manager = MessageManager()
 
@@ -75,8 +76,10 @@ class BaseAgent(ABC):
             # 进入ReAct循环
             while self.status not in (AgentState.FINISHED, AgentState.ERROR):
                 self.current_step += 1
-                self.history_summary, self.messages = await self.manager.compress_history_msg(self.window_size, self.messages,
-                                                              self.compress_llm, self.history_summary)
+                self.history_summary, self.messages = await self.manager.compress_history_msg(self.window_size,
+                                                                                              self.messages,
+                                                                                              self.compress_llm,
+                                                                                              self.history_summary)
                 cur_time = datetime.datetime.now()
                 # 当前时间 - 过去时间 > 30s(watch_dog) ? 超时 : 未超时更新过去时间;
                 if cur_time - self.last_time > datetime.timedelta(seconds=self.watch_dog):
@@ -123,7 +126,7 @@ class BaseAgent(ABC):
         return True
 
     # 构建初始化记忆
-    def build_initial_messages(self,question: str,session_context: SessionContext | None = None) -> None:
+    def build_initial_messages(self, question: str, session_context: SessionContext | None = None) -> None:
         """
         构建新 Run 的初始消息。
         结构：
@@ -136,7 +139,7 @@ class BaseAgent(ABC):
         messages = []
         # 1. System Prompt
         tool_desc = registry.get_tools_desc(allowed_tools=self.allowed_tools)
-        system_prompt = self.systemPrompt.format(name=self.name,tool_desc=tool_desc)
+        system_prompt = self.systemPrompt.format(name=self.name, tool_desc=tool_desc)
         messages.append(LLMMessage(role="system", content=system_prompt))
         # 2. Session 历史
         if session_context:
@@ -147,7 +150,7 @@ class BaseAgent(ABC):
                 messages.append(LLMMessage(role=role, content=item.content))
         # 3. 当前用户问题
         if question:
-            messages.append(LLMMessage(role="user",content=question))
+            messages.append(LLMMessage(role="user", content=question))
         self.messages = messages
 
     # 存储当前步骤的工作快照
@@ -167,7 +170,6 @@ class BaseAgent(ABC):
         )
         await self.working_memory_store.save(memory)
 
-
     async def clear_working_memory(self) -> None:
         if self.base_message is None:
             return
@@ -181,6 +183,7 @@ class BaseAgent(ABC):
     @abstractmethod
     def step(self):
         pass
+
     @abstractmethod
     def cleanup(self):
         pass

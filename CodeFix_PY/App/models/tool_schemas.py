@@ -14,6 +14,7 @@ class VerifyJavaSyntaxInput(BaseModel):
 class ParseJavaCodeInput(BaseModel):
     code: str = Field(..., description="Java源代码", min_length=1)
 
+
 # ---------- run_explorer 的入参规则 ----------
 class RunExplorerInput(BaseModel):
     code: str = Field(..., description="Java源代码", min_length=1)

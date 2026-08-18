@@ -1,8 +1,10 @@
 package com.xd.assembler;
 
+import com.xd.context.AgentMessageProcessContext;
 import com.xd.model.dto.AgentMessageDTO;
 import com.xd.model.vo.AgentChatBlockVO;
 import com.xd.model.vo.AgentChatStreamVO;
+import com.xd.model.vo.FileChangeVO;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -12,6 +14,7 @@ import java.util.UUID;
 
 /**
  * Agent 实时事件 -> Agent IDE 实时流消息
+
  * AgentMessageDTO：
  * Python -> Java / MQ 内部通信协议
  * AgentChatStreamVO：
@@ -21,7 +24,7 @@ import java.util.UUID;
 @Component
 public class AgentChatStreamAssembler {
 
-    public AgentChatStreamVO assemble(AgentMessageDTO message) {
+    public AgentChatStreamVO assemble(AgentMessageDTO message, AgentMessageProcessContext messageProcessContext) {
         if (message == null) {
             return null;
         }
@@ -29,7 +32,7 @@ public class AgentChatStreamAssembler {
         return switch (event) {
             case "THINK" -> assembleThink(message);
             case "TOOL_CALL" -> assembleToolCall(message);
-            case "TOOL_RESULT" -> assembleToolResult(message);
+            case "TOOL_RESULT" -> assembleToolResult(message, messageProcessContext);
             case "ERROR" -> assembleError(message);
             case "FINISH" -> assembleFinish(message);
             case "CANCELLED" -> assembleCancelled(message);
@@ -56,7 +59,7 @@ public class AgentChatStreamAssembler {
 
     /**
      * TOOL_CALL
-     * <p>
+
      * output 已经是 Map，不再进行 JSON 解析。
      */
     private AgentChatStreamVO assembleToolCall(AgentMessageDTO message) {
@@ -81,9 +84,10 @@ public class AgentChatStreamAssembler {
 
     /**
      * TOOL_RESULT
+
      * 根据 toolCallId 更新之前的 Block。
      */
-    private AgentChatStreamVO assembleToolResult(AgentMessageDTO message) {
+    private AgentChatStreamVO assembleToolResult(AgentMessageDTO message, AgentMessageProcessContext messageProcessContext) {
         Map<String, Object> data = safeOutput(message);
         String toolCallId = toStringValue(data.get("toolCallId"));
         if (isBlank(toolCallId)) {
@@ -100,7 +104,7 @@ public class AgentChatStreamAssembler {
         block.setStatus(resolveResultStatus(message));
         block.setSummary(buildCompletedSummary(block.getAction(), data));
         block.setSourceEventIds(new ArrayList<>(Collections.singletonList(resolveMessageId(message))));
-        applyFileChange(block, data);
+        applyFileChange(block, data, messageProcessContext);
         return buildUpdate(message, block);
     }
 
@@ -124,10 +128,14 @@ public class AgentChatStreamAssembler {
 
     /**
      * FINISH
+
      * 不直接生成 FinalAnswer。
+
      * Root Agent FINISH 时，
      * MQ 消费事务已经负责：
+
      * saveAssistantMessage()
+
      * 这里仅通知前端重新获取完整 Result。
      */
     private AgentChatStreamVO assembleFinish(AgentMessageDTO message) {
@@ -204,7 +212,7 @@ public class AgentChatStreamAssembler {
 
     /**
      * Python Tool -> UI Action
-     * <p>
+
      * 与历史 AgentChatBlockAssembler 保持一致。
      */
     private String resolveAction(String toolName) {
@@ -294,48 +302,57 @@ public class AgentChatStreamAssembler {
     /**
      * File Change
      */
-    private void applyFileChange(AgentChatBlockVO block, Map<String, Object> data) {
+    private void applyFileChange(AgentChatBlockVO block, Map<String, Object> data, AgentMessageProcessContext messageProcessContext) {
 
-        if (!"WRITE".equals(block.getAction())) {
+        Object resultObject = data.get("result");
+        if (!(resultObject instanceof Map<?, ?> resultMap)) {
+            return;
+        }
+        Object type = resultMap.get("type");
+        if (!"file_change".equals(type)) {
             return;
         }
 
-        Object result = data.get("result");
+        FileChangeVO change = parseFileChange((Map<String, Object>) resultMap);
 
-        if (!(result instanceof Map<?, ?> resultMap)) {
+        if (change == null) {
             return;
         }
 
-        Object filePath = resultMap.get("filePath");
+        block.setType(String.valueOf(type));
+        block.setFilePath(change.getFilePath());
+        block.setOperation(change.getOperation());
+        block.setAddedLines(change.getAddedLines());
+        block.setRemovedLines(change.getRemovedLines());
 
-        Object operation = resultMap.get("operation");
+        block.setDiffId(messageProcessContext.getDiffId());
+        // TODO 为来对当前文件操作的说明可以放这里
+//        block.setDetail(
+//                messageProcessContext.getDiffId()
+//        );
+    }
 
-        Object addedLines = resultMap.get("addedLines");
+    private FileChangeVO parseFileChange(Map<String, Object> resultMap) {
 
-        Object removedLines = resultMap.get("removedLines");
-
-        Object diffId = resultMap.get("diffId");
-
-        if (filePath != null) {
-            block.setType("file_change");
-            block.setFilePath(String.valueOf(filePath));
+        if (!"file_change".equals(resultMap.get("type"))) {
+            return null;
         }
 
-        if (operation != null) {
-            block.setOperation(String.valueOf(operation));
-        }
+        FileChangeVO change = new FileChangeVO();
 
-        if (addedLines != null) {
-            block.setAddedLines(toInteger(addedLines));
-        }
+        change.setType(toStringValue(resultMap.get("type")));
 
-        if (removedLines != null) {
-            block.setRemovedLines(toInteger(removedLines));
-        }
+        change.setFilePath(toStringValue(resultMap.get("filePath")));
 
-        if (diffId != null) {
-            block.setDiffId(String.valueOf(diffId));
-        }
+        change.setOperation(toStringValue(resultMap.get("operation")));
+
+        change.setAddedLines(toInteger(resultMap.get("addedLines")));
+
+        change.setRemovedLines(toInteger(resultMap.get("removedLines")));
+
+        change.setDiff(toStringValue(resultMap.get("diff")));
+
+        return change;
     }
 
     /**
