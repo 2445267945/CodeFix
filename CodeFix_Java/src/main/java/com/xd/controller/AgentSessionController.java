@@ -34,12 +34,7 @@ public class AgentSessionController {
     @GetMapping("/{sessionId}")
     public AgentSessionVO getSession(@PathVariable String sessionId) {
         AgentSessionDO session = agentSessionService.getSessionById(sessionId);
-        return AgentSessionVO.builder()
-                .sessionId(session.getSessionId())
-                .workspaceId(session.getWorkspaceId())
-                .createdAt(session.getCreatedAt())
-                .updatedAt(session.getUpdatedAt())
-                .build();
+        return AgentSessionVO.builder().sessionId(session.getSessionId()).workspaceId(session.getWorkspaceId()).createdAt(session.getCreatedAt()).updatedAt(session.getUpdatedAt()).build();
     }
 
     /**
@@ -62,7 +57,7 @@ public class AgentSessionController {
 
     /**
      * 在 Session 中发送一条新消息
-     *
+     * <p>
      * 一条消息会创建一个新的 Task + Run
      */
     @PostMapping("/messages")
@@ -71,7 +66,7 @@ public class AgentSessionController {
     }
 
     @GetMapping
-    public List<SessionVO> getMessages(){
+    public List<SessionVO> getMessages() {
         return agentConversationService.getMessages();
     }
 

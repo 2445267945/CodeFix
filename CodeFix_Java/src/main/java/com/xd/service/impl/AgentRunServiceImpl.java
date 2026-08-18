@@ -32,11 +32,9 @@ public class AgentRunServiceImpl implements AgentRunService {
 
         long now = System.currentTimeMillis();
 
-        Integer maxAttempt =
-                agentRunMapper.selectMaxAttemptByTaskId(taskId);
+        Integer maxAttempt = agentRunMapper.selectMaxAttemptByTaskId(taskId);
 
-        int attempt =
-                (maxAttempt == null ? 0 : maxAttempt) + 1;
+        int attempt = (maxAttempt == null ? 0 : maxAttempt) + 1;
 
         AgentRunDO run = new AgentRunDO();
 
@@ -65,12 +63,7 @@ public class AgentRunServiceImpl implements AgentRunService {
         }
         AuditTaskStatusEnum status = AuditTaskStatusEnum.getStatusByDesc(messageDTO.getStatus());
         if (status == null) {
-            log.warn(
-                    "无法更新Run状态: taskId={}, runId={}, status={}",
-                    messageDTO.getTaskId(),
-                    messageDTO.getRunId(),
-                    messageDTO.getStatus()
-            );
+            log.warn("无法更新Run状态: taskId={}, runId={}, status={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getStatus());
             return;
         }
         AgentRunDO update = new AgentRunDO();
@@ -99,13 +92,10 @@ public class AgentRunServiceImpl implements AgentRunService {
         AgentTaskDO task = agentTaskMapper.selectByTaskId(taskId);
 
         if (task == null) {
-            throw new RuntimeException(
-                    "任务不存在: " + taskId
-            );
+            throw new RuntimeException("任务不存在: " + taskId);
         }
 
-        List<AgentRunDO> runs =
-                agentRunMapper.selectByTaskId(taskId);
+        List<AgentRunDO> runs = agentRunMapper.selectByTaskId(taskId);
 
         if (runs == null || runs.isEmpty()) {
             return Collections.emptyList();
@@ -113,44 +103,17 @@ public class AgentRunServiceImpl implements AgentRunService {
 
         String currentRunId = task.getRunId();
 
-        return runs.stream()
-                .map(run ->
-                        toRunVO(
-                                run,
-                                currentRunId
-                        )
-                )
-                .toList();
+        return runs.stream().map(run -> toRunVO(run, currentRunId)).toList();
     }
 
-    private AgentRunVO toRunVO(
-            AgentRunDO run,
-            String currentRunId) {
+    private AgentRunVO toRunVO(AgentRunDO run, String currentRunId) {
 
-        return AgentRunVO.builder()
-                .runId(run.getRunId())
-                .taskId(run.getTaskId())
-                .sessionId(run.getSessionId())
-                .attempt(run.getAttempt())
-                .status(run.getStatus())
-                .statusValue(resolveStatusValue(run.getStatus()))
-                .startedAt(run.getStartedAt())
-                .endedAt(run.getEndedAt())
-                .errorMessage(run.getErrorMessage())
-                .createdAt(run.getCreatedAt())
-                .current(
-                        Objects.equals(
-                                run.getRunId(),
-                                currentRunId
-                        )
-                )
-                .build();
+        return AgentRunVO.builder().runId(run.getRunId()).taskId(run.getTaskId()).sessionId(run.getSessionId()).attempt(run.getAttempt()).status(run.getStatus()).statusValue(resolveStatusValue(run.getStatus())).startedAt(run.getStartedAt()).endedAt(run.getEndedAt()).errorMessage(run.getErrorMessage()).createdAt(run.getCreatedAt()).current(Objects.equals(run.getRunId(), currentRunId)).build();
     }
 
     private String resolveStatusValue(Integer status) {
-        AuditTaskStatusEnum statusEnum =
-                AuditTaskStatusEnum.getStatusByCode(status);
-        return statusEnum == null ? ""  : statusEnum.statusDesc_EN;
+        AuditTaskStatusEnum statusEnum = AuditTaskStatusEnum.getStatusByCode(status);
+        return statusEnum == null ? "" : statusEnum.statusDesc_EN;
     }
 
     @Override
@@ -164,17 +127,10 @@ public class AgentRunServiceImpl implements AgentRunService {
             throw new IllegalArgumentException("runId不能为空");
         }
 
-        AgentRunDO run =
-                agentRunMapper.selectByTaskIdAndRunId(
-                        taskId,
-                        runId
-                );
+        AgentRunDO run = agentRunMapper.selectByTaskIdAndRunId(taskId, runId);
 
         if (run == null) {
-            throw new RuntimeException(
-                    "Run不存在: taskId=" + taskId
-                            + ", runId=" + runId
-            );
+            throw new RuntimeException("Run不存在: taskId=" + taskId + ", runId=" + runId);
         }
 
         return run;

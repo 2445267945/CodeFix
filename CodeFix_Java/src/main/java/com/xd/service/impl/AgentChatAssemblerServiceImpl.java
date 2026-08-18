@@ -26,8 +26,7 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
-public class AgentChatAssemblerServiceImpl
-        implements AgentChatAssemblerService {
+public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService {
 
     private final AgentEventService agentEventService;
 
@@ -44,12 +43,12 @@ public class AgentChatAssemblerServiceImpl
 
     /**
      * 组装一个 Session 的完整 Agent Chat。
-     *
+     * <p>
      * Session
-     *   ├── Task 1 -> Turn 1
-     *   ├── Task 2 -> Turn 2
-     *   └── Task 3 -> Turn 3
-     *
+     * ├── Task 1 -> Turn 1
+     * ├── Task 2 -> Turn 2
+     * └── Task 3 -> Turn 3
+     * <p>
      * 当前 Task 和当前 Run 由参数明确指定。
      */
     @Override
@@ -58,8 +57,7 @@ public class AgentChatAssemblerServiceImpl
         /*
          * 1. 查询 Session 下所有 Task
          */
-        List<AgentTaskDO> tasks =
-                agentTaskMapper.selectBySessionId(sessionId);
+        List<AgentTaskDO> tasks = agentTaskMapper.selectBySessionId(sessionId);
 
         if (tasks == null) {
             tasks = List.of();
@@ -71,22 +69,12 @@ public class AgentChatAssemblerServiceImpl
          * turns[]：
          * 最早 Task → 最新 Task
          */
-        List<AgentTaskDO> sortedTasks =
-                tasks.stream()
-                        .filter(Objects::nonNull)
-                        .sorted(
-                                Comparator.comparing(
-                                        AgentTaskDO::getCreatedAt,
-                                        Comparator.nullsLast(Long::compareTo)
-                                )
-                        )
-                        .toList();
+        List<AgentTaskDO> sortedTasks = tasks.stream().filter(Objects::nonNull).sorted(Comparator.comparing(AgentTaskDO::getCreatedAt, Comparator.nullsLast(Long::compareTo))).toList();
 
         /*
          * 3. 组装 View
          */
-        AgentChatViewVO chat =
-                new AgentChatViewVO();
+        AgentChatViewVO chat = new AgentChatViewVO();
 
         chat.setSessionId(sessionId);
 
@@ -96,33 +84,22 @@ public class AgentChatAssemblerServiceImpl
          * 因为每次新消息都会创建新的 Task，
          * 所以最后一个 Task 就是当前 Task。
          */
-        AgentTaskDO currentTask =
-                sortedTasks.isEmpty()
-                        ? null
-                        : sortedTasks.get(
-                        sortedTasks.size() - 1
-                );
+        AgentTaskDO currentTask = sortedTasks.isEmpty() ? null : sortedTasks.get(sortedTasks.size() - 1);
 
         if (currentTask != null) {
-            chat.setTaskId(
-                    currentTask.getTaskId()
-            );
+            chat.setTaskId(currentTask.getTaskId());
 
-            chat.setRunId(
-                    currentTask.getRunId()
-            );
+            chat.setRunId(currentTask.getRunId());
         }
 
         /*
          * 5. 每一个 Task = 一个 Chat Turn
          */
-        List<AgentChatTurnVO> turns =
-                new ArrayList<>();
+        List<AgentChatTurnVO> turns = new ArrayList<>();
 
         for (AgentTaskDO task : sortedTasks) {
 
-            AgentChatTurnVO turn =
-                    assembleTurn(task);
+            AgentChatTurnVO turn = assembleTurn(task);
 
             if (turn != null) {
                 turns.add(turn);
@@ -137,45 +114,38 @@ public class AgentChatAssemblerServiceImpl
 
     /**
      * 实时消息组装。
-     *
+     * <p>
      * 这个方法保持不变。
      */
     @Override
-    public AgentChatStreamVO assemble(
-            AgentMessageDTO agentMessageDTO) {
+    public AgentChatStreamVO assemble(AgentMessageDTO agentMessageDTO) {
 
-        return agentChatStreamAssembler.assemble(
-                agentMessageDTO
-        );
+        return agentChatStreamAssembler.assemble(agentMessageDTO);
     }
 
 
     /**
      * 一个 Task = 一个 Chat Turn。
-     *
+     * <p>
      * Task 当前 runId 指向最新 Run。
-     *
+     * <p>
      * Retry：
-     *
+     * <p>
      * Task T001
      * ├── Run R001
      * └── Run R002  <- task.runId
-     *
+     * <p>
      * 最终 Turn 使用 R002 的 Event。
      */
-    private AgentChatTurnVO assembleTurn(
-            AgentTaskDO task) {
+    private AgentChatTurnVO assembleTurn(AgentTaskDO task) {
 
-        if (task == null
-                || task.getTaskId() == null) {
+        if (task == null || task.getTaskId() == null) {
             return null;
         }
 
-        String taskId =
-                task.getTaskId();
+        String taskId = task.getTaskId();
 
-        String currentRunId =
-                task.getRunId();
+        String currentRunId = task.getRunId();
 
         /*
          * --------------------------------------------------
@@ -188,11 +158,7 @@ public class AgentChatAssemblerServiceImpl
          * 但它仍然属于这个 Task / Turn。
          * --------------------------------------------------
          */
-        List<ChatMessageDO> messages =
-                chatMessageMapper.selectByTaskIdAndRunId(
-                        taskId,
-                        null
-                );
+        List<ChatMessageDO> messages = chatMessageMapper.selectByTaskIdAndRunId(taskId, null);
 
         if (messages == null) {
             messages = List.of();
@@ -204,8 +170,7 @@ public class AgentChatAssemblerServiceImpl
          * 一个 Task 对应一条 USER Message。
          * --------------------------------------------------
          */
-        ChatMessageDO userMessage =
-                findUserMessage(messages);
+        ChatMessageDO userMessage = findUserMessage(messages);
 
         /*
          * --------------------------------------------------
@@ -215,17 +180,11 @@ public class AgentChatAssemblerServiceImpl
          * Retry 后这里自然得到新的 Run。
          * --------------------------------------------------
          */
-        List<AgentEventDO> events =
-                new ArrayList<>();
+        List<AgentEventDO> events = new ArrayList<>();
 
-        if (currentRunId != null
-                && !currentRunId.isBlank()) {
+        if (currentRunId != null && !currentRunId.isBlank()) {
 
-            List<AgentEventDO> currentEvents =
-                    agentEventService.getEvents(
-                            taskId,
-                            currentRunId
-                    );
+            List<AgentEventDO> currentEvents = agentEventService.getEvents(taskId, currentRunId);
 
             if (currentEvents != null) {
                 events.addAll(currentEvents);
@@ -237,8 +196,7 @@ public class AgentChatAssemblerServiceImpl
          * 4. 构建 Turn
          * --------------------------------------------------
          */
-        AgentChatTurnVO turn =
-                new AgentChatTurnVO();
+        AgentChatTurnVO turn = new AgentChatTurnVO();
 
         /*
          * Task 就是这一轮，所以：
@@ -251,16 +209,9 @@ public class AgentChatAssemblerServiceImpl
 
         turn.setRunId(currentRunId);
 
-        turn.setUser(
-                buildUserMessage(userMessage)
-        );
+        turn.setUser(buildUserMessage(userMessage));
 
-        turn.setAgent(
-                buildAgentMessage(
-                        messages,
-                        events
-                )
-        );
+        turn.setAgent(buildAgentMessage(messages, events));
 
         return turn;
     }
@@ -269,28 +220,19 @@ public class AgentChatAssemblerServiceImpl
     /**
      * 组装一个 Turn 的 Agent 部分。
      */
-    private AgentChatViewVO.AgentMessageVO buildAgentMessage(
-            List<ChatMessageDO> messages,
-            List<AgentEventDO> events) {
+    private AgentChatViewVO.AgentMessageVO buildAgentMessage(List<ChatMessageDO> messages, List<AgentEventDO> events) {
 
-        AgentChatViewVO.AgentMessageVO agent =
-                new AgentChatViewVO.AgentMessageVO();
+        AgentChatViewVO.AgentMessageVO agent = new AgentChatViewVO.AgentMessageVO();
 
         /*
          * 主 Agent
          */
-        agent.setAgentName(
-                resolveMainAgent(events)
-        );
+        agent.setAgentName(resolveMainAgent(events));
 
         /*
          * Event -> UI Block
          */
-        agent.setBlocks(
-                agentChatBlockAssembler.assemble(
-                        events
-                )
-        );
+        agent.setBlocks(agentChatBlockAssembler.assemble(events));
 
         /*
          * Assistant 最终回答
@@ -298,9 +240,7 @@ public class AgentChatAssemblerServiceImpl
          * 从 ChatMessage 取，
          * 不从 FINISH Event 取。
          */
-        agent.setFinalAnswer(
-                buildFinalAnswer(messages)
-        );
+        agent.setFinalAnswer(buildFinalAnswer(messages));
 
         return agent;
     }
@@ -309,27 +249,19 @@ public class AgentChatAssemblerServiceImpl
     /**
      * 组装用户消息。
      */
-    private AgentChatViewVO.UserMessageVO buildUserMessage(
-            ChatMessageDO message) {
+    private AgentChatViewVO.UserMessageVO buildUserMessage(ChatMessageDO message) {
 
         if (message == null) {
             return null;
         }
 
-        AgentChatViewVO.UserMessageVO vo =
-                new AgentChatViewVO.UserMessageVO();
+        AgentChatViewVO.UserMessageVO vo = new AgentChatViewVO.UserMessageVO();
 
-        vo.setMessageId(
-                message.getMessageId()
-        );
+        vo.setMessageId(message.getMessageId());
 
-        vo.setContent(
-                message.getContent()
-        );
+        vo.setContent(message.getContent());
 
-        vo.setTimestamp(
-                message.getCreatedAt()
-        );
+        vo.setTimestamp(message.getCreatedAt());
 
         return vo;
     }
@@ -337,42 +269,33 @@ public class AgentChatAssemblerServiceImpl
 
     /**
      * 组装最终 Assistant 回答。
-     *
+     * <p>
      * 一个 Task / Turn 的 Assistant
      * 取这个 Task 下最后一条 Assistant Message。
-     *
+     * <p>
      * Retry 后：
      * R001 ERROR
      * R002 FINISH
-     *
+     * <p>
      * 最终 Assistant Message 会属于 R002。
      */
-    private AgentChatViewVO.FinalAnswerVO buildFinalAnswer(
-            List<ChatMessageDO> messages) {
+    private AgentChatViewVO.FinalAnswerVO buildFinalAnswer(List<ChatMessageDO> messages) {
 
-        ChatMessageDO message =
-                findAssistantMessage(messages);
+        ChatMessageDO message = findAssistantMessage(messages);
 
         if (message == null) {
             return null;
         }
 
-        AgentChatViewVO.FinalAnswerVO vo =
-                new AgentChatViewVO.FinalAnswerVO();
+        AgentChatViewVO.FinalAnswerVO vo = new AgentChatViewVO.FinalAnswerVO();
 
         vo.setType("final_answer");
 
-        vo.setId(
-                message.getMessageId()
-        );
+        vo.setId(message.getMessageId());
 
-        vo.setContent(
-                message.getContent()
-        );
+        vo.setContent(message.getContent());
 
-        vo.setTimestamp(
-                message.getCreatedAt()
-        );
+        vo.setTimestamp(message.getCreatedAt());
 
         return vo;
     }
@@ -380,112 +303,58 @@ public class AgentChatAssemblerServiceImpl
 
     /**
      * Task 下的 User Message。
-     *
+     * <p>
      * 一个 Task 应该只有一条 USER Message。
-     *
+     * <p>
      * 使用最早一条作为保护。
      */
-    private ChatMessageDO findUserMessage(
-            List<ChatMessageDO> messages) {
+    private ChatMessageDO findUserMessage(List<ChatMessageDO> messages) {
 
-        if (messages == null
-                || messages.isEmpty()) {
+        if (messages == null || messages.isEmpty()) {
             return null;
         }
 
-        return messages.stream()
-                .filter(Objects::nonNull)
-                .filter(message ->
-                        "USER".equalsIgnoreCase(
-                                message.getRole()
-                        ))
-                .min(
-                        Comparator.comparing(
-                                ChatMessageDO::getCreatedAt,
-                                Comparator.nullsLast(
-                                        Long::compareTo
-                                )
-                        )
-                )
-                .orElse(null);
+        return messages.stream().filter(Objects::nonNull).filter(message -> "USER".equalsIgnoreCase(message.getRole())).min(Comparator.comparing(ChatMessageDO::getCreatedAt, Comparator.nullsLast(Long::compareTo))).orElse(null);
     }
 
 
     /**
      * Task 下最后一条 Assistant Message。
      */
-    private ChatMessageDO findAssistantMessage(
-            List<ChatMessageDO> messages) {
+    private ChatMessageDO findAssistantMessage(List<ChatMessageDO> messages) {
 
-        if (messages == null
-                || messages.isEmpty()) {
+        if (messages == null || messages.isEmpty()) {
             return null;
         }
 
-        return messages.stream()
-                .filter(Objects::nonNull)
-                .filter(message ->
-                        "ASSISTANT".equalsIgnoreCase(
-                                message.getRole()
-                        ))
-                .max(
-                        Comparator.comparing(
-                                ChatMessageDO::getCreatedAt,
-                                Comparator.nullsLast(
-                                        Long::compareTo
-                                )
-                        )
-                )
-                .orElse(null);
+        return messages.stream().filter(Objects::nonNull).filter(message -> "ASSISTANT".equalsIgnoreCase(message.getRole())).max(Comparator.comparing(ChatMessageDO::getCreatedAt, Comparator.nullsLast(Long::compareTo))).orElse(null);
     }
 
 
     /**
      * 主 Agent：
-     *
+     * <p>
      * Supervisor 优先。
      * 没有则取第一个有效 Agent。
      */
-    private String resolveMainAgent(
-            List<AgentEventDO> events) {
+    private String resolveMainAgent(List<AgentEventDO> events) {
 
-        if (events == null
-                || events.isEmpty()) {
+        if (events == null || events.isEmpty()) {
             return null;
         }
 
-        String supervisor =
-                events.stream()
-                        .filter(Objects::nonNull)
-                        .map(
-                                AgentEventDO::getAgentName
-                        )
-                        .filter(this::isNotBlank)
-                        .filter(name ->
-                                "Supervisor"
-                                        .equalsIgnoreCase(name))
-                        .findFirst()
-                        .orElse(null);
+        String supervisor = events.stream().filter(Objects::nonNull).map(AgentEventDO::getAgentName).filter(this::isNotBlank).filter(name -> "Supervisor".equalsIgnoreCase(name)).findFirst().orElse(null);
 
         if (supervisor != null) {
             return supervisor;
         }
 
-        return events.stream()
-                .filter(Objects::nonNull)
-                .map(
-                        AgentEventDO::getAgentName
-                )
-                .filter(this::isNotBlank)
-                .findFirst()
-                .orElse(null);
+        return events.stream().filter(Objects::nonNull).map(AgentEventDO::getAgentName).filter(this::isNotBlank).findFirst().orElse(null);
     }
 
 
-    private boolean isNotBlank(
-            String value) {
+    private boolean isNotBlank(String value) {
 
-        return value != null
-                && !value.isBlank();
+        return value != null && !value.isBlank();
     }
 }

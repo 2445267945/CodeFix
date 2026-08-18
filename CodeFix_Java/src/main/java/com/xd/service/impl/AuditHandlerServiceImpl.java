@@ -52,7 +52,7 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
 
     /**
      * MQ / Agent状态消息入口
-     *
+     * <p>
      * Python -> Java
      */
     @Override
@@ -62,21 +62,13 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
 
         // 1. JSON解析
         try {
-            messageDTO = JSON.parseObject(agentMessageJSON,  AgentMessageDTO.class);
+            messageDTO = JSON.parseObject(agentMessageJSON, AgentMessageDTO.class);
         } catch (Exception e) {
-            log.error("Agent消息JSON解析失败: {}",  agentMessageJSON,  e);
+            log.error("Agent消息JSON解析失败: {}", agentMessageJSON, e);
             // 这里是否抛出异常取决于MQ重试机制
             throw e;
         }
-        log.info(
-                "收到Agent事件: taskId={}, runId={}, agent={}, event={}, step={}, status={}",
-                messageDTO.getTaskId(),
-                messageDTO.getRunId(),
-                messageDTO.getAgentName(),
-                messageDTO.getEvent(),
-                messageDTO.getStep(),
-                messageDTO.getStatus()
-        );
+        log.info("收到Agent事件: taskId={}, runId={}, agent={}, event={}, step={}, status={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getAgentName(), messageDTO.getEvent(), messageDTO.getStep(), messageDTO.getStatus());
         // 2. Event + Task 状态必须同事务
         try {
             transactionTemplate.executeWithoutResult(status -> {
@@ -90,24 +82,13 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
                 agentConversationService.saveAssistantMessage(messageDTO);
             });
         } catch (Exception e) {
-            log.error(
-                    "Agent事件持久化失败: taskId={}, runId={}, messageId={}",
-                    messageDTO.getTaskId(),
-                    messageDTO.getRunId(),
-                    messageDTO.getMessageId(),
-                    e
-            );
+            log.error("Agent事件持久化失败: taskId={}, runId={}, messageId={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getMessageId(), e);
             // 让MQ消费框架知道这次消费失败
             throw e;
         }
         AgentChatStreamVO assemble = agentChatAssemblerService.assemble(messageDTO);
         // 3. 事务成功提交之后，再推给前端
         agentSseService.send(assemble);
-        log.debug(
-                "Agent事件持久化成功: taskId={}, runId={}, event={}",
-                messageDTO.getTaskId(),
-                messageDTO.getRunId(),
-                messageDTO.getEvent()
-        );
+        log.debug("Agent事件持久化成功: taskId={}, runId={}, event={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getEvent());
     }
 }

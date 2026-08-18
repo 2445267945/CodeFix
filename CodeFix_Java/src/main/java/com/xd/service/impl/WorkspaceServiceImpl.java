@@ -20,8 +20,7 @@ import java.util.UUID;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class WorkspaceServiceImpl
-        implements WorkspaceService {
+public class WorkspaceServiceImpl implements WorkspaceService {
 
     private static final String WORKSPACE_ROOT = "/data/workspaces";
 
@@ -53,12 +52,7 @@ public class WorkspaceServiceImpl
             workspaceMapper.updateWorkspace(workspace);
             return workspace;
         } catch (IOException e) {
-            log.error(
-                    "Workspace初始化失败: workspaceId={}, rootPath={}",
-                    workspaceId,
-                    rootPath,
-                    e
-            );
+            log.error("Workspace初始化失败: workspaceId={}, rootPath={}", workspaceId, rootPath, e);
             workspace.setStatus("ERROR");
             workspace.setUpdatedAt(System.currentTimeMillis());
             workspaceMapper.updateWorkspace(workspace);
@@ -67,30 +61,21 @@ public class WorkspaceServiceImpl
     }
 
     @Override
-    public WorkspaceDO getWorkspace(
-            String workspaceId) {
+    public WorkspaceDO getWorkspace(String workspaceId) {
 
-        WorkspaceDO workspace =
-                workspaceMapper.selectByWorkspaceId(
-                        workspaceId
-                );
+        WorkspaceDO workspace = workspaceMapper.selectByWorkspaceId(workspaceId);
 
         if (workspace == null) {
-            throw new IllegalArgumentException(
-                    "Workspace不存在: " + workspaceId
-            );
+            throw new IllegalArgumentException("Workspace不存在: " + workspaceId);
         }
 
         return workspace;
     }
 
     @Override
-    public WorkspaceDO getBySessionId(
-            String sessionId) {
+    public WorkspaceDO getBySessionId(String sessionId) {
 
-        return workspaceMapper.selectBySessionId(
-                sessionId
-        );
+        return workspaceMapper.selectBySessionId(sessionId);
     }
 
     @Override
@@ -104,27 +89,17 @@ public class WorkspaceServiceImpl
     }
 
     @Override
-    public void initializeFile(
-            String workspaceId,
-            String fileName,
-            String code) {
+    public void initializeFile(String workspaceId, String fileName, String code) {
 
-        WorkspaceDO workspace =
-                getWorkspace(workspaceId);
+        WorkspaceDO workspace = getWorkspace(workspaceId);
 
         if (!"READY".equals(workspace.getStatus())) {
-            throw new IllegalStateException(
-                    "Workspace当前不可用: "
-                            + workspaceId
-            );
+            throw new IllegalStateException("Workspace当前不可用: " + workspaceId);
         }
 
-        if (fileName == null
-                || fileName.isBlank()) {
+        if (fileName == null || fileName.isBlank()) {
 
-            throw new IllegalArgumentException(
-                    "fileName不能为空"
-            );
+            throw new IllegalArgumentException("fileName不能为空");
         }
 
         if (code == null) {
@@ -133,53 +108,31 @@ public class WorkspaceServiceImpl
 
         try {
 
-            Path root =
-                    Paths.get(
-                            workspace.getRootPath()
-                    ).toAbsolutePath().normalize();
+            Path root = Paths.get(workspace.getRootPath()).toAbsolutePath().normalize();
 
-            Path target =
-                    root.resolve(fileName)
-                            .normalize();
+            Path target = root.resolve(fileName).normalize();
 
             /*
              * 防止 ../ 越界写文件
              */
             if (!target.startsWith(root)) {
-                throw new IllegalArgumentException(
-                        "非法文件路径: " + fileName
-                );
+                throw new IllegalArgumentException("非法文件路径: " + fileName);
             }
 
-            Path parent =
-                    target.getParent();
+            Path parent = target.getParent();
 
             if (parent != null) {
                 Files.createDirectories(parent);
             }
 
-            Files.writeString(
-                    target,
-                    code,
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING
-            );
+            Files.writeString(target, code, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
 
 
         } catch (IOException e) {
 
-            log.error(
-                    "初始化Workspace文件失败: workspaceId={}, fileName={}",
-                    workspaceId,
-                    fileName,
-                    e
-            );
+            log.error("初始化Workspace文件失败: workspaceId={}, fileName={}", workspaceId, fileName, e);
 
-            throw new RuntimeException(
-                    "Workspace文件初始化失败",
-                    e
-            );
+            throw new RuntimeException("Workspace文件初始化失败", e);
         }
     }
 }

@@ -5,9 +5,7 @@ import com.xd.model.vo.AgentChatStreamVO;
 import com.xd.model.vo.AgentChatViewVO;
 
 public interface AgentChatAssemblerService {
-    AgentChatViewVO assemble(
-            String sessionId
-    );
+    AgentChatViewVO assemble(String sessionId);
 
     AgentChatStreamVO assemble(AgentMessageDTO agentMessageDTO);
 }

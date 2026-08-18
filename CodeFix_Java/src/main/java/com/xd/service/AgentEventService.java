@@ -14,8 +14,5 @@ public interface AgentEventService {
     /**
      * 查询某个 Task / Run 的 Agent Event
      */
-    List<AgentEventDO> getEvents(
-            String taskId,
-            String runId
-    );
+    List<AgentEventDO> getEvents(String taskId, String runId);
 }

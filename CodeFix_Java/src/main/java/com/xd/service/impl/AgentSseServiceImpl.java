@@ -38,11 +38,7 @@ public class AgentSseServiceImpl implements AgentSseService {
             log.warn("SSE连接异常: taskId={}", taskId, error);
         });
         try {
-            emitter.send(
-                    SseEmitter.event()
-                            .name("CONNECTED")
-                            .data("SSE连接成功")
-            );
+            emitter.send(SseEmitter.event().name("CONNECTED").data("SSE连接成功"));
         } catch (Exception e) {
             emitters.remove(taskId, emitter);
             emitter.completeWithError(e);
@@ -63,21 +59,12 @@ public class AgentSseServiceImpl implements AgentSseService {
         SseEmitter emitter = emitters.get(taskId);
 
         if (emitter == null) {
-            log.debug(
-                    "当前Task没有SSE连接: taskId={}, type={}",
-                    taskId,
-                    message.getType()
-            );
+            log.debug("当前Task没有SSE连接: taskId={}, type={}", taskId, message.getType());
             return;
         }
 
         try {
-            emitter.send(
-                    SseEmitter.event()
-                            .name(message.getType())
-                            .id(message.getMessageId())
-                            .data(message)
-            );
+            emitter.send(SseEmitter.event().name(message.getType()).id(message.getMessageId()).data(message));
 
         } catch (IOException e) {
             emitters.remove(taskId, emitter);

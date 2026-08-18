@@ -33,13 +33,13 @@ public class RocketMQConsumerConfig {
 
     @Bean
     public DefaultMQPushConsumer getRocketMQConsumer() throws RuntimeException {
-        if (StringUtils.isEmpty(consumerGroup)){
+        if (StringUtils.isEmpty(consumerGroup)) {
             throw new RuntimeException("consumerGroup is null !!!");
         }
-        if (StringUtils.isEmpty(nameSrvAddr)){
+        if (StringUtils.isEmpty(nameSrvAddr)) {
             throw new RuntimeException("namesrvAddr is null !!!");
         }
-        if(StringUtils.isEmpty(topicList)){
+        if (StringUtils.isEmpty(topicList)) {
             throw new RuntimeException("topics is null !!!");
         }
         DefaultMQPushConsumer consumer = new DefaultMQPushConsumer(consumerGroup);
@@ -62,17 +62,17 @@ public class RocketMQConsumerConfig {
             /**
              * 设置该消费者订阅的主题和tag，如果是订阅该主题下的所有tag，则tag使用*；如果需要指定订阅该主题下的某些tag，则使用||分割，例如tag1||tag2||tag3
              */
-            topicList.forEach(topic->{
+            topicList.forEach(topic -> {
                 try {
-                    consumer.subscribe(topic,"*");
+                    consumer.subscribe(topic, "*");
                 } catch (MQClientException e) {
                     e.printStackTrace();
                 }
             });
             consumer.start();
-            log.info("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}",consumerGroup,topicList,nameSrvAddr);
-        }catch (MQClientException e){
-            log.error("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}",consumerGroup,topicList,nameSrvAddr,e);
+            log.info("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}", consumerGroup, topicList, nameSrvAddr);
+        } catch (MQClientException e) {
+            log.error("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}", consumerGroup, topicList, nameSrvAddr, e);
             throw new RuntimeException(e);
         }
         return consumer;

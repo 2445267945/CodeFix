@@ -24,9 +24,6 @@ public interface AgentSessionService {
      */
     AgentSessionDO getOrCreateSession(String sessionId, String question);
 
-    void bindWorkspace(
-            String sessionId,
-            String workspaceId
-    );
+    void bindWorkspace(String sessionId, String workspaceId);
 
 }

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.xd.mapper.AgentFileChangeMapper">
+    <resultMap id="BaseResultMap" type="com.xd.model.entity.AgentFileChangeDO">
+        <id property="id" column="id"/>
+        <result property="diffId" column="diff_id"/>
+        <result property="sessionId" column="session_id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="runId" column="run_id"/>
+        <result property="eventId" column="event_id"/>
+        <result property="filePath" column="file_path"/>
+        <result property="operation" column="operation"/>
+        <result property="addedLines" column="added_lines"/>
+        <result property="removedLines" column="removed_lines"/>
+        <result property="diffText" column="diff_text"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id
+        ,
+        diff_id,
+        session_id,
+        task_id,
+        run_id,
+        event_id,
+        file_path,
+        operation,
+        added_lines,
+        removed_lines,
+        diff_text,
+        created_at
+    </sql>
+
+    <insert id="insert">
+        INSERT INTO agent_file_change (diff_id,
+                                       session_id,
+                                       task_id,
+                                       run_id,
+                                       event_id,
+                                       file_path,
+                                       operation,
+                                       added_lines,
+                                       removed_lines,
+                                       diff_text,
+                                       created_at)
+        VALUES (#{diffId},
+                #{sessionId},
+                #{taskId},
+                #{runId},
+                #{eventId},
+                #{filePath},
+                #{operation},
+                #{addedLines},
+                #{removedLines},
+                #{diffText},
+                #{createdAt})
+    </insert>
+
+    <select id="selectByDiffId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_file_change
+        WHERE diff_id = #{diffId}
+    </select>
+
+    <select id="selectByTaskIds" resultMap="BaseResultMap">
+        SELECT
+        id,
+        diff_id,
+        session_id,
+        task_id,
+        run_id,
+        event_id,
+        file_path,
+        operation,
+        added_lines,
+        removed_lines,
+        diff_text,
+        created_at
+        FROM agent_file_change
+        WHERE task_id IN
+        <foreach collection="taskIds" item="taskId" open="(" separator="," close=")">
+            #{taskId}
+        </foreach>
+        ORDER BY created_at ASC, id ASC
+    </select>
+</mapper>

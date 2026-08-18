@@ -14,6 +14,7 @@ public interface AgentConversationService {
     ChatMessageVO sendMessage(ChatMessageCreateDTO request);
 
     List<ChatMessageVO> getMessages(String sessionId);
+
     List<SessionVO> getMessages();
 
     void saveAssistantMessage(AgentMessageDTO messageDTO);

@@ -29,12 +29,9 @@ public class AgentSessionServiceImpl implements AgentSessionService {
 
         long now = System.currentTimeMillis();
 
-        AgentSessionDO session =
-                new AgentSessionDO();
+        AgentSessionDO session = new AgentSessionDO();
 
-        session.setSessionId(
-                UUID.randomUUID().toString()
-        );
+        session.setSessionId(UUID.randomUUID().toString());
 
         session.setCreatedAt(now);
         session.setUpdatedAt(now);
@@ -47,22 +44,14 @@ public class AgentSessionServiceImpl implements AgentSessionService {
     @Override
     public AgentSessionDO getSessionById(String sessionId) {
 
-        if (sessionId == null
-                || sessionId.isBlank()) {
-            throw new IllegalArgumentException(
-                    "sessionId不能为空"
-            );
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new IllegalArgumentException("sessionId不能为空");
         }
 
-        AgentSessionDO session =
-                agentSessionMapper.selectBySessionId(
-                        sessionId
-                );
+        AgentSessionDO session = agentSessionMapper.selectBySessionId(sessionId);
 
         if (session == null) {
-            throw new RuntimeException(
-                    "Session不存在: " + sessionId
-            );
+            throw new RuntimeException("Session不存在: " + sessionId);
         }
 
         return session;

@@ -8,15 +8,9 @@ public interface WorkSpaceMapper {
 
     int insertWorkspace(WorkspaceDO workspace);
 
-    WorkspaceDO selectByWorkspaceId(
-            String workspaceId
-    );
+    WorkspaceDO selectByWorkspaceId(String workspaceId);
 
-    WorkspaceDO selectBySessionId(
-            String sessionId
-    );
+    WorkspaceDO selectBySessionId(String sessionId);
 
-    int updateWorkspace(
-            WorkspaceDO workspace
-    );
+    int updateWorkspace(WorkspaceDO workspace);
 }

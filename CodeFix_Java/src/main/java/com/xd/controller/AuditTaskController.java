@@ -26,7 +26,6 @@ public class AuditTaskController {
     private AgentRunService agentRunService;
 
 
-
     @PostMapping
     public TaskCreateVO createTask(@Validated @RequestBody AuditTaskCreateDTO request) {
         return agentTaskService.createTask(request);
@@ -39,7 +38,7 @@ public class AuditTaskController {
 
     /**
      * 建立 Task 的实时事件流
-     *
+     * <p>
      * 前端建立连接后，Java 会持续向该连接推送：
      * - Agent THINK
      * - TOOL_CALL
@@ -52,13 +51,14 @@ public class AuditTaskController {
     public SseEmitter stream(@PathVariable String taskId) {
         return agentSseService.connect(taskId);
     }
+
     @GetMapping
     public List<TaskDetailVO> getTasks() {
         return agentTaskService.getTasks();
     }
 
     @GetMapping("/{taskId}/events")
-    public List<AgentEventVO> getEvents(@PathVariable String taskId,  @RequestParam(required = false) String runId) {
+    public List<AgentEventVO> getEvents(@PathVariable String taskId, @RequestParam(required = false) String runId) {
         return agentTaskService.getTaskEvents(taskId, runId);
     }
 
@@ -71,8 +71,9 @@ public class AuditTaskController {
     public TaskResultVO getResult(@PathVariable String taskId, @RequestParam(required = false) String runId) {
         return agentTaskService.getTaskResult(taskId, runId);
     }
+
     @PostMapping("/{taskId}/resume")
-    public TaskOperateVO resume(@PathVariable String taskId,  @RequestParam String runId) {
+    public TaskOperateVO resume(@PathVariable String taskId, @RequestParam String runId) {
         return agentTaskService.resumeTask(taskId, runId);
     }
 
@@ -82,7 +83,7 @@ public class AuditTaskController {
     }
 
     @PostMapping("/{taskId}/cancel")
-    public TaskOperateVO cancel(@PathVariable String taskId,  @RequestParam String runId) {
+    public TaskOperateVO cancel(@PathVariable String taskId, @RequestParam String runId) {
         return agentTaskService.cancelTask(taskId, runId);
     }
 }

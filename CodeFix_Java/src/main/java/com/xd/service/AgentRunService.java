@@ -16,16 +16,11 @@ public interface AgentRunService {
      * @param status    初始状态
      * @return 创建后的 Run
      */
-    AgentRunDO createRun(
-            String runId,
-            String taskId,
-            String sessionId,
-            Integer status
-    );
+    AgentRunDO createRun(String runId, String taskId, String sessionId, Integer status);
 
     /**
      * 更新 Run
-     *
+     * <p>
      * 目前主要根据 AgentMessage 更新状态，
      * 后续可以继续扩展 startedAt / endedAt / errorMessage 等字段。
      */

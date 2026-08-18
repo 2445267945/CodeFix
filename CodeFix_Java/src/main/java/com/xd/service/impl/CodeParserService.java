@@ -11,6 +11,7 @@ import com.github.javaparser.ast.stmt.*;
 import com.xd.model.dto.CodeSmellDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -60,9 +61,7 @@ public class CodeParserService {
             // 如果方法名包含 "select"（可根据实际 Mapper 命名调整）
             if (callName.toLowerCase().contains("select")) {
                 // 获取行号
-                int line = call.getRange()
-                        .map(range -> range.begin.line)
-                        .orElse(0);
+                int line = call.getRange().map(range -> range.begin.line).orElse(0);
                 // 构造 CodeSmell 对象
                 CodeSmellDTO smell = new CodeSmellDTO();
                 smell.setLineNumber(line);
@@ -83,9 +82,7 @@ public class CodeParserService {
                 // 检查注解参数中是否包含 rollbackFor
                 boolean hasRollbackFor = ann.toString().contains("rollbackFor");
                 if (!hasRollbackFor) {
-                    int line = method.getRange()
-                            .map(range -> range.begin.line)
-                            .orElse(0);
+                    int line = method.getRange().map(range -> range.begin.line).orElse(0);
                     CodeSmellDTO smell = new CodeSmellDTO();
                     smell.setLineNumber(line);
                     smell.setType("TRANSACTION_MISUSE");
@@ -106,9 +103,7 @@ public class CodeParserService {
             String callStr = call.toString();
             // 检测 System.out.println
             if (callStr.startsWith("System.out.println")) {
-                int line = call.getRange()
-                        .map(range -> range.begin.line)
-                        .orElse(0);
+                int line = call.getRange().map(range -> range.begin.line).orElse(0);
                 CodeSmellDTO smell = new CodeSmellDTO();
                 smell.setLineNumber(line);
                 smell.setType("SYSTEM_OUT_PRINT");
@@ -118,9 +113,7 @@ public class CodeParserService {
             }
             // 检测 e.printStackTrace()
             if (callStr.contains("printStackTrace")) {
-                int line = call.getRange()
-                        .map(range -> range.begin.line)
-                        .orElse(0);
+                int line = call.getRange().map(range -> range.begin.line).orElse(0);
                 CodeSmellDTO smell = new CodeSmellDTO();
                 smell.setLineNumber(line);
                 smell.setType("PRINT_STACK_TRACE");
@@ -140,56 +133,43 @@ public class CodeParserService {
             CompilationUnit cu = StaticJavaParser.parse(code);
 
             // 包名
-            cu.getPackageDeclaration().ifPresent(pkg ->
-                    result.put("packageName", pkg.getNameAsString())
-            );
+            cu.getPackageDeclaration().ifPresent(pkg -> result.put("packageName", pkg.getNameAsString()));
 
             // 类名（取第一个类）
-            cu.findAll(ClassOrInterfaceDeclaration.class).stream().findFirst()
-                    .ifPresent(clazz -> {
-                        result.put("className", clazz.getNameAsString());
-                        List<String> classAnnotations = clazz.getAnnotations().stream()
-                                .map(ann -> ann.getNameAsString())
-                                .collect(Collectors.toList());
-                        if (!classAnnotations.isEmpty()) {
-                            result.put("classAnnotations", classAnnotations);
-                        }
-                    });
+            cu.findAll(ClassOrInterfaceDeclaration.class).stream().findFirst().ifPresent(clazz -> {
+                result.put("className", clazz.getNameAsString());
+                List<String> classAnnotations = clazz.getAnnotations().stream().map(ann -> ann.getNameAsString()).collect(Collectors.toList());
+                if (!classAnnotations.isEmpty()) {
+                    result.put("classAnnotations", classAnnotations);
+                }
+            });
 
             // 导入列表
-            List<String> imports = cu.findAll(ImportDeclaration.class).stream()
-                    .map(imp -> imp.getNameAsString())
-                    .collect(Collectors.toList());
+            List<String> imports = cu.findAll(ImportDeclaration.class).stream().map(imp -> imp.getNameAsString()).collect(Collectors.toList());
             if (!imports.isEmpty()) {
                 result.put("imports", imports);
             }
 
             // 方法详情
-            List<Map<String, Object>> methods = cu.findAll(MethodDeclaration.class).stream()
-                    .map(method -> {
-                        Map<String, Object> m = new HashMap<>();
-                        m.put("name", method.getNameAsString());
-                        m.put("returnType", method.getType().asString());
-                        // 参数列表
-                        List<String> params = method.getParameters().stream()
-                                .map(p -> p.getType().asString() + " " + p.getNameAsString())
-                                .collect(Collectors.toList());
-                        m.put("parameters", params);
-                        // 行号范围
-                        method.getRange().ifPresent(range -> {
-                            m.put("lineStart", range.begin.line);
-                            m.put("lineEnd", range.end.line);
-                        });
-                        // 注解
-                        List<String> annotations = method.getAnnotations().stream()
-                                .map(ann -> ann.getNameAsString())
-                                .collect(Collectors.toList());
-                        if (!annotations.isEmpty()) {
-                            m.put("annotations", annotations);
-                        }
-                        return m;
-                    })
-                    .collect(Collectors.toList());
+            List<Map<String, Object>> methods = cu.findAll(MethodDeclaration.class).stream().map(method -> {
+                Map<String, Object> m = new HashMap<>();
+                m.put("name", method.getNameAsString());
+                m.put("returnType", method.getType().asString());
+                // 参数列表
+                List<String> params = method.getParameters().stream().map(p -> p.getType().asString() + " " + p.getNameAsString()).collect(Collectors.toList());
+                m.put("parameters", params);
+                // 行号范围
+                method.getRange().ifPresent(range -> {
+                    m.put("lineStart", range.begin.line);
+                    m.put("lineEnd", range.end.line);
+                });
+                // 注解
+                List<String> annotations = method.getAnnotations().stream().map(ann -> ann.getNameAsString()).collect(Collectors.toList());
+                if (!annotations.isEmpty()) {
+                    m.put("annotations", annotations);
+                }
+                return m;
+            }).collect(Collectors.toList());
             result.put("methods", methods);
 
             // 循环结构（行号标记）
@@ -223,15 +203,13 @@ public class CodeParserService {
             }
 
             // 字段信息（可选）
-            List<Map<String, Object>> fields = cu.findAll(FieldDeclaration.class).stream()
-                    .flatMap(field -> field.getVariables().stream().map(var -> {
-                        Map<String, Object> f = new HashMap<>();
-                        f.put("name", var.getNameAsString());
-                        f.put("type", field.getCommonType().asString());
-                        var.getRange().ifPresent(r -> f.put("line", r.begin.line));
-                        return f;
-                    }))
-                    .collect(Collectors.toList());
+            List<Map<String, Object>> fields = cu.findAll(FieldDeclaration.class).stream().flatMap(field -> field.getVariables().stream().map(var -> {
+                Map<String, Object> f = new HashMap<>();
+                f.put("name", var.getNameAsString());
+                f.put("type", field.getCommonType().asString());
+                var.getRange().ifPresent(r -> f.put("line", r.begin.line));
+                return f;
+            })).collect(Collectors.toList());
             if (!fields.isEmpty()) {
                 result.put("fields", fields);
             }

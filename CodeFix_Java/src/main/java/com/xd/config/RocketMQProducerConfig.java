@@ -18,11 +18,11 @@ public class RocketMQProducerConfig {
     private String producerGroup;
 
     @Bean
-    public DefaultMQProducer getRocketMQProducer(){
-        if (StringUtils.isEmpty(producerGroup)){
+    public DefaultMQProducer getRocketMQProducer() {
+        if (StringUtils.isEmpty(producerGroup)) {
             throw new RuntimeException("producerGroup is null !!!");
         }
-        if (StringUtils.isEmpty(nameSrvAddr)){
+        if (StringUtils.isEmpty(nameSrvAddr)) {
             throw new RuntimeException("namesrvAddr is null !!!");
         }
         DefaultMQProducer producer = new DefaultMQProducer(producerGroup);
