@@ -38,7 +38,7 @@ class RedisConfig:
     REDIS_URL = os.getenv("REDIS_URL")
 
 class WorkspaceConfig:
-    WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT")
+    WORKSPACE_ROOT = os.getenv("WORKSPACE_ROOT", "/data/workspaces")
 
 class Config:
     llm = LLMConfig()
