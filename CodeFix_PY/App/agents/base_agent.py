@@ -11,6 +11,7 @@ from .context.agent_context import AgentContext
 from .context.agent_run_context import AgentRunContext
 from ..infrastructure.memory.working_memory import WorkingMemory
 from ..models.agent_result import AgentResult
+from ..models.enum.agent_event import AgentEvent
 from ..models.session_context import SessionContext
 
 
@@ -76,16 +77,14 @@ class BaseAgent(ABC):
             # 进入ReAct循环
             while self.status not in (AgentState.FINISHED, AgentState.ERROR):
                 self.current_step += 1
-                self.history_summary, self.messages = await self.manager.compress_history_msg(self.window_size,
-                                                                                              self.messages,
-                                                                                              self.compress_llm,
-                                                                                              self.history_summary)
+                self.history_summary, self.messages = \
+                    await self.manager.compress_history_msg(self.window_size,self.messages,self.compress_llm,self.history_summary)
                 cur_time = datetime.datetime.now()
                 # 当前时间 - 过去时间 > 30s(watch_dog) ? 超时 : 未超时更新过去时间;
                 if cur_time - self.last_time > datetime.timedelta(seconds=self.watch_dog):
                     self.status = AgentState.ERROR
                     self.final_answer = {"error": f"Error: AI 推理超时（{self.watch_dog}），已强制终止。"}
-                    self.msg_sender.agent_report(agent=self, event="ERROR", output=self.final_answer)
+                    self.msg_sender.agent_report(agent=self, event=AgentEvent.ERROR, output=self.final_answer)
                     break
                 await self.step()
                 await self.checkpoint_working_memory()
@@ -95,6 +94,7 @@ class BaseAgent(ABC):
                     break
                 if self.status is AgentState.FINISHED:
                     await self.clear_working_memory()
+                    self.msg_sender.agent_report(agent=self, event=AgentEvent.ERROR, output=self.final_answer)
                     self.cleanup()
                     self.status = AgentState.IDLE
                     return AgentResult.ok(agent_name=self.name, result=self.final_answer, iterations=self.current_step)

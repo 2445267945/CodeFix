@@ -42,22 +42,22 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
      * 兼容旧版接口。
      * 新前端应该直接调用 /api/audit/tasks。
      */
-    @Override
-    public String analyzeCode(AuditRequestVO request) {
-        if (request == null || request.getCode() == null || request.getCode().isBlank()) {
-            throw new IllegalArgumentException("Java代码不能为空");
-        }
-        AuditTaskCreateDTO dto = new AuditTaskCreateDTO();
-        dto.setCode(request.getCode());
-        dto.setFileName(request.getFileName());
-        dto.setSmells(request.getSmells());
-        TaskCreateVO result = agentTaskService.createTask(dto);
-        return result.getTaskId();
-    }
+//    @Override
+//    public String analyzeCode(AuditRequestVO request) {
+//        if (request == null || request.getCode() == null || request.getCode().isBlank()) {
+//            throw new IllegalArgumentException("Java代码不能为空");
+//        }
+//        AuditTaskCreateDTO dto = new AuditTaskCreateDTO();
+//        dto.setCode(request.getCode());
+//        dto.setFileName(request.getFileName());
+//        dto.setSmells(request.getSmells());
+//        TaskCreateVO result = agentTaskService.createTask(dto);
+//        return result.getTaskId();
+//    }
 
     /**
      * MQ / Agent状态消息入口
-     
+
      * Python -> Java
      */
     @Override
@@ -82,6 +82,8 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
                 AgentMessageProcessContext.AgentMessageProcessContextBuilder builder = AgentMessageProcessContext.builder();
                 // 历史事件
                 AgentEventDO eventDO = agentEventService.insertAgentEvent(messageDTO);
+                // 代表消息重复
+                if (eventDO == null) return null;
                 // 当前 Task 状态
                 agentTaskService.updateTaskStatus(messageDTO);
                 // 3. 当前 Run 状态
@@ -98,7 +100,7 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
                 return builder.build();
             });
         } catch (Exception e) {
-            log.error("Agent事件持久化失败: taskId={}, runId={}, messageId={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getMessageId(), e);
+//            log.info("Agent事件持久化失败: taskId={}, runId={}, messageId={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getMessageId(), e);
             // 让MQ消费框架知道这次消费失败
             throw e;
         }

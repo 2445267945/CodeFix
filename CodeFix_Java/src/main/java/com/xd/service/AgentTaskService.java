@@ -16,14 +16,14 @@ public interface AgentTaskService {
     /**
      * 获取session,创建一个 Task，并创建该 Task 的第一条 Run
      */
-    TaskRunContext createTaskWithRun(String sessionId, String question);
+    TaskRunContext createTaskWithRun(String sessionId, String question, String workspaceName);
 
     /**
      * 创建 Task 的第一阶段入口
      *
      * 新建审计任务时使用
      */
-    TaskCreateVO createTask(AuditTaskCreateDTO request);
+//    TaskCreateVO createTask(AuditTaskCreateDTO request);
 
     /**
      * 查询全部 Task

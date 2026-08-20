@@ -12,9 +12,9 @@ public class AuditController {
     @Autowired
     private AuditHandlerServiceImpl auditService;
 
-    @PostMapping("/analyze")
-    public String analyze(@RequestBody AuditRequestVO request) {
-        // 参数校验由Spring Validation自动完成
-        return auditService.analyzeCode(request);
-    }
+//    @PostMapping("/analyze")
+//    public String analyze(@RequestBody AuditRequestVO request) {
+//        // 参数校验由Spring Validation自动完成
+//        return auditService.analyzeCode(request);
+//    }
 }

@@ -44,12 +44,10 @@ public class AgentEventServiceImpl implements AgentEventService {
         event.setEventTimestamp(dto.getTimestamp());
 
         try {
-            int inserted = agentEventMapper.insertAgentEvent(event);
-            if (inserted == 0) {
-                return null; // 已存在
-            }
+            agentEventMapper.insertAgentEvent(event);
         } catch (DuplicateKeyException e) {
             log.info("Agent Event 重复消息，忽略: taskId={}, runId={}, messageId={}", event.getTaskId(), event.getRunId(), event.getMessageId());
+            return null;
         }
         return event;
     }

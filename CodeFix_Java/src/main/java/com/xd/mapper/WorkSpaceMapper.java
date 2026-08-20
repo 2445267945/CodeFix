@@ -3,6 +3,8 @@ package com.xd.mapper;
 import com.xd.model.entity.WorkspaceDO;
 import org.apache.ibatis.annotations.Mapper;
 
+import java.util.List;
+
 @Mapper
 public interface WorkSpaceMapper {
 
@@ -13,4 +15,6 @@ public interface WorkSpaceMapper {
     WorkspaceDO selectBySessionId(String sessionId);
 
     int updateWorkspace(WorkspaceDO workspace);
+
+    List<WorkspaceDO> selectAllWorkspaces();
 }

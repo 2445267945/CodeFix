@@ -45,7 +45,8 @@ public class AgentChatStreamAssembler {
      * 当前 thought 才是实时 THINK 的主要展示内容。
      */
     private AgentChatStreamVO assembleThink(AgentMessageDTO message) {
-        String reasoning = message.getThought();
+        Map<String, Object> data = safeOutput(message);
+        String reasoning = toStringValue(data.get("reasoning"));
         if (isBlank(reasoning)) {
             return null;
         }
@@ -112,9 +113,7 @@ public class AgentChatStreamAssembler {
      * ERROR
      */
     private AgentChatStreamVO assembleError(AgentMessageDTO message) {
-
         AgentChatBlockVO block = baseBlock(message);
-
         block.setType("review");
         block.setAction("ERROR");
         block.setStatus("failed");
@@ -122,7 +121,6 @@ public class AgentChatStreamAssembler {
         block.setTitle("执行失败");
         block.setContent(buildErrorContent(message));
         block.setSummary("Agent 执行失败");
-
         return buildAppend(message, block);
     }
 
@@ -140,16 +138,23 @@ public class AgentChatStreamAssembler {
      */
     private AgentChatStreamVO assembleFinish(AgentMessageDTO message) {
 
-        return AgentChatStreamVO.builder().taskId(message.getTaskId()).runId(message.getRunId()).sessionId(message.getSessionId()).messageId(message.getMessageId()).type("RESULT_REFRESH").block(null).refreshResult(true).timestamp(resolveTimestamp(message)).build();
+        return AgentChatStreamVO.builder()
+                .taskId(message.getTaskId())
+                .runId(message.getRunId())
+                .sessionId(message.getSessionId())
+                .messageId(message.getMessageId())
+                .type("RESULT_REFRESH")
+                .block(null)
+                .refreshResult(true)
+                .timestamp(resolveTimestamp(message))
+                .build();
     }
 
     /**
      * CANCELLED
      */
     private AgentChatStreamVO assembleCancelled(AgentMessageDTO message) {
-
         AgentChatBlockVO block = baseBlock(message);
-
         block.setType("review");
         block.setAction("ERROR");
         block.setStatus("failed");
@@ -157,7 +162,6 @@ public class AgentChatStreamAssembler {
         block.setTitle("任务已停止");
         block.setContent(buildErrorContent(message));
         block.setSummary("Agent 执行已停止");
-
         return buildAppend(message, block);
     }
 
@@ -165,14 +169,11 @@ public class AgentChatStreamAssembler {
      * 未知 Event
      */
     private AgentChatStreamVO assembleUnknown(AgentMessageDTO message) {
-
         AgentChatBlockVO block = baseBlock(message);
-
         block.setType("action");
         block.setAction("EXECUTE");
         block.setStatus(resolveGenericStatus(message));
         block.setSummary(buildUnknownSummary(message));
-
         return buildAppend(message, block);
     }
 
@@ -180,17 +181,11 @@ public class AgentChatStreamAssembler {
      * 创建基础 Block
      */
     private AgentChatBlockVO baseBlock(AgentMessageDTO message) {
-
         AgentChatBlockVO block = new AgentChatBlockVO();
-
         block.setId(!isBlank(message.getMessageId()) ? message.getMessageId() : UUID.randomUUID().toString());
-
         block.setAgent(message.getAgentName());
-
         block.setSourceEventIds(new ArrayList<>(Collections.singletonList(resolveMessageId(message))));
-
         block.setTimestamp(resolveTimestamp(message));
-
         return block;
     }
 
@@ -199,7 +194,14 @@ public class AgentChatStreamAssembler {
      */
     private AgentChatStreamVO buildAppend(AgentMessageDTO message, AgentChatBlockVO block) {
 
-        return AgentChatStreamVO.builder().taskId(message.getTaskId()).runId(message.getRunId()).messageId(message.getMessageId()).type("BLOCK_APPEND").block(block).refreshResult(false).timestamp(resolveTimestamp(message)).build();
+        return AgentChatStreamVO.builder()
+                .taskId(message.getTaskId())
+                .runId(message.getRunId())
+                .messageId(message.getMessageId())
+                .type("BLOCK_APPEND").block(block)
+                .refreshResult(false)
+                .timestamp(resolveTimestamp(message))
+                .build();
     }
 
     /**
@@ -207,7 +209,14 @@ public class AgentChatStreamAssembler {
      */
     private AgentChatStreamVO buildUpdate(AgentMessageDTO message, AgentChatBlockVO block) {
 
-        return AgentChatStreamVO.builder().taskId(message.getTaskId()).runId(message.getRunId()).messageId(message.getMessageId()).type("BLOCK_UPDATE").block(block).refreshResult(false).timestamp(resolveTimestamp(message)).build();
+        return AgentChatStreamVO.builder()
+                .taskId(message.getTaskId())
+                .runId(message.getRunId())
+                .messageId(message.getMessageId())
+                .type("BLOCK_UPDATE").block(block)
+                .refreshResult(false)
+                .timestamp(resolveTimestamp(message))
+                .build();
     }
 
     /**

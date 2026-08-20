@@ -54,7 +54,7 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         SessionContext sessionContext = buildSessionContext(request.getSessionId());
 
         // 2. 创建 Task + Run + Workspace 上下文
-        TaskRunContext context = agentTaskService.createTaskWithRun(request.getSessionId(), request.getContent());
+        TaskRunContext context = agentTaskService.createTaskWithRun(request.getSessionId(), request.getContent(), request.getWorkspaceName());
         AgentSessionDO session = context.getSession();
         WorkspaceDO workspace = context.getWorkspace();
         AgentTaskDO task = context.getTask();
@@ -90,7 +90,15 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(agentMessage));
 
         // 6. 返回 USER 消息
-        return ChatMessageVO.builder().messageId(messageId).sessionId(session.getSessionId()).taskId(task.getTaskId()).runId(run.getRunId()).role("USER").content(request.getContent()).createdAt(now).build();
+        return ChatMessageVO.builder()
+                .messageId(messageId)
+                .sessionId(session.getSessionId())
+                .taskId(task.getTaskId())
+                .runId(run.getRunId())
+                .role("USER")
+                .content(request.getContent())
+                .createdAt(now)
+                .build();
     }
 
     @Override
@@ -99,7 +107,15 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         agentSessionService.getSessionById(sessionId);
 
         List<ChatMessageDO> messages = chatMessageMapper.selectBySessionId(sessionId);
-        return messages.stream().map(message -> ChatMessageVO.builder().messageId(message.getMessageId()).sessionId(message.getSessionId()).role(message.getRole()).content(message.getContent()).createdAt(message.getCreatedAt()).build()).toList();
+        return messages.stream()
+                .map(message -> ChatMessageVO.builder()
+                .messageId(message.getMessageId())
+                .sessionId(message.getSessionId())
+                .role(message.getRole())
+                .content(message.getContent())
+                .createdAt(message.getCreatedAt())
+                .build()
+                ).toList();
     }
 
     @Override
@@ -107,7 +123,12 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         List<AgentSessionDO> sessionsDO = agentSessionService.getSessions();
         ArrayList<SessionVO> sessionsVO = new ArrayList<>();
         for (AgentSessionDO session : sessionsDO) {
-            SessionVO vo = SessionVO.builder().title(session.getTitle()).sessionId(session.getSessionId()).workspaceId(session.getWorkspaceId()).createdAt(session.getCreatedAt()).build();
+            SessionVO vo = SessionVO.builder()
+                    .title(session.getTitle())
+                    .sessionId(session.getSessionId())
+                    .workspaceId(session.getWorkspaceId())
+                    .createdAt(session.getCreatedAt())
+                    .build();
             sessionsVO.add(vo);
         }
         return sessionsVO;
@@ -136,8 +157,16 @@ public class AgentConversationServiceImpl implements AgentConversationService {
     @Override
     public SessionContext buildSessionContext(String sessionId) {
         List<ChatMessageDO> history = chatMessageMapper.selectBySessionId(sessionId);
-        List<ChatMessageContext> messages = history.stream().map(message -> ChatMessageContext.builder().role(message.getRole()).content(message.getContent()).timestamp(message.getCreatedAt()).build()).toList();
-        return SessionContext.builder().messages(messages).build();
+        List<ChatMessageContext> messages = history.stream()
+                .map(message -> ChatMessageContext.builder()
+                .role(message.getRole())
+                .content(message.getContent())
+                .timestamp(message.getCreatedAt())
+                .build()
+        ).toList();
+        return SessionContext.builder()
+                .messages(messages)
+                .build();
     }
 
     private String extractAssistantContent(AgentMessageDTO messageDTO) {

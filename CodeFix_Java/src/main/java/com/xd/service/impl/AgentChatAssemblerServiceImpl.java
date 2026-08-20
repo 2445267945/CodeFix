@@ -12,10 +12,7 @@ import com.xd.model.vo.AgentChatBlockVO;
 import com.xd.model.vo.AgentChatStreamVO;
 import com.xd.model.vo.AgentChatTurnVO;
 import com.xd.model.vo.AgentChatViewVO;
-import com.xd.service.AgentChatAssemblerService;
-import com.xd.service.AgentEventService;
-import com.xd.service.AgentFileChangeService;
-import com.xd.service.AgentRunService;
+import com.xd.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -31,7 +28,10 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
     private AgentEventService agentEventService;
 
     @Autowired
-    private AgentRunService agentRunService;
+    private AgentSessionService agentSessionService;
+
+    @Autowired
+    private WorkspaceService workspaceService;
 
     @Autowired
     private AgentTaskMapper agentTaskMapper;
@@ -51,83 +51,105 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
 
     /**
      * 组装一个 Session 的完整 Agent Chat。
-     
+
      * Session
      * ├── Task 1 -> Turn 1
      * ├── Task 2 -> Turn 2
      * └── Task 3 -> Turn 3
-     
+
      * 当前 Task 和当前 Run 由参数明确指定。
      */
     @Override
     public AgentChatViewVO assemble(String sessionId) {
+        /*
+         * 1. 查询当前 Session
+         *
+         * Session 是 Chat View 的根上下文。
+         */
+        AgentSessionDO session = agentSessionService.getSessionById(sessionId);
+        if (session == null) {
+            return null;
+        }
 
         /*
-         * 1. 查询 Session 下所有 Task
+         * 2. 查询当前 Session 下所有 Task
          */
         List<AgentTaskDO> tasks = agentTaskMapper.selectBySessionId(sessionId);
-
         if (tasks == null) {
             tasks = List.of();
         }
 
         /*
-         * 2. 按 Task 创建时间正序
+         * 3. 按 Task 创建时间正序
          */
-        List<AgentTaskDO> sortedTasks = tasks.stream().filter(Objects::nonNull).sorted(Comparator.comparing(AgentTaskDO::getCreatedAt, Comparator.nullsLast(Long::compareTo)).thenComparing(AgentTaskDO::getId, Comparator.nullsLast(Long::compareTo))).toList();
+        List<AgentTaskDO> sortedTasks = tasks.stream().filter(Objects::nonNull)
+                        .sorted(Comparator.comparing(AgentTaskDO::getCreatedAt, Comparator.nullsLast(Long::compareTo))
+                        .thenComparing(AgentTaskDO::getId, Comparator.nullsLast(Long::compareTo)))
+                        .toList();
 
         /*
-         * 3. 批量查询当前 Session 下所有 FileChange
+         * 4. 批量查询当前 Session 下所有 FileChange
          */
-        List<String> taskIds = sortedTasks.stream().map(AgentTaskDO::getTaskId).filter(Objects::nonNull).toList();
-
+        List<String> taskIds = sortedTasks.stream()
+                        .map(AgentTaskDO::getTaskId)
+                        .filter(Objects::nonNull)
+                        .toList();
         List<AgentFileChangeDO> fileChanges = taskIds.isEmpty() ? List.of() : agentFileChangeService.getByTaskIds(taskIds);
 
         /*
-         * 4. 构建：
+         * 5. 构建：
          *
          * eventId -> FileChange
          *
          * 后续历史 Block 只需要通过 event.id
          * 在内存 Map 中找到 diffId。
          */
-        Map<Long, AgentFileChangeDO> fileChangeMap = fileChanges.stream().filter(Objects::nonNull).filter(change -> change.getEventId() != null).collect(Collectors.toMap(AgentFileChangeDO::getEventId, Function.identity(), (a, b) -> a));
+        Map<Long, AgentFileChangeDO> fileChangeMap = fileChanges.stream()
+                        .filter(Objects::nonNull)
+                        .filter(change -> change.getEventId() != null)
+                        .collect(Collectors.toMap(AgentFileChangeDO::getEventId, Function.identity(), (a, b) -> a));
 
         /*
-         * 5. 构造历史组装 Context
+         * 6. 构造历史组装 Context
          */
-        AgentChatAssembleContext context = AgentChatAssembleContext.builder().fileChanges(fileChangeMap).build();
+        AgentChatAssembleContext context = AgentChatAssembleContext.builder()
+                .fileChanges(fileChangeMap)
+                .build();
 
         /*
-         * 6. 组装 View
+         * 7. 构造 Chat View
          */
         AgentChatViewVO chat = new AgentChatViewVO();
-
-        chat.setSessionId(sessionId);
+        chat.setSessionId(session.getSessionId());
 
         /*
-         * Session 最新 Task = 当前 Task
+         * 8. Session → Workspace
+         *
+         * Workspace 可以为空。
+         */
+        String workspaceId = session.getWorkspaceId();
+        chat.setWorkspaceId(workspaceId);
+        if (workspaceId != null && !workspaceId.isBlank()) {
+            WorkspaceDO workspace = workspaceService.getWorkspace(workspaceId);
+            if (workspace != null) {
+                chat.setWorkspaceName(workspace.getName());
+            }
+        }
+        /*
+         * 9. Session 最新 Task = 当前 Task
          */
         AgentTaskDO currentTask = sortedTasks.isEmpty() ? null : sortedTasks.get(sortedTasks.size() - 1);
-
         if (currentTask != null) {
             chat.setTaskId(currentTask.getTaskId());
-
             chat.setRunId(currentTask.getRunId());
         }
 
         /*
-         * 7. 每个 Task = 一个 Chat Turn
-         *
-         * 注意：
-         * 下一步才把 context 传给 assembleTurn。
+         * 10. 每个 Task = 一个 Chat Turn
          */
         List<AgentChatTurnVO> turns = new ArrayList<>();
-
         for (AgentTaskDO task : sortedTasks) {
-
             AgentChatTurnVO turn = assembleTurn(task, context);
-
             if (turn != null) {
                 turns.add(turn);
             }
@@ -144,7 +166,10 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
             return Collections.emptyMap();
         }
 
-        List<String> taskIds = tasks.stream().map(AgentTaskDO::getTaskId).filter(Objects::nonNull).toList();
+        List<String> taskIds = tasks.stream()
+                .map(AgentTaskDO::getTaskId)
+                .filter(Objects::nonNull)
+                .toList();
 
         if (taskIds.isEmpty()) {
             return Collections.emptyMap();
@@ -156,31 +181,35 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
             return Collections.emptyMap();
         }
 
-        return changes.stream().filter(Objects::nonNull).filter(change -> change.getEventId() != null).collect(Collectors.toMap(AgentFileChangeDO::getEventId, Function.identity(), (a, b) -> a));
+        return changes.stream()
+                .filter(Objects::nonNull)
+                .filter(change -> change.getEventId() != null)
+                .collect(Collectors.toMap(AgentFileChangeDO::getEventId, Function.identity(), (a, b) -> a));
     }
 
     /**
      * 实时消息组装。
-     
+
      * 这个方法保持不变。
      */
     @Override
     public AgentChatStreamVO assemble(AgentMessageDTO agentMessageDTO, AgentMessageProcessContext messageProcessContext) {
+        if (messageProcessContext == null) return null;
         return agentChatStreamAssembler.assemble(agentMessageDTO, messageProcessContext);
     }
 
 
     /**
      * 一个 Task = 一个 Chat Turn。
-     
+
      * Task 当前 runId 指向最新 Run。
-     
+
      * Retry：
-     
+
      * Task T001
      * ├── Run R001
      * └── Run R002  <- task.runId
-     
+
      * 最终 Turn 使用 R002 的 Event。
      */
     private AgentChatTurnVO assembleTurn(AgentTaskDO task, AgentChatAssembleContext context) {
@@ -320,14 +349,14 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
 
     /**
      * 组装最终 Assistant 回答。
-     
+
      * 一个 Task / Turn 的 Assistant
      * 取这个 Task 下最后一条 Assistant Message。
-     
+
      * Retry 后：
      * R001 ERROR
      * R002 FINISH
-     
+
      * 最终 Assistant Message 会属于 R002。
      */
     private AgentChatViewVO.FinalAnswerVO buildFinalAnswer(List<ChatMessageDO> messages) {
@@ -354,9 +383,9 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
 
     /**
      * Task 下的 User Message。
-     
+
      * 一个 Task 应该只有一条 USER Message。
-     
+
      * 使用最早一条作为保护。
      */
     private ChatMessageDO findUserMessage(List<ChatMessageDO> messages) {
@@ -365,7 +394,11 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
             return null;
         }
 
-        return messages.stream().filter(Objects::nonNull).filter(message -> "USER".equalsIgnoreCase(message.getRole())).min(Comparator.comparing(ChatMessageDO::getCreatedAt, Comparator.nullsLast(Long::compareTo))).orElse(null);
+        return messages.stream()
+                .filter(Objects::nonNull)
+                .filter(message -> "USER".equalsIgnoreCase(message.getRole()))
+                .min(Comparator.comparing(ChatMessageDO::getCreatedAt, Comparator.nullsLast(Long::compareTo)))
+                .orElse(null);
     }
 
 
@@ -378,13 +411,16 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
             return null;
         }
 
-        return messages.stream().filter(Objects::nonNull).filter(message -> "ASSISTANT".equalsIgnoreCase(message.getRole())).max(Comparator.comparing(ChatMessageDO::getCreatedAt, Comparator.nullsLast(Long::compareTo))).orElse(null);
+        return messages.stream()
+                .filter(Objects::nonNull).filter(message -> "ASSISTANT".equalsIgnoreCase(message.getRole()))
+                .max(Comparator.comparing(ChatMessageDO::getCreatedAt, Comparator.nullsLast(Long::compareTo)))
+                .orElse(null);
     }
 
 
     /**
      * 主 Agent：
-     
+
      * Supervisor 优先。
      * 没有则取第一个有效 Agent。
      */
@@ -394,7 +430,13 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
             return null;
         }
 
-        String supervisor = events.stream().filter(Objects::nonNull).map(AgentEventDO::getAgentName).filter(this::isNotBlank).filter(name -> "Supervisor".equalsIgnoreCase(name)).findFirst().orElse(null);
+        String supervisor = events.stream()
+                .filter(Objects::nonNull)
+                .map(AgentEventDO::getAgentName)
+                .filter(this::isNotBlank)
+                .filter(name -> "Supervisor".equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
 
         if (supervisor != null) {
             return supervisor;

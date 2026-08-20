@@ -18,7 +18,7 @@ mq:
   rocketmq:
     name-server: 192.168.88.130:9876
     consumer:
-      groupName: cid_status_group
+      groupName: cid_status_group_test
       topics: agent_status_topic
     producer:
       groupName: cid_task_group

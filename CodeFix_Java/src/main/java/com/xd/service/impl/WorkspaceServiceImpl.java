@@ -1,10 +1,14 @@
 package com.xd.service.impl;
 
 import com.xd.mapper.WorkSpaceMapper;
+import com.xd.model.entity.AgentSessionDO;
 import com.xd.model.entity.WorkspaceDO;
+import com.xd.model.vo.WorkspaceVO;
+import com.xd.service.AgentSessionService;
 import com.xd.service.WorkspaceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,20 +19,24 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class WorkspaceServiceImpl implements WorkspaceService {
 
     private static final String WORKSPACE_ROOT = "/data/workspaces";
 
-    private final WorkSpaceMapper workspaceMapper;
+    @Autowired
+    private WorkSpaceMapper workspaceMapper;
+    @Autowired
+    private AgentSessionService agentSessionService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public WorkspaceDO createWorkspace(String sessionId, String name) {
+    public WorkspaceDO createWorkspace(String name) {
 
         long now = System.currentTimeMillis();
         String workspaceId = UUID.randomUUID().toString();
@@ -36,8 +44,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
         WorkspaceDO workspace = new WorkspaceDO();
         workspace.setWorkspaceId(workspaceId);
-        workspace.setSessionId(sessionId);
-        workspace.setName(name != null && !name.isBlank() ? name : "Workspace");
+        workspace.setName((name == null || name.isBlank()) ? "Default" : name.trim());
         workspace.setRootPath(rootPath);
         workspace.setStatus("CREATING");
         workspace.setCreatedAt(now);
@@ -79,14 +86,31 @@ public class WorkspaceServiceImpl implements WorkspaceService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public WorkspaceDO getOrCreateWorkspace(String sessionId) {
-        WorkspaceDO existing = workspaceMapper.selectBySessionId(sessionId);
-        if (existing != null) {
-            return existing;
+    public List<WorkspaceVO> listWorkspaces() {
+        List<WorkspaceDO> workspaces = workspaceMapper.selectAllWorkspaces();
+        List<WorkspaceVO> result = new ArrayList<>();
+        for (WorkspaceDO workspace : workspaces) {
+            WorkspaceVO vo = WorkspaceVO.builder()
+                    .workspaceId(workspace.getWorkspaceId())
+                    .name(workspace.getName())
+                    .status(workspace.getStatus())
+                    .createdAt(workspace.getCreatedAt())
+                    .updatedAt(workspace.getUpdatedAt())
+                    .build();
+            result.add(vo);
         }
-        return createWorkspace(sessionId, "Workspace-" + sessionId.substring(0, 8));
+        return result;
     }
+
+//    @Override
+//    @Transactional(rollbackFor = Exception.class)
+//    public WorkspaceDO getOrCreateWorkspace(String sessionId) {
+//        WorkspaceDO existing = workspaceMapper.selectBySessionId(sessionId);
+//        if (existing != null) {
+//            return existing;
+//        }
+//        return createWorkspace(sessionId, "Workspace-" + sessionId.substring(0, 8));
+//    }
 
     @Override
     public void initializeFile(String workspaceId, String fileName, String code) {
@@ -134,5 +158,28 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
             throw new RuntimeException("Workspace文件初始化失败", e);
         }
+    }
+
+    @Override
+    public WorkspaceVO getWorkspaceBySessionId(String sessionId) {
+        AgentSessionDO session = agentSessionService.getSessionById(sessionId);
+        if (session == null) {
+            return null;
+        }
+        String workspaceId = session.getWorkspaceId();
+        if (workspaceId == null || workspaceId.isBlank()) {
+            return null;
+        }
+        WorkspaceDO workspaceDO = workspaceMapper.selectByWorkspaceId(workspaceId);
+        if (workspaceDO == null) {
+            return null;
+        }
+        return WorkspaceVO.builder()
+                .workspaceId(workspaceDO.getWorkspaceId())
+                .name(workspaceDO.getName())
+                .status(workspaceDO.getStatus())
+                .createdAt(workspaceDO.getCreatedAt())
+                .updatedAt(workspaceDO.getUpdatedAt())
+                .build();
     }
 }

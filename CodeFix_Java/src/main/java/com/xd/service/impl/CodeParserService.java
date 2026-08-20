@@ -136,27 +136,36 @@ public class CodeParserService {
             cu.getPackageDeclaration().ifPresent(pkg -> result.put("packageName", pkg.getNameAsString()));
 
             // 类名（取第一个类）
-            cu.findAll(ClassOrInterfaceDeclaration.class).stream().findFirst().ifPresent(clazz -> {
+            cu.findAll(ClassOrInterfaceDeclaration.class).stream()
+                    .findFirst()
+                    .ifPresent(clazz -> {
                 result.put("className", clazz.getNameAsString());
-                List<String> classAnnotations = clazz.getAnnotations().stream().map(ann -> ann.getNameAsString()).collect(Collectors.toList());
+                List<String> classAnnotations = clazz.getAnnotations()
+                        .stream()
+                        .map(ann -> ann.getNameAsString())
+                        .collect(Collectors.toList());
                 if (!classAnnotations.isEmpty()) {
                     result.put("classAnnotations", classAnnotations);
                 }
             });
 
             // 导入列表
-            List<String> imports = cu.findAll(ImportDeclaration.class).stream().map(imp -> imp.getNameAsString()).collect(Collectors.toList());
+            List<String> imports = cu.findAll(ImportDeclaration.class).stream()
+                    .map(imp -> imp.getNameAsString())
+                    .collect(Collectors.toList());
             if (!imports.isEmpty()) {
                 result.put("imports", imports);
             }
 
             // 方法详情
-            List<Map<String, Object>> methods = cu.findAll(MethodDeclaration.class).stream().map(method -> {
+            List<Map<String, Object>> methods = cu.findAll(MethodDeclaration.class).stream()
+                    .map(method -> {
                 Map<String, Object> m = new HashMap<>();
                 m.put("name", method.getNameAsString());
                 m.put("returnType", method.getType().asString());
                 // 参数列表
-                List<String> params = method.getParameters().stream().map(p -> p.getType().asString() + " " + p.getNameAsString()).collect(Collectors.toList());
+                List<String> params = method.getParameters().stream()
+                        .map(p -> p.getType().asString() + " " + p.getNameAsString()).collect(Collectors.toList());
                 m.put("parameters", params);
                 // 行号范围
                 method.getRange().ifPresent(range -> {
@@ -164,7 +173,9 @@ public class CodeParserService {
                     m.put("lineEnd", range.end.line);
                 });
                 // 注解
-                List<String> annotations = method.getAnnotations().stream().map(ann -> ann.getNameAsString()).collect(Collectors.toList());
+                List<String> annotations = method.getAnnotations().stream()
+                        .map(ann -> ann.getNameAsString())
+                        .collect(Collectors.toList());
                 if (!annotations.isEmpty()) {
                     m.put("annotations", annotations);
                 }
@@ -203,7 +214,9 @@ public class CodeParserService {
             }
 
             // 字段信息（可选）
-            List<Map<String, Object>> fields = cu.findAll(FieldDeclaration.class).stream().flatMap(field -> field.getVariables().stream().map(var -> {
+            List<Map<String, Object>> fields = cu.findAll(FieldDeclaration.class).stream()
+                    .flatMap(field -> field.getVariables()
+                            .stream().map(var -> {
                 Map<String, Object> f = new HashMap<>();
                 f.put("name", var.getNameAsString());
                 f.put("type", field.getCommonType().asString());

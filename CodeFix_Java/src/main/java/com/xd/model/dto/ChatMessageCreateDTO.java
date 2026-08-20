@@ -9,4 +9,5 @@ public class ChatMessageCreateDTO {
 
     private String content;
     private String sessionId;
+    private String workspaceName;
 }

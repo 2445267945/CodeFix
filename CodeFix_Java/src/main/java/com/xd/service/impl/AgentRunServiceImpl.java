@@ -103,12 +103,25 @@ public class AgentRunServiceImpl implements AgentRunService {
 
         String currentRunId = task.getRunId();
 
-        return runs.stream().map(run -> toRunVO(run, currentRunId)).toList();
+        return runs.stream()
+                .map(run -> toRunVO(run, currentRunId)).toList();
     }
 
     private AgentRunVO toRunVO(AgentRunDO run, String currentRunId) {
 
-        return AgentRunVO.builder().runId(run.getRunId()).taskId(run.getTaskId()).sessionId(run.getSessionId()).attempt(run.getAttempt()).status(run.getStatus()).statusValue(resolveStatusValue(run.getStatus())).startedAt(run.getStartedAt()).endedAt(run.getEndedAt()).errorMessage(run.getErrorMessage()).createdAt(run.getCreatedAt()).current(Objects.equals(run.getRunId(), currentRunId)).build();
+        return AgentRunVO.builder()
+                .runId(run.getRunId())
+                .taskId(run.getTaskId())
+                .sessionId(run.getSessionId())
+                .attempt(run.getAttempt())
+                .status(run.getStatus())
+                .statusValue(resolveStatusValue(run.getStatus()))
+                .startedAt(run.getStartedAt())
+                .endedAt(run.getEndedAt())
+                .errorMessage(run.getErrorMessage())
+                .createdAt(run.getCreatedAt())
+                .current(Objects.equals(run.getRunId(), currentRunId))
+                .build();
     }
 
     private String resolveStatusValue(Integer status) {

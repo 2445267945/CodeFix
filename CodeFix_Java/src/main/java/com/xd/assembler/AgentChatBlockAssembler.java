@@ -30,7 +30,10 @@ public class AgentChatBlockAssembler {
             context = AgentChatAssembleContext.builder().build();
         }
 
-        List<AgentEventDO> sortedEvents = events.stream().filter(Objects::nonNull).sorted(Comparator.comparing(AgentEventDO::getEventTimestamp, Comparator.nullsLast(Long::compareTo))).toList();
+        List<AgentEventDO> sortedEvents = events.stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(AgentEventDO::getEventTimestamp, Comparator.nullsLast(Long::compareTo)))
+                .toList();
 
         List<AgentChatBlockVO> blocks = new ArrayList<>();
 
@@ -98,7 +101,7 @@ public class AgentChatBlockAssembler {
 
     /**
      * THINK：
-     
+
      * reasoning 有内容时才生成 UI Block。
      * THINK 中的 toolCalls 不再转换，
      * 因为后面会有真正的 TOOL_CALL Event。
@@ -125,7 +128,7 @@ public class AgentChatBlockAssembler {
 
     /**
      * TOOL_CALL：
-     
+
      * 先生成 running Block，
      * 等 TOOL_RESULT 到来以后更新。
      */
@@ -419,7 +422,7 @@ public class AgentChatBlockAssembler {
 
     /**
      * 先保留文件变化入口。
-     
+
      * 当前真实 Event 示例还没有给出 write/edit 的 result 格式，
      * 所以这里暂不强行解析 addedLines/diff 等字段。
      */

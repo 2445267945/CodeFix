@@ -26,10 +26,10 @@ public class AuditTaskController {
     private AgentRunService agentRunService;
 
 
-    @PostMapping
-    public TaskCreateVO createTask(@Validated @RequestBody AuditTaskCreateDTO request) {
-        return agentTaskService.createTask(request);
-    }
+//    @PostMapping
+//    public TaskCreateVO createTask(@Validated @RequestBody AuditTaskCreateDTO request) {
+//        return agentTaskService.createTask(request);
+//    }
 
     @GetMapping("/{taskId}")
     public TaskDetailVO getTask(@PathVariable String taskId) {

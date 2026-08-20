@@ -25,6 +25,7 @@ public class AgentChatViewVO {
     private String taskId;
     private String runId;
     private String workspaceId;
+    private String workspaceName;
     private List<AgentChatTurnVO> turns;
 
     @Data

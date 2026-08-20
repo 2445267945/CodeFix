@@ -48,16 +48,16 @@ public class AgentSseServiceImpl implements AgentSseService {
 
     @Override
     public void send(AgentChatStreamVO message) {
-
+        if (message == null) {
+            log.warn("Agent SSE组装结果为空，跳过SSE推送");
+            return;
+        }
         String taskId = message.getTaskId();
-
         if (taskId == null || taskId.isBlank()) {
             log.warn("SSE推送失败：taskId为空");
             return;
         }
-
         SseEmitter emitter = emitters.get(taskId);
-
         if (emitter == null) {
             log.debug("当前Task没有SSE连接: taskId={}, type={}", taskId, message.getType());
             return;
@@ -65,10 +65,11 @@ public class AgentSseServiceImpl implements AgentSseService {
 
         try {
             emitter.send(SseEmitter.event().name(message.getType()).id(message.getMessageId()).data(message));
-
         } catch (IOException e) {
             emitters.remove(taskId, emitter);
             emitter.completeWithError(e);
+        } catch (Exception e) {
+            log.info("不可预期异常:", e);
         }
     }
 

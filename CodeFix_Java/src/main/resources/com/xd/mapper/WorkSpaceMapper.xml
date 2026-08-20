@@ -12,9 +12,6 @@
         <result property="workspaceId"
                 column="workspace_id"/>
 
-        <result property="sessionId"
-                column="session_id"/>
-
         <result property="name"
                 column="name"/>
 
@@ -35,7 +32,6 @@
     <sql id="Base_Column_List">
         id,
         workspace_id,
-        session_id,
         name,
         root_path,
         status,
@@ -50,7 +46,6 @@
 
         INSERT INTO agent_workspace (
         workspace_id,
-        session_id,
         name,
         root_path,
         status,
@@ -59,7 +54,6 @@
         )
         VALUES (
         #{workspaceId},
-        #{sessionId},
         #{name},
         #{rootPath},
         #{status},
@@ -91,33 +85,30 @@
 
     </select>
 
-    <update id="updateWorkspace"
-            parameterType="com.xd.model.entity.WorkspaceDO">
-
+    <update id="updateWorkspace" parameterType="com.xd.model.entity.WorkspaceDO">
         UPDATE agent_workspace
-
         <set>
-
             <if test="name != null">
                 name = #{name},
             </if>
-
             <if test="rootPath != null">
                 root_path = #{rootPath},
             </if>
-
             <if test="status != null">
                 status = #{status},
             </if>
-
             <if test="updatedAt != null">
                 updated_at = #{updatedAt},
             </if>
-
         </set>
-
         WHERE workspace_id = #{workspaceId}
-
     </update>
+
+    <select id="selectAllWorkspaces" resultType="com.xd.model.entity.WorkspaceDO">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM workspace
+        ORDER BY updated_at DESC
+    </select>
 
 </mapper>

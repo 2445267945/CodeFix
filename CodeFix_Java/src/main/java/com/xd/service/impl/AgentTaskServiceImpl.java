@@ -62,7 +62,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public TaskRunContext createTaskWithRun(String sessionId, String question) {
+    public TaskRunContext createTaskWithRun(String sessionId, String question, String workspaceName) {
 
         String runId = UUID.randomUUID().toString();
         String taskId = UUID.randomUUID().toString();
@@ -71,14 +71,16 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         AgentSessionDO session = agentSessionService.getOrCreateSession(sessionId, question);
 
         String actualSessionId = session.getSessionId();
-
-        // 2. 获取 / 创建 Workspace
-        WorkspaceDO workspace = workspaceService.getOrCreateWorkspace(actualSessionId);
-
-        // 3. 确保 Session 绑定 Workspace
-        if (session.getWorkspaceId() == null || !workspace.getWorkspaceId().equals(session.getWorkspaceId())) {
+        String workspaceId = session.getWorkspaceId();
+        WorkspaceDO workspace;
+        if (workspaceId == null || workspaceId.isEmpty()) {
+            // 2. 获取 / 创建 Workspace
+            workspace = workspaceService.createWorkspace(workspaceName);
+            // 3. 确保 Session 绑定 Workspace
             agentSessionService.bindWorkspace(actualSessionId, workspace.getWorkspaceId());
             session.setWorkspaceId(workspace.getWorkspaceId());
+        } else {
+            workspace = workspaceService.getWorkspace(workspaceId);
         }
 
         // 4. 创建 Task
@@ -107,14 +109,20 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         agentRunMapper.insertAgentRun(run);
 
         // 7. 返回完整执行上下文
-        return TaskRunContext.builder().session(session).workspace(workspace).task(task).run(run).build();
+        return TaskRunContext.builder()
+                .session(session)
+                .workspace(workspace)
+                .task(task)
+                .run(run)
+                .build();
     }
 
     @Override
     public List<TaskDetailVO> getTasksBySessionId(String sessionId) {
         List<AgentTaskDO> tasks = agentTaskMapper.selectBySessionId(sessionId);
 
-        return tasks.stream().map(this::toTaskDetailVO).toList();
+        return tasks.stream()
+                .map(this::toTaskDetailVO).toList();
     }
 
     @Override
@@ -135,97 +143,102 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         agentTaskMapper.updateTask(agentTaskDO);
     }
 
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public TaskCreateVO createTask(AuditTaskCreateDTO request) {
-        long now = System.currentTimeMillis();
-        // 1. 获取 / 创建 Session
-        AgentSessionDO session = agentSessionService.getOrCreateSession(request.getSessionId(), request.getQuestion());
-        String sessionId = session.getSessionId();
-
-        // 2.创建工作目录
-        WorkspaceDO workspace = workspaceService.getOrCreateWorkspace(sessionId);
-
-        if (session.getWorkspaceId() == null || !workspace.getWorkspaceId().equals(session.getWorkspaceId())) {
-            agentSessionService.bindWorkspace(sessionId, workspace.getWorkspaceId());
-            session.setWorkspaceId(workspace.getWorkspaceId());
-        }
-
-        // 3. 生成 Task / Run
-        String taskId = UUID.randomUUID().toString();
-        String runId = UUID.randomUUID().toString();
-
-        // 4. 原始代码
-        String originalCode = request.getCode();
-
-        // 5. 语法检查
-        Optional<String> syntaxError = validator.validate(originalCode);
-
-        List<CodeSmellDTO> smells;
-        String question;
-
-        if (syntaxError.isPresent()) {
-            smells = null;
-            question = buildSyntaxErrorQuestion(request.getQuestion(), originalCode, syntaxError.get());
-        } else {
-            // 如果前端没有传 smells，则使用后端预扫描结果
-            smells = request.getSmells() != null ? request.getSmells() : parserService.extractSmells(originalCode);
-            question = buildTaskQuestion(request.getQuestion(), originalCode, smells);
-        }
-
-        // 6. 创建 Task
-        AgentTaskDO task = new AgentTaskDO();
-        task.setTaskId(taskId);
-        task.setSessionId(sessionId);
-        task.setRunId(runId);
-        task.setQuestion(question);
-        task.setCode(originalCode);
-        task.setStatus(AuditTaskStatusEnum.QUEUED.statusCode);
-        task.setCreatedAt(now);
-        task.setUpdatedAt(now);
-        task.setVersion("1.0");
-        agentTaskMapper.insertAgentTask(task);
-
-        // 7. 创建 Run
-        AgentRunDO run = new AgentRunDO();
-        run.setRunId(runId);
-        run.setTaskId(taskId);
-        run.setSessionId(sessionId);
-        run.setAttempt(1);
-        run.setStatus(AuditTaskStatusEnum.QUEUED.statusCode);
-        run.setStartedAt(now);
-        run.setCreatedAt(now);
-        agentRunMapper.insertAgentRun(run);
-
-        // 8. 构造 Python 消息
-        AgentTaskMessage msg = new AgentTaskMessage();
-        msg.setVersion("1.0");
-        msg.setTimestamp(now);
-        msg.setMessageId(UUID.randomUUID().toString());
-        msg.setTaskId(taskId);
-        msg.setSessionId(sessionId);
-        msg.setRunId(runId);
-        msg.setType("AGENT_TASK");
-        msg.setCommand(AgentCommandEnum.START.commandDesc_EN);
-        msg.setQuestion(question);
-        msg.setCode(originalCode);
-        msg.setSmells(smells);
-
-        // 9. 保存第一轮 USER ChatMessage
-        ChatMessageDO message = new ChatMessageDO();
-        message.setMessageId(UUID.randomUUID().toString());
-        message.setSessionId(sessionId);
-        message.setRole("USER");
-        message.setContent(request.getQuestion() + request.getCode());
-        message.setCreatedAt(now);
-        chatMessageMapper.insertChatMessage(message);
-
-        // 10. MQ
-        mqProducer.send("agent_task_topic", "*", JSON.toJSONString(msg));
-
-        // 11. 返回
-        return TaskCreateVO.builder().taskId(taskId).sessionId(sessionId).runId(runId).status(AuditTaskStatusEnum.QUEUED.statusCode).build();
-    }
+//    @Override
+//    @Transactional(rollbackFor = Exception.class)
+//    public TaskCreateVO createTask(AuditTaskCreateDTO request) {
+//        long now = System.currentTimeMillis();
+//        // 1. 获取 / 创建 Session
+//        AgentSessionDO session = agentSessionService.getOrCreateSession(request.getSessionId(), request.getQuestion());
+//        String sessionId = session.getSessionId();
+//
+//        // 2.创建工作目录
+//        WorkspaceDO workspace = workspaceService.getOrCreateWorkspace(sessionId);
+//
+//        if (session.getWorkspaceId() == null || !workspace.getWorkspaceId().equals(session.getWorkspaceId())) {
+//            agentSessionService.bindWorkspace(sessionId, workspace.getWorkspaceId());
+//            session.setWorkspaceId(workspace.getWorkspaceId());
+//        }
+//
+//        // 3. 生成 Task / Run
+//        String taskId = UUID.randomUUID().toString();
+//        String runId = UUID.randomUUID().toString();
+//
+//        // 4. 原始代码
+//        String originalCode = request.getCode();
+//
+//        // 5. 语法检查
+//        Optional<String> syntaxError = validator.validate(originalCode);
+//
+//        List<CodeSmellDTO> smells;
+//        String question;
+//
+//        if (syntaxError.isPresent()) {
+//            smells = null;
+//            question = buildSyntaxErrorQuestion(request.getQuestion(), originalCode, syntaxError.get());
+//        } else {
+//            // 如果前端没有传 smells，则使用后端预扫描结果
+//            smells = request.getSmells() != null ? request.getSmells() : parserService.extractSmells(originalCode);
+//            question = buildTaskQuestion(request.getQuestion(), originalCode, smells);
+//        }
+//
+//        // 6. 创建 Task
+//        AgentTaskDO task = new AgentTaskDO();
+//        task.setTaskId(taskId);
+//        task.setSessionId(sessionId);
+//        task.setRunId(runId);
+//        task.setQuestion(question);
+//        task.setCode(originalCode);
+//        task.setStatus(AuditTaskStatusEnum.QUEUED.statusCode);
+//        task.setCreatedAt(now);
+//        task.setUpdatedAt(now);
+//        task.setVersion("1.0");
+//        agentTaskMapper.insertAgentTask(task);
+//
+//        // 7. 创建 Run
+//        AgentRunDO run = new AgentRunDO();
+//        run.setRunId(runId);
+//        run.setTaskId(taskId);
+//        run.setSessionId(sessionId);
+//        run.setAttempt(1);
+//        run.setStatus(AuditTaskStatusEnum.QUEUED.statusCode);
+//        run.setStartedAt(now);
+//        run.setCreatedAt(now);
+//        agentRunMapper.insertAgentRun(run);
+//
+//        // 8. 构造 Python 消息
+//        AgentTaskMessage msg = new AgentTaskMessage();
+//        msg.setVersion("1.0");
+//        msg.setTimestamp(now);
+//        msg.setMessageId(UUID.randomUUID().toString());
+//        msg.setTaskId(taskId);
+//        msg.setSessionId(sessionId);
+//        msg.setRunId(runId);
+//        msg.setType("AGENT_TASK");
+//        msg.setCommand(AgentCommandEnum.START.commandDesc_EN);
+//        msg.setQuestion(question);
+//        msg.setCode(originalCode);
+//        msg.setSmells(smells);
+//
+//        // 9. 保存第一轮 USER ChatMessage
+//        ChatMessageDO message = new ChatMessageDO();
+//        message.setMessageId(UUID.randomUUID().toString());
+//        message.setSessionId(sessionId);
+//        message.setRole("USER");
+//        message.setContent(request.getQuestion() + request.getCode());
+//        message.setCreatedAt(now);
+//        chatMessageMapper.insertChatMessage(message);
+//
+//        // 10. MQ
+//        mqProducer.send("agent_task_topic", "*", JSON.toJSONString(msg));
+//
+//        // 11. 返回
+//        return TaskCreateVO.builder()
+//                .taskId(taskId)
+//                .sessionId(sessionId)
+//                .runId(runId)
+//                .status(AuditTaskStatusEnum.QUEUED.statusCode)
+//                .build();
+//    }
 
     /**
      * question 给人读；smells 给程序用
@@ -279,7 +292,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         } else {
             events = agentEventMapper.selectByTaskIdAndRunId(taskId, runId);
         }
-        return events.stream().map(this::toEventVO).toList();
+        return events.stream()
+                .map(this::toEventVO)
+                .toList();
     }
 
     private AgentEventVO toEventVO(AgentEventDO event) {
@@ -372,7 +387,13 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         // 7. 投递 MQ
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(msg));
         // 8. 返回
-        return TaskOperateVO.builder().taskId(taskId).runId(newRunId).status(AuditTaskStatusEnum.QUEUED.statusCode).statusValue("QUEUED").message("任务已重新执行").build();
+        return TaskOperateVO.builder()
+                .taskId(taskId)
+                .runId(newRunId)
+                .status(AuditTaskStatusEnum.QUEUED.statusCode)
+                .statusValue("QUEUED")
+                .message("任务已重新执行")
+                .build();
     }
 
     @Override
@@ -410,14 +431,29 @@ public class AgentTaskServiceImpl implements AgentTaskService {
 
         List<AgentTaskDO> tasks = agentTaskMapper.selectTaskList();
 
-        return tasks.stream().map(this::toTaskDetailVO).toList();
+        return tasks.stream()
+                .map(this::toTaskDetailVO)
+                .toList();
     }
 
 
     private AgentRunVO toAgentRunVO(AgentRunDO run, String currentRunId) {
         AuditTaskStatusEnum status = AuditTaskStatusEnum.getStatusByCode(run.getStatus());
 
-        return AgentRunVO.builder().runId(run.getRunId()).taskId(run.getTaskId()).sessionId(run.getSessionId()).attempt(run.getAttempt()).status(run.getStatus()).statusValue(status == null ? "UNKNOWN" : status.statusDesc_EN).startedAt(run.getStartedAt()).endedAt(run.getEndedAt()).errorMessage(run.getErrorMessage()).createdAt(run.getCreatedAt()).current(run.getRunId().equals(currentRunId)).build();
+        return AgentRunVO.builder()
+                .runId(run.getRunId())
+                .taskId(run.getTaskId())
+                .sessionId(run.getSessionId())
+                .attempt(run.getAttempt())
+                .status(run.getStatus())
+                .statusValue(status == null ? "UNKNOWN" : status.statusDesc_EN)
+                .startedAt(run.getStartedAt())
+                .endedAt(run.getEndedAt())
+                .errorMessage(run.getErrorMessage())
+                .createdAt(run.getCreatedAt())
+                .current(run.getRunId()
+                .equals(currentRunId))
+                .build();
     }
 
     private TaskDetailVO toTaskDetailVO(AgentTaskDO task) {
@@ -428,11 +464,24 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             throw new RuntimeException("未知任务状态: " + task.getStatus());
         }
 
-        return TaskDetailVO.builder().taskId(task.getTaskId()).sessionId(task.getSessionId()).runId(task.getRunId()).status(task.getStatus()).statusValue(status.statusDesc_EN).question(task.getQuestion()).createdAt(task.getCreatedAt()).updatedAt(task.getUpdatedAt()).build();
+        return TaskDetailVO.builder()
+                .taskId(task.getTaskId())
+                .sessionId(task.getSessionId())
+                .runId(task.getRunId())
+                .status(task.getStatus())
+                .statusValue(status.statusDesc_EN)
+                .question(task.getQuestion())
+                .createdAt(task.getCreatedAt())
+                .updatedAt(task.getUpdatedAt())
+                .build();
     }
 
     private TaskResultVO buildTaskResultVO(AgentTaskDO task, AgentRunDO run, AgentChatViewVO chat) {
 
-        return TaskResultVO.builder().taskId(task.getTaskId()).runId(run.getRunId()).status(AuditTaskStatusEnum.getStatusByCode(run.getStatus()).statusDesc_EN).chat(chat).build();
+        return TaskResultVO.builder()
+                .taskId(task.getTaskId())
+                .runId(run.getRunId())
+                .status(AuditTaskStatusEnum.getStatusByCode(run.getStatus()).statusDesc_EN)
+                .chat(chat).build();
     }
 }

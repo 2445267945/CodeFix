@@ -33,6 +33,7 @@ public class RocketMQConsumerConfig {
 
     @Bean
     public DefaultMQPushConsumer getRocketMQConsumer() throws RuntimeException {
+
         if (StringUtils.isEmpty(consumerGroup)) {
             throw new RuntimeException("consumerGroup is null !!!");
         }
@@ -58,6 +59,13 @@ public class RocketMQConsumerConfig {
          * 设置一次消费消息的条数，默认为1条
          */
         consumer.setConsumeMessageBatchMaxSize(1);
+        log.info(
+                "RocketMQ Consumer started: group={}, instanceName={}, topics={}, nameSrv={}",
+                consumerGroup,
+                consumer.getInstanceName(),
+                topicList,
+                nameSrvAddr
+        );
         try {
             /**
              * 设置该消费者订阅的主题和tag，如果是订阅该主题下的所有tag，则tag使用*；如果需要指定订阅该主题下的某些tag，则使用||分割，例如tag1||tag2||tag3
