@@ -8,8 +8,10 @@ public enum AgentEventEnum {
     THINK(1, "THINK"),
     FINISH(2, "FINISH"),
     TOOL_CALL(3, "TOOL_CALL"),
-    TOOL_RESULT(4, "TOOL_RESULT"),
-    ERROR(5, "ERROR")
+    TOOL_WAITING(4, "TOOL_WAITING"),
+
+    TOOL_RESULT(5, "TOOL_RESULT"),
+    ERROR(6, "ERROR")
     ;
 
     public final Integer eventNum;

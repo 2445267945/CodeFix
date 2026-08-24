@@ -8,6 +8,7 @@ public class AgentEventDO {
     private Long id;
 
     private String messageId;
+    private String actionId;
 
     private String taskId;
     private String runId;

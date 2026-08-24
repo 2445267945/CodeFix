@@ -10,6 +10,7 @@ public class AgentRunDO {
     private String runId;
 
     private String taskId;
+    private String actionId;
 
     private String sessionId;
 
