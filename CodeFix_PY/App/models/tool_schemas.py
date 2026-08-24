@@ -43,6 +43,11 @@ class SearchFileInput(BaseModel):
 class DeleteFileInput(BaseModel):
     file_name: str = Field(..., description="Workspace 中要删除的相对文件路径", min_length=1, max_length=1000)
 
+class ApplyPatchInput(BaseModel):
+    file_name: str = Field(..., description="Workspace 中已有文件的相对路径", min_length=1, max_length=1000)
+    old_text: str = Field(..., description="文件中需要被精确替换的原始文本", min_length=1)
+    new_text: str = Field(..., description="替换后的新文本")
+
 # ---------- 工具 Schema 注册表 ----------
 TOOL_SCHEMAS = {
     "search_manual": SearchManualInput,
@@ -54,6 +59,7 @@ TOOL_SCHEMAS = {
     "list_files": ListFilesInput,
     "read_file": ReadFileInput,
     "write_file": WriteFileInput,
+    "apply_patch": ApplyPatchInput,
     "search_file": SearchFileInput,
     "delete_file": DeleteFileInput,
 }

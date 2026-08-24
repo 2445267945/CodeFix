@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.xd.mapper.AgentRunStateHistoryMapper">
+    <resultMap id="AgentRunStateHistoryResultMap" type="com.xd.model.entity.AgentRunStateHistoryDO">
+        <id property="id" column="id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="runId" column="run_id"/>
+        <result property="fromStatus" column="from_status"/>
+        <result property="triggerType" column="trigger_type"/>
+        <result property="trigger" column="trigger"/>
+        <result property="toStatus" column="to_status"/>
+        <result property="messageId" column="message_id"/>
+        <result property="step" column="step"/>
+        <result property="reason" column="reason"/>
+        <result property="createdAt" column="created_at"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,
+        task_id,
+        run_id,
+        from_status,
+        trigger_type,
+        trigger,
+        to_status,
+        message_id,
+        step,
+        reason,
+        created_at
+    </sql>
+
+    <insert id="insertStateHistory" parameterType="com.xd.model.entity.AgentRunStateHistoryDO" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_run_state_history (
+                task_id,
+                run_id,
+                from_status,
+                trigger_type,
+                `trigger`,
+                to_status,
+                message_id,
+                step,
+                reason,
+                created_at)
+        VALUES (#{taskId},
+                #{runId},
+                #{fromStatus},
+                #{triggerType},
+                #{trigger},
+                #{toStatus},
+                #{messageId},
+                #{step},
+                #{reason},
+                #{createdAt})
+    </insert>
+
+    <select id="selectLatestByRunId" resultMap="AgentRunStateHistoryResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_run_state_history
+        WHERE run_id = #{runId}
+        ORDER BY created_at DESC, id DESC LIMIT 1
+
+    </select>
+
+</mapper>

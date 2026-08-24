@@ -1,11 +1,13 @@
 package com.xd.controller;
 
+import com.xd.controller.request.AgentCommandRequest;
 import com.xd.model.dto.AuditTaskCreateDTO;
 import com.xd.model.dto.ChatMessageCreateDTO;
 import com.xd.model.vo.*;
 import com.xd.service.AgentRunService;
 import com.xd.service.AgentSseService;
 import com.xd.service.AgentTaskService;
+import com.xd.state.AgentStateTransitionResult;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
@@ -30,6 +32,14 @@ public class AuditTaskController {
 //    public TaskCreateVO createTask(@Validated @RequestBody AuditTaskCreateDTO request) {
 //        return agentTaskService.createTask(request);
 //    }
+
+    @PostMapping("/{taskId}/command")
+    public AgentStateTransitionResult handleCommand(@PathVariable String taskId, @RequestBody AgentCommandRequest request) {
+        if (request == null) {
+            throw new IllegalArgumentException("Command 请求不能为空");
+        }
+        return agentTaskService.handleCommand(taskId, request.getRunId(), request.getActionId(), request.getCommand());
+    }
 
     @GetMapping("/{taskId}")
     public TaskDetailVO getTask(@PathVariable String taskId) {

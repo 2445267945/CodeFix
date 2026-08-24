@@ -84,7 +84,7 @@ class BaseAgent(ABC):
                 if cur_time - self.last_time > datetime.timedelta(seconds=self.watch_dog):
                     self.status = AgentState.ERROR
                     self.final_answer = {"error": f"Error: AI 推理超时（{self.watch_dog}），已强制终止。"}
-                    self.msg_sender.agent_report(agent=self, event=AgentEvent.ERROR, output=self.final_answer)
+                    self.msg_sender.agent_report(agent=self, event=AgentEvent.ERROR, output=self.final_answer, runId=self.base_message.run_id)
                     break
                 await self.step()
                 await self.checkpoint_working_memory()
@@ -94,7 +94,6 @@ class BaseAgent(ABC):
                     break
                 if self.status is AgentState.FINISHED:
                     await self.clear_working_memory()
-                    self.msg_sender.agent_report(agent=self, event=AgentEvent.ERROR, output=self.final_answer)
                     self.cleanup()
                     self.status = AgentState.IDLE
                     return AgentResult.ok(agent_name=self.name, result=self.final_answer, iterations=self.current_step)

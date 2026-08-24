@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import threading
 
 from App.agents.agent_state import AgentState
 from App.agents.context.agent_context import AgentContext
@@ -17,6 +18,7 @@ class AgentRunManager:
         self.loop = loop
         self.context = context
         self.running: dict[str, AgentRunning] = {}
+        self.running_lock = threading.RLock()
 
     def start(self, msg: AgentMessage):
         """
@@ -30,34 +32,39 @@ class AgentRunManager:
         return asyncio.run_coroutine_threadsafe(self.run(msg, resume=True), self.loop)
 
     async def run(self, msg: AgentMessage, resume: bool = False):
-        run_context = self.context.create_run_context(msg)
-        agent = SupervisorAgent(context=self.context, run_context=run_context, base_message=msg, parent_agent=None)
-        task = asyncio.current_task()
-        run = AgentRunning(
-            task_id=msg.task_id,
-            run_id=msg.run_id,
-            session_id=msg.session_id,
-            agent=agent,
-            task=task,
-            cancel_event=asyncio.Event()
-        )
-
-        self.running[msg.task_id] = run
-
         try:
-            if resume:
-                session_context = None
-            else:
-                session_context = msg.session_context
-            await agent.run(msg.question, resume, session_context)
-        except asyncio.CancelledError:
-            await self.handle_cancelled(run)
-            raise
-        except Exception:
-            print("Agent执行异常 taskId=%s", msg.task_id)
-            raise
-        finally:
-            self.running.pop(msg.task_id, None)
+            run_context = self.context.create_run_context(msg)
+            agent = SupervisorAgent(context=self.context, run_context=run_context, base_message=msg, parent_agent=None)
+            task = asyncio.current_task()
+            run = AgentRunning(
+                task_id=msg.task_id,
+                run_id=msg.run_id,
+                session_id=msg.session_id,
+                agent=agent,
+                task=task,
+                cancel_event=asyncio.Event()
+            )
+
+            with self.running_lock:
+                self.running[msg.run_id] = run
+
+            try:
+                if resume:
+                    session_context = None
+                else:
+                    session_context = msg.session_context
+                await agent.run(msg.question, resume, session_context)
+            except asyncio.CancelledError:
+                await self.handle_cancelled(run)
+                raise
+            except Exception:
+                print("Agent执行异常 taskId=%s", msg.task_id)
+                raise
+            finally:
+                with self.running_lock:
+                    self.running.pop(msg.run_id, None)
+        except Exception as e:
+            print("出问题了", e)
 
     async def handle_cancelled(self, run: AgentRunning):
         agent = run.agent
@@ -66,14 +73,15 @@ class AgentRunManager:
         agent.msg_sender.agent_report(
             agent=agent,
             event=AgentEvent.ERROR,
-            output={"reason": "TASK_CANCELLED"}
+            output={"reason": "TASK_CANCELLED"},
+            runId=run.run_id
         )
 
     def cancel(self, task_id: str, run_id: str) -> bool:
-        run = self.running.get(task_id)
+        run = self.running.get(run_id)
         if run is None:
             return False
-        if run.run_id != run_id:
+        if run.task_id != task_id:
             return False
         # 跨线程取消
         self.loop.call_soon_threadsafe(run.task.cancel)
@@ -83,17 +91,19 @@ class AgentRunManager:
     def retry(self, msg: AgentMessage):
         self.start(msg)
 
-    def get(self, task_id: str):
-        return self.running.get(task_id)
+    def get(self, run_id: str):
+        with self.running_lock:
+            return self.running.get(run_id)
 
-    def is_running(self, task_id: str) -> bool:
-        return task_id in self.running
+    def is_running(self, run_id: str) -> bool:
+        return run_id in self.running
 
     def remove(self, task_id: str, run_id: str) -> bool:
-        run = self.running.get(task_id)
+        run = self.running.get(run_id)
         if run is None:
             return False
-        if run.run_id != run_id:
+        if run.task_id != task_id:
             return False
-        self.running.pop(task_id, None)
+        with self.running_lock:
+            self.running.pop(run_id, None)
         return True

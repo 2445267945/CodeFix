@@ -32,7 +32,11 @@ class MQConfig:
     ROCKETMQ_NAMESRV_ADDR = os.getenv("ROCKETMQ_NAMESRV_ADDR")
     ROCKETMQ_GROUP_NAME = os.getenv("ROCKETMQ_GROUP_NAME")
     ROCKETMQ_TOPIC = os.getenv("ROCKETMQ_TOPIC")
-    MESSAGE_TYPE = os.getenv("MESSAGE_TYPE")
+    MESSAGE_TYPES = tuple(
+        item.strip()
+        for item in os.getenv("MESSAGE_TYPE", "").split(",")
+        if item.strip()
+    )
 
 class RedisConfig:
     REDIS_URL = os.getenv("REDIS_URL")

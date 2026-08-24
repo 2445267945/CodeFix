@@ -1,7 +1,6 @@
 package com.xd.service.impl;
 
 import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
 import com.xd.mapper.ChatMessageMapper;
 import com.xd.model.context.ChatMessageContext;
 import com.xd.model.context.SessionContext;
@@ -10,10 +9,8 @@ import com.xd.model.dto.AgentMessageDTO;
 import com.xd.model.dto.AgentTaskMessage;
 import com.xd.model.dto.ChatMessageCreateDTO;
 import com.xd.model.entity.*;
-import com.xd.model.enums.AgentCommandEnum;
+import com.xd.model.enums.AgentRunCommandEnum;
 import com.xd.model.enums.AgentEventEnum;
-import com.xd.model.enums.AuditTaskStatusEnum;
-import com.xd.model.vo.AgentSessionVO;
 import com.xd.model.vo.ChatMessageVO;
 import com.xd.model.vo.SessionVO;
 import com.xd.mq.MQProducer;
@@ -22,7 +19,6 @@ import com.xd.service.AgentSessionService;
 import com.xd.service.AgentTaskService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.checkerframework.checker.units.qual.C;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -82,7 +78,7 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         agentMessage.setRunId(run.getRunId());
         agentMessage.setWorkspaceId(workspace.getWorkspaceId());
         agentMessage.setType("AGENT_TASK");
-        agentMessage.setCommand(AgentCommandEnum.START.commandDesc_EN);
+        agentMessage.setCommand(AgentRunCommandEnum.START.commandDesc_EN);
         agentMessage.setQuestion(request.getContent());
         agentMessage.setSessionContext(sessionContext);
 

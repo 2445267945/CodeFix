@@ -87,11 +87,26 @@ class DeepSeekLLM(LLMClient):
             tool_calls = []
 
             for item in provider_tool_calls:
-                arguments_raw = item["function"].get("arguments", "{}")
+                function = item.get("function", {})
+                tool_name = function.get("name", "")
+                tool_call_id = item.get("id", "")
+                arguments_raw = function.get("arguments", "{}")
+                # arguments_raw = item["function"].get("arguments", "{}")
                 if isinstance(arguments_raw, str):
                     try:
                         arguments = json.loads(arguments_raw)
                     except json.JSONDecodeError as e:
+                        logger.error(
+                            "Tool 参数 JSON 解析失败: "
+                            "tool=%s, toolCallId=%s, error=%s, "
+                            "argumentsLength=%s, argumentsRaw=%r",
+                            tool_name,
+                            tool_call_id,
+                            e,
+                            len(arguments_raw),
+                            arguments_raw,
+                        )
+
                         raise RuntimeError(f"Tool 参数 JSON 解析失败: "f"{item['function'].get('name')}") from e
                 else:
                     arguments = arguments_raw

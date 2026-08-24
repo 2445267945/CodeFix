@@ -19,6 +19,7 @@ class AgentMessage(BaseMessage):
 
     # ===== Python → Java =====
     run_id: str = Field(default="", alias="runId")
+    action_id: Optional[str] = Field(default=None,alias="actionId")
     command: str = ""
     event: str = ""
     step: int = 0

@@ -7,6 +7,7 @@
         <id property="id" column="id"/>
         <result property="messageId" column="message_id"/>
         <result property="taskId" column="task_id"/>
+        <result property="actionId" column="action_id"/>
         <result property="runId" column="run_id"/>
         <result property="sessionId" column="session_id"/>
         <result property="agentName" column="agent_name"/>
@@ -22,6 +23,7 @@
         id,
         message_id,
         task_id,
+        action_id,
         run_id,
         session_id,
         agent_name,
@@ -39,6 +41,7 @@
             run_id,
             task_id,
             session_id,
+            action_id,
             agent_name,
             parent_agent,
             event,
@@ -52,6 +55,7 @@
                    #{runId},
                    #{taskId},
                    #{sessionId},
+                   #{actionId},
                    #{agentName},
                    #{parentAgent},
                    #{event},

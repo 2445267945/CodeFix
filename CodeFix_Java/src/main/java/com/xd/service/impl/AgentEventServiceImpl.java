@@ -35,6 +35,7 @@ public class AgentEventServiceImpl implements AgentEventService {
         event.setEvent(dto.getEvent());
         event.setRunId(dto.getRunId());
         event.setStep(dto.getStep());
+        event.setActionId(dto.getActionId());
         event.setStatus(dto.getStatus());
         try {
             event.setOutput(objectMapper.writeValueAsString(dto.getOutput()));

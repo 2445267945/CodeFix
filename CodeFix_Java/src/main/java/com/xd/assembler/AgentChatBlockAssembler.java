@@ -1,14 +1,12 @@
 package com.xd.assembler;
 
 import com.alibaba.fastjson2.JSON;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xd.context.AgentChatAssembleContext;
 import com.xd.model.entity.AgentEventDO;
 import com.xd.model.entity.AgentFileChangeDO;
 import com.xd.model.vo.AgentChatBlockVO;
 import com.xd.model.vo.FileChangeVO;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
@@ -16,9 +14,6 @@ import java.util.*;
 @Slf4j
 @Component
 public class AgentChatBlockAssembler {
-
-    @Autowired
-    private ObjectMapper objectMapper;
 
     public List<AgentChatBlockVO> assemble(List<AgentEventDO> events, AgentChatAssembleContext context) {
 
@@ -30,17 +25,20 @@ public class AgentChatBlockAssembler {
             context = AgentChatAssembleContext.builder().build();
         }
 
-        List<AgentEventDO> sortedEvents = events.stream()
-                .filter(Objects::nonNull)
-                .sorted(Comparator.comparing(AgentEventDO::getEventTimestamp, Comparator.nullsLast(Long::compareTo)))
-                .toList();
+        List<AgentEventDO> sortedEvents = events.stream().filter(Objects::nonNull).sorted(Comparator.comparing(AgentEventDO::getEventTimestamp, Comparator.nullsLast(Long::compareTo))).toList();
 
         List<AgentChatBlockVO> blocks = new ArrayList<>();
 
         /*
-         * TOOL_CALL -> TOOL_RESULT
+         * 一个 Tool Call 在 UI 中对应一个 Block。
          *
-         * 通过 toolCallId 关联。
+         * TOOL_WAITING
+         *      ↓
+         * TOOL_CALL
+         *      ↓
+         * TOOL_RESULT
+         *
+         * 通过 toolCallId 始终关联到同一个 Block。
          */
         Map<String, AgentChatBlockVO> pendingToolBlocks = new HashMap<>();
 
@@ -54,18 +52,12 @@ public class AgentChatBlockAssembler {
                     assembleThink(event, blocks);
                     break;
 
+                case "TOOL_WAITING":
+                    assembleToolWaiting(event, blocks, pendingToolBlocks);
+                    break;
+
                 case "TOOL_CALL":
-                    AgentChatBlockVO toolBlock = assembleToolCall(event);
-
-                    if (toolBlock != null) {
-                        blocks.add(toolBlock);
-
-                        String toolCallId = extractToolCallId(event.getOutput());
-
-                        if (!isBlank(toolCallId)) {
-                            pendingToolBlocks.put(toolCallId, toolBlock);
-                        }
-                    }
+                    assembleToolCall(event, blocks, pendingToolBlocks);
                     break;
 
                 case "TOOL_RESULT":
@@ -100,11 +92,16 @@ public class AgentChatBlockAssembler {
     }
 
     /**
-     * THINK：
-
+     * =========================================================
+     * THINK
+     * =========================================================
+     * <p>
      * reasoning 有内容时才生成 UI Block。
+     * <p>
      * THINK 中的 toolCalls 不再转换，
-     * 因为后面会有真正的 TOOL_CALL Event。
+     * 因为真正的 Tool Runtime Event 会在后续出现：
+     * <p>
+     * TOOL_WAITING / TOOL_CALL
      */
     private void assembleThink(AgentEventDO event, List<AgentChatBlockVO> blocks) {
 
@@ -127,12 +124,135 @@ public class AgentChatBlockAssembler {
     }
 
     /**
-     * TOOL_CALL：
-
-     * 先生成 running Block，
-     * 等 TOOL_RESULT 到来以后更新。
+     * =========================================================
+     * TOOL_WAITING
+     * =========================================================
+     * <p>
+     * Agent 已经决定调用 Tool，
+     * 但 Runtime 暂时不能执行。
+     * <p>
+     * 当前主要场景：
+     * <p>
+     * 人工审批。
      */
-    private AgentChatBlockVO assembleToolCall(AgentEventDO event) {
+    private void assembleToolWaiting(AgentEventDO event, List<AgentChatBlockVO> blocks, Map<String, AgentChatBlockVO> pendingToolBlocks) {
+
+        Map<String, Object> data = parseJson(event.getOutput());
+
+        String toolName = toStringValue(data.get("tool"));
+
+        String action = resolveAction(toolName);
+
+        AgentChatBlockVO block = baseBlock(event);
+
+        block.setType("action");
+        block.setAction(action);
+
+        /*
+         * 当前正在等待外部决定。
+         */
+        block.setStatus("waiting");
+
+        /*
+         * Action Runtime Metadata
+         */
+
+        block.setRequiresApproval(booleanValue(data.get("requiresApproval")));
+
+        block.setSummary(buildWaitingSummary(action, toolName, data));
+
+        blocks.add(block);
+
+        /*
+         * 后续：
+         *
+         * TOOL_CALL
+         * TOOL_RESULT
+         *
+         * 都需要通过 toolCallId 找到这个 Block。
+         */
+        String toolCallId = extractToolCallId(event.getOutput());
+
+        if (!isBlank(toolCallId)) {
+            pendingToolBlocks.put(toolCallId, block);
+        }
+    }
+
+    /**
+     * =========================================================
+     * TOOL_CALL
+     * =========================================================
+     * <p>
+     * 两种情况：
+     * <p>
+     * 1. 普通 Tool Call
+     * 直接创建 running Block。
+     * <p>
+     * 2. 前面已经存在 TOOL_WAITING
+     * 更新原来的 waiting Block，
+     * 不创建新的 Block。
+     */
+    private void assembleToolCall(AgentEventDO event, List<AgentChatBlockVO> blocks, Map<String, AgentChatBlockVO> pendingToolBlocks) {
+
+        Map<String, Object> data = parseJson(event.getOutput());
+
+        String toolCallId = extractToolCallId(event.getOutput());
+
+        /*
+         * =====================================================
+         * 情况 1：
+         * 前面已经存在 TOOL_WAITING
+         * =====================================================
+         */
+        AgentChatBlockVO existingBlock = pendingToolBlocks.get(toolCallId);
+
+        if (existingBlock != null) {
+
+            String toolName = toStringValue(data.get("tool"));
+
+            String action = resolveAction(toolName);
+
+            existingBlock.setAction(action);
+            existingBlock.setStatus("running");
+
+            /*
+             * 一般情况下如果前面的 TOOL_WAITING 已经是 true，
+             * 这里不会覆盖成 false。
+             */
+            if (data.containsKey("requiresApproval")) {
+                existingBlock.setRequiresApproval(booleanValue(data.get("requiresApproval")));
+            }
+
+            existingBlock.setSummary(buildRunningSummary(action, toolName, data));
+
+            addSourceEvent(existingBlock, event);
+
+            return;
+        }
+
+        /*
+         * =====================================================
+         * 情况 2：
+         * 普通 TOOL_CALL
+         * =====================================================
+         */
+        AgentChatBlockVO block = assembleToolCallBlock(event);
+
+        if (block == null) {
+            return;
+        }
+
+        blocks.add(block);
+
+        if (!isBlank(toolCallId)) {
+            pendingToolBlocks.put(toolCallId, block);
+        }
+    }
+
+    /**
+     * 创建一个普通 TOOL_CALL Block。
+     */
+    private AgentChatBlockVO assembleToolCallBlock(AgentEventDO event) {
 
         Map<String, Object> data = parseJson(event.getOutput());
 
@@ -146,11 +266,20 @@ public class AgentChatBlockAssembler {
         block.setAction(action);
         block.setStatus("running");
 
+        block.setActionId(event.getActionId());
+
+        block.setRequiresApproval(booleanValue(data.get("requiresApproval")));
+
         block.setSummary(buildRunningSummary(action, toolName, data));
 
         return block;
     }
 
+    /**
+     * =========================================================
+     * TOOL_RESULT
+     * =========================================================
+     */
     private void handleToolResult(AgentEventDO event, Map<String, AgentChatBlockVO> pendingToolBlocks, AgentChatAssembleContext context) {
 
         if (event == null) {
@@ -164,7 +293,7 @@ public class AgentChatBlockAssembler {
         }
 
         /*
-         * TOOL_RESULT 与 TOOL_CALL
+         * TOOL_RESULT 与 TOOL_CALL / TOOL_WAITING
          * 通过 toolCallId 关联。
          */
         String toolCallId = extractToolCallId(event.getOutput());
@@ -176,12 +305,17 @@ public class AgentChatBlockAssembler {
         AgentChatBlockVO block = pendingToolBlocks.get(toolCallId);
 
         if (block == null) {
+            /*
+             * 当前历史中没有对应 Tool Block。
+             *
+             * 第一版直接忽略。
+             */
             return;
         }
 
         /*
-         * TOOL_RESULT 到达后，
-         * 更新原 TOOL_CALL Block 状态。
+         * TOOL_RESULT 到达以后，
+         * 更新同一个 Block 的最终状态。
          */
         block.setStatus(resolveResultStatus(event));
 
@@ -191,35 +325,21 @@ public class AgentChatBlockAssembler {
         block.setSummary(buildCompletedSummary(block.getAction(), data));
 
         /*
-         * 如果 result.type == file_change，
-         * 这里继续处理文件变更信息。
-         *
-         * context 中已经包含：
-         *
-         * eventId -> AgentFileChangeDO
-         *
-         * 可以用于历史数据回填 diffId。
+         * 文件修改结果。
          */
         applyFileChange(event, block, data, context);
 
         /*
          * 当前 Event 记录为来源事件。
          */
-        List<String> sourceEventIds = block.getSourceEventIds();
-
-        if (sourceEventIds == null) {
-            sourceEventIds = new ArrayList<>();
-
-            block.setSourceEventIds(sourceEventIds);
-        }
-
-        String eventId = event.getId() == null ? null : String.valueOf(event.getId());
-
-        if (eventId != null && !sourceEventIds.contains(eventId)) {
-            sourceEventIds.add(eventId);
-        }
+        addSourceEvent(block, event);
     }
 
+    /**
+     * =========================================================
+     * UNKNOWN
+     * =========================================================
+     */
     private AgentChatBlockVO assembleUnknown(AgentEventDO event) {
 
         AgentChatBlockVO block = baseBlock(event);
@@ -232,6 +352,11 @@ public class AgentChatBlockAssembler {
         return block;
     }
 
+    /**
+     * =========================================================
+     * ERROR
+     * =========================================================
+     */
     private AgentChatBlockVO assembleError(AgentEventDO event) {
 
         if (event == null) {
@@ -241,7 +366,8 @@ public class AgentChatBlockAssembler {
         AgentChatBlockVO block = new AgentChatBlockVO();
 
         /*
-         * ERROR 属于独立的错误 Block，
+         * ERROR 属于独立错误 Block。
+         *
          * 不参与 TOOL_CALL / TOOL_RESULT 关联。
          */
         block.setType("error");
@@ -250,28 +376,22 @@ public class AgentChatBlockAssembler {
 
         block.setAgent(event.getAgentName());
 
+        block.setTaskId(event.getTaskId());
+
+        block.setRunId(event.getRunId());
+
         block.setStatus("failed");
 
         block.setTimestamp(event.getEventTimestamp());
 
-        /*
-         * ERROR Event 的 output 可能是：
-         *
-         * 1. 普通字符串
-         * 2. JSON
-         *
-         * 当前统一先保留原始内容作为 detail。
-         */
         String output = event.getOutput();
 
         if (output != null && !output.isBlank()) {
 
             block.setDetail(output);
 
-            /*
-             * 尝试从 JSON 中提取更友好的错误信息。
-             */
             try {
+
                 Map<String, Object> data = parseJson(output);
 
                 if (data != null && !data.isEmpty()) {
@@ -279,32 +399,46 @@ public class AgentChatBlockAssembler {
                     Object error = data.get("error");
 
                     if (error != null) {
+
                         block.setSummary(String.valueOf(error));
+
                     } else {
+
                         Object message = data.get("message");
 
                         if (message != null) {
+
                             block.setSummary(String.valueOf(message));
+
                         } else {
+
                             block.setSummary("Agent 执行失败");
                         }
                     }
 
                 } else {
+
                     block.setSummary("Agent 执行失败");
                 }
 
             } catch (Exception e) {
+
                 block.setSummary("Agent 执行失败");
             }
 
         } else {
+
             block.setSummary("Agent 执行失败");
         }
 
         return block;
     }
 
+    /**
+     * =========================================================
+     * Base Block
+     * =========================================================
+     */
     private AgentChatBlockVO baseBlock(AgentEventDO event) {
 
         AgentChatBlockVO block = new AgentChatBlockVO();
@@ -312,6 +446,10 @@ public class AgentChatBlockAssembler {
         block.setId(event.getMessageId() != null ? event.getMessageId() : String.valueOf(event.getId()));
 
         block.setAgent(event.getAgentName());
+
+        block.setTaskId(event.getTaskId());
+
+        block.setRunId(event.getRunId());
 
         block.setSourceEventIds(new ArrayList<>(Collections.singletonList(String.valueOf(event.getId()))));
 
@@ -321,8 +459,37 @@ public class AgentChatBlockAssembler {
     }
 
     /**
-     * 当前 Python Tool 名称
-     * -> UI Action
+     * =========================================================
+     * Source Event
+     * =========================================================
+     */
+    private void addSourceEvent(AgentChatBlockVO block, AgentEventDO event) {
+
+        if (block == null || event == null) {
+            return;
+        }
+
+        List<String> sourceEventIds = block.getSourceEventIds();
+
+        if (sourceEventIds == null) {
+
+            sourceEventIds = new ArrayList<>();
+
+            block.setSourceEventIds(sourceEventIds);
+        }
+
+        String eventId = event.getId() == null ? null : String.valueOf(event.getId());
+
+        if (eventId != null && !sourceEventIds.contains(eventId)) {
+
+            sourceEventIds.add(eventId);
+        }
+    }
+
+    /**
+     * =========================================================
+     * Tool -> UI Action
+     * =========================================================
      */
     private String resolveAction(String toolName) {
 
@@ -336,7 +503,7 @@ public class AgentChatBlockAssembler {
 
             case "search_file", "search_manual" -> "SEARCH";
 
-            case "write_file", "delete_file" -> "WRITE";
+            case "write_file", "delete_file", "apply_patch" -> "WRITE";
 
             case "verify_java_syntax" -> "VERIFY";
 
@@ -348,6 +515,49 @@ public class AgentChatBlockAssembler {
         };
     }
 
+    /**
+     * =========================================================
+     * Waiting Summary
+     * =========================================================
+     */
+    private String buildWaitingSummary(String action, String toolName, Map<String, Object> data) {
+
+        Map<String, Object> arguments = extractArguments(data);
+
+        return switch (action) {
+
+            case "READ" -> {
+
+                String path = firstString(arguments, "path", "file_name");
+
+                yield isBlank(path) ? "等待确认读取文件" : "等待确认读取 " + path;
+            }
+
+            case "SEARCH" -> {
+
+                String keyword = firstString(arguments, "keyword", "query");
+
+                yield isBlank(keyword) ? "等待确认搜索代码" : "等待确认搜索 " + keyword;
+            }
+
+            case "WRITE" -> {
+
+                String path = firstString(arguments, "path", "file_name");
+
+                yield isBlank(path) ? "等待确认修改文件" : "等待确认修改 " + path;
+            }
+
+            case "VERIFY" -> "等待确认执行验证";
+
+            default -> "等待确认执行 " + safeToolName(toolName);
+        };
+    }
+
+    /**
+     * =========================================================
+     * Running Summary
+     * =========================================================
+     */
     private String buildRunningSummary(String action, String toolName, Map<String, Object> data) {
 
         Map<String, Object> arguments = extractArguments(data);
@@ -355,18 +565,21 @@ public class AgentChatBlockAssembler {
         return switch (action) {
 
             case "READ" -> {
+
                 String path = firstString(arguments, "path", "file_name");
 
                 yield isBlank(path) ? "正在读取文件" : "正在读取 " + path;
             }
 
             case "SEARCH" -> {
+
                 String keyword = firstString(arguments, "keyword", "query");
 
                 yield isBlank(keyword) ? "正在搜索代码" : "正在搜索 " + keyword;
             }
 
             case "WRITE" -> {
+
                 String path = firstString(arguments, "path", "file_name");
 
                 yield isBlank(path) ? "正在修改文件" : "正在修改 " + path;
@@ -378,19 +591,21 @@ public class AgentChatBlockAssembler {
         };
     }
 
+    /**
+     * =========================================================
+     * Completed Summary
+     * =========================================================
+     */
     private String buildCompletedSummary(String action, Map<String, Object> data) {
 
         Object result = data.get("result");
 
         if (result != null) {
 
-            /*
-             * 第一版不把完整 JSON result 直接暴露给前端。
-             * 后面根据具体 Tool 做人类可读摘要。
-             */
             String resultText = String.valueOf(result);
 
             if (!resultText.isBlank()) {
+
                 return switch (action) {
 
                     case "READ" -> "已完成读取";
@@ -421,11 +636,11 @@ public class AgentChatBlockAssembler {
     }
 
     /**
-     * 先保留文件变化入口。
-
-     * 当前真实 Event 示例还没有给出 write/edit 的 result 格式，
-     * 所以这里暂不强行解析 addedLines/diff 等字段。
+     * =========================================================
+     * File Change
+     * =========================================================
      */
+    @SuppressWarnings("unchecked")
     private void applyFileChange(AgentEventDO event, AgentChatBlockVO block, Map<String, Object> data, AgentChatAssembleContext context) {
 
         if (event == null || block == null || data == null) {
@@ -454,19 +669,12 @@ public class AgentChatBlockAssembler {
             return;
         }
 
-        /*
-         * file_change 类型位于 result 内部。
-         */
         Object type = resultMap.get("type");
 
         if (!"file_change".equals(String.valueOf(type))) {
             return;
         }
 
-        /*
-         * Python Tool Result
-         * -> Java FileChangeVO
-         */
         FileChangeVO change = parseFileChange((Map<String, Object>) resultMap);
 
         if (change == null) {
@@ -474,8 +682,8 @@ public class AgentChatBlockAssembler {
         }
 
         /*
-         * 将原来的普通 Tool Block
-         * 转换成 FileChange Block。
+         * 普通 Action Block
+         * -> File Change Block
          */
         block.setType("file_change");
 
@@ -488,21 +696,14 @@ public class AgentChatBlockAssembler {
         block.setRemovedLines(change.getRemovedLines());
 
         /*
-         * 历史数据：
-         *
-         * AgentEvent.id
-         *      ↓
-         * AgentChatAssembleContext.fileChanges
-         *      ↓
-         * AgentFileChangeDO
-         *      ↓
-         * diffId
+         * 历史 Diff
          */
         if (context != null && context.getFileChanges() != null && event.getId() != null) {
 
             AgentFileChangeDO fileChange = context.getFileChanges().get(event.getId());
 
             if (fileChange != null) {
+
                 block.setDiffId(fileChange.getDiffId());
             }
         }
@@ -514,18 +715,6 @@ public class AgentChatBlockAssembler {
             return null;
         }
 
-        /*
-         * 当前 Python FileChangeResult：
-         *
-         * {
-         *   "type": "file_change",
-         *   "filePath": "...",
-         *   "operation": "created",
-         *   "addedLines": 10,
-         *   "removedLines": 0,
-         *   "diff": "..."
-         * }
-         */
         if (!"file_change".equals(String.valueOf(resultMap.get("type")))) {
             return null;
         }
@@ -544,10 +733,6 @@ public class AgentChatBlockAssembler {
 
         fileChange.setDiff(stringValue(resultMap.get("diff")));
 
-        /*
-         * 基础校验：
-         * 文件路径和 operation 是必须的。
-         */
         if (isBlank(fileChange.getFilePath()) || isBlank(fileChange.getOperation())) {
 
             return null;
@@ -556,6 +741,11 @@ public class AgentChatBlockAssembler {
         return fileChange;
     }
 
+    /**
+     * =========================================================
+     * ToolCall ID
+     * =========================================================
+     */
     private String extractToolCallId(String output) {
 
         Map<String, Object> data = parseJson(output);
@@ -563,6 +753,11 @@ public class AgentChatBlockAssembler {
         return toStringValue(data.get("toolCallId"));
     }
 
+    /**
+     * =========================================================
+     * Arguments
+     * =========================================================
+     */
     @SuppressWarnings("unchecked")
     private Map<String, Object> extractArguments(Map<String, Object> data) {
 
@@ -575,16 +770,51 @@ public class AgentChatBlockAssembler {
         return Collections.emptyMap();
     }
 
+    /**
+     * =========================================================
+     * Result Status
+     * =========================================================
+     */
     private String resolveResultStatus(AgentEventDO event) {
+
         String status = event.getStatus();
 
         if ("ERROR".equalsIgnoreCase(status) || "FAILED".equalsIgnoreCase(status) || "FAIL".equalsIgnoreCase(status)) {
+
             return "failed";
+        }
+
+        /*
+         * Python 用户拒绝：
+         *
+         * {
+         *   "result": {
+         *      "error_type": "USER_REJECTED"
+         *   }
+         * }
+         */
+        Map<String, Object> data = parseJson(event.getOutput());
+
+        Object result = data.get("result");
+
+        if (result instanceof Map<?, ?> resultMap) {
+
+            Object errorType = resultMap.get("error_type");
+
+            if ("USER_REJECTED".equals(String.valueOf(errorType))) {
+
+                return "failed";
+            }
         }
 
         return "completed";
     }
 
+    /**
+     * =========================================================
+     * Generic Status
+     * =========================================================
+     */
     private String resolveStatus(AgentEventDO event) {
 
         if (isBlank(event.getStatus())) {
@@ -595,12 +825,19 @@ public class AgentChatBlockAssembler {
 
             case "RUNNING", "EXECUTING" -> "running";
 
+            case "BLOCKED", "WAITING" -> "waiting";
+
             case "ERROR", "FAILED", "FAIL" -> "failed";
 
             default -> "completed";
         };
     }
 
+    /**
+     * =========================================================
+     * JSON
+     * =========================================================
+     */
     private Map<String, Object> parseJson(String output) {
 
         if (isBlank(output)) {
@@ -614,15 +851,41 @@ public class AgentChatBlockAssembler {
         }
     }
 
+    /**
+     * =========================================================
+     * Boolean
+     * =========================================================
+     */
+    private Boolean booleanValue(Object value) {
+
+        if (value == null) {
+            return false;
+        }
+
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+
+        return Boolean.parseBoolean(String.valueOf(value));
+    }
+
+    /**
+     * =========================================================
+     * Common
+     * =========================================================
+     */
     private String normalize(String value) {
+
         return value == null ? "" : value.trim().toUpperCase();
     }
 
     private String safeOutput(String output) {
+
         return output == null ? "" : output;
     }
 
     private String safeToolName(String toolName) {
+
         return isBlank(toolName) ? "操作" : toolName;
     }
 
@@ -646,33 +909,18 @@ public class AgentChatBlockAssembler {
         return value == null ? null : String.valueOf(value);
     }
 
-    private Integer toInteger(Object value) {
-
-        if (value == null) {
-            return null;
-        }
-
-        if (value instanceof Number number) {
-            return number.intValue();
-        }
-
-        try {
-            return Integer.valueOf(String.valueOf(value));
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
     private boolean isBlank(String value) {
 
         return value == null || value.isBlank();
     }
 
     private String stringValue(Object value) {
+
         return value == null ? null : String.valueOf(value);
     }
 
     private Integer integerValue(Object value) {
+
         if (value == null) {
             return null;
         }

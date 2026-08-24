@@ -16,11 +16,12 @@ class EventBus:
         # 3. 启动生产者
         self.producer.startup()
 
-    def publish(self, topic: str, payload: dict) -> None:
+    def publish(self, topic: str, payload: dict, message_group: str) -> None:
         """发送消息"""
         msg = Message()
         msg.topic = topic
         msg.body = str(payload).encode('utf-8')
+        msg.message_group = message_group
         send_receipt = self.producer.send(msg)
         # print(f"消息发送成功，Topic: {topic}, MessageId: {send_receipt.message_id}")
 

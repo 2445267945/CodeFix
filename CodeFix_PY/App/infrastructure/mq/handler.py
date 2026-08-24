@@ -1,8 +1,10 @@
 # App/infrastructure/mq/handler.py
 import logging
 from typing import Dict
-from App.infrastructure.message.base_message import BaseMessage
+
+from App.config import MQConfig
 from App.infrastructure.message.messagec import MessageCodec
+from App.infrastructure.message.types import MESSAGE_TYPE_MAP
 from App.services.base_handler import BaseMsgHandler
 
 logger = logging.getLogger(__name__)

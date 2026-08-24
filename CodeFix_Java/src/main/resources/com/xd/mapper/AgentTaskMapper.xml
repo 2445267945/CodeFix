@@ -84,24 +84,6 @@
         WHERE task_id = #{taskId}
     </select>
 
-    <select id="selectByTaskIdAndRunId" resultType="com.xd.model.entity.AgentTaskDO">
-
-        SELECT
-            id,
-            task_id,
-            run_id,
-            session_id,
-            status,
-            `output`,
-            created_at,
-            updated_at
-        FROM agent_task
-        WHERE task_id = #{taskId}
-          AND run_id = #{runId}
-            LIMIT 1
-
-    </select>
-
     <select id="selectTaskList" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>

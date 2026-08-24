@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from App.agents.context.agent_run_context import AgentRunContext
+from App.agents.control.execution_gate import ExecutionGate
 from App.config import config
 from App.models.agent_message import AgentMessage
 from App.models.workspace_info import WorkspaceInfo
@@ -24,5 +25,6 @@ class AgentContext:
             task_id=msg.task_id,
             run_id=msg.run_id,
             session_id=msg.session_id,
-            workspace=workspace
+            workspace=workspace,
+            execution_gate=ExecutionGate()
         )

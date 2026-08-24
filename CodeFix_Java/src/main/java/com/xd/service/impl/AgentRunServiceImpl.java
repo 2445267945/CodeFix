@@ -5,10 +5,9 @@ import com.xd.mapper.AgentTaskMapper;
 import com.xd.model.dto.AgentMessageDTO;
 import com.xd.model.entity.AgentRunDO;
 import com.xd.model.entity.AgentTaskDO;
-import com.xd.model.enums.AuditTaskStatusEnum;
+import com.xd.model.enums.AgentTaskStatusEnum;
 import com.xd.model.vo.AgentRunVO;
 import com.xd.service.AgentRunService;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Service;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -56,33 +54,12 @@ public class AgentRunServiceImpl implements AgentRunService {
 
     @Override
     public void updateRun(AgentMessageDTO messageDTO) {
-
-        // 子 Agent 不允许修改整个 Run 状态
-        if (messageDTO.getParentAgent() != null && !messageDTO.getParentAgent().isBlank()) {
-            return;
-        }
-        AuditTaskStatusEnum status = AuditTaskStatusEnum.getStatusByDesc(messageDTO.getStatus());
-        if (status == null) {
-            log.warn("无法更新Run状态: taskId={}, runId={}, status={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getStatus());
+        if (messageDTO.getActionId() == null || messageDTO.getActionId().isEmpty()) {
             return;
         }
         AgentRunDO update = new AgentRunDO();
         update.setRunId(messageDTO.getRunId());
-        update.setStatus(status.statusCode);
-
-        /*
-         * 后续可以根据状态补充：
-         *
-         * THINKING / EXECUTING
-         *     → startedAt
-         *
-         * FINISHED / ERROR / CANCELLED
-         *     → endedAt
-         *
-         * ERROR
-         *     → errorMessage
-         */
-
+        update.setActionId(messageDTO.getActionId());
         agentRunMapper.updateRun(update);
     }
 
@@ -125,7 +102,7 @@ public class AgentRunServiceImpl implements AgentRunService {
     }
 
     private String resolveStatusValue(Integer status) {
-        AuditTaskStatusEnum statusEnum = AuditTaskStatusEnum.getStatusByCode(status);
+        AgentTaskStatusEnum statusEnum = AgentTaskStatusEnum.getStatusByCode(status);
         return statusEnum == null ? "" : statusEnum.statusDesc_EN;
     }
 

@@ -32,6 +32,7 @@ public class AgentChatStreamAssembler {
         return switch (event) {
             case "THINK" -> assembleThink(message);
             case "TOOL_CALL" -> assembleToolCall(message);
+            case "TOOL_WAITING" -> assembleToolWaiting(message);
             case "TOOL_RESULT" -> assembleToolResult(message, messageProcessContext);
             case "ERROR" -> assembleError(message);
             case "FINISH" -> assembleFinish(message);
@@ -79,10 +80,45 @@ public class AgentChatStreamAssembler {
         block.setType("action");
         block.setAction(action);
         block.setStatus("running");
+        block.setActionId(message.getActionId());
         block.setSummary(buildRunningSummary(action, toolName, data));
         return buildAppend(message, block);
     }
 
+    private AgentChatStreamVO assembleToolWaiting(AgentMessageDTO message) {
+        Map<String, Object> data = safeOutput(message);
+
+        String toolName = toStringValue(data.get("tool"));
+        String toolCallId = toStringValue(data.get("toolCallId"));
+
+        AgentChatBlockVO block = baseBlock(message);
+
+        if (!isBlank(toolCallId)) {
+            block.setId(toolCallId);
+        }
+
+        block.setType("action");
+        block.setAction(resolveAction(toolName));
+        block.setStatus("waiting");
+
+        block.setTaskId(message.getTaskId());
+        block.setRunId(message.getRunId());
+
+        block.setActionId(message.getActionId());
+
+        block.setRequiresApproval(
+                booleanValue(data.get("requiresApproval"))
+        );
+
+        block.setSummary(
+                buildWaitingSummary(
+                        toolName,
+                        data
+                )
+        );
+
+        return buildAppend(message, block);
+    }
     /**
      * TOOL_RESULT
 
@@ -185,6 +221,8 @@ public class AgentChatStreamAssembler {
         block.setId(!isBlank(message.getMessageId()) ? message.getMessageId() : UUID.randomUUID().toString());
         block.setAgent(message.getAgentName());
         block.setSourceEventIds(new ArrayList<>(Collections.singletonList(resolveMessageId(message))));
+        block.setTaskId(message.getTaskId());
+        block.setRunId(message.getRunId());
         block.setTimestamp(resolveTimestamp(message));
         return block;
     }
@@ -217,6 +255,52 @@ public class AgentChatStreamAssembler {
                 .refreshResult(false)
                 .timestamp(resolveTimestamp(message))
                 .build();
+    }
+
+    private String buildWaitingSummary(
+            String toolName,
+            Map<String, Object> data) {
+
+        Map<String, Object> arguments =
+                extractArguments(data);
+
+        String path = firstString(
+                arguments,
+                "file_name",
+                "path"
+        );
+
+        return switch (toolName) {
+
+            case "delete_file" ->
+                    isBlank(path)
+                            ? "删除文件"
+                            : "删除 " + path;
+
+            case "write_file" ->
+                    isBlank(path)
+                            ? "创建文件"
+                            : "修改 " + path;
+
+            case "apply_patch" ->
+                    isBlank(path)
+                            ? "修改文件"
+                            : "修改 " + path;
+
+            case "read_file" ->
+                    isBlank(path)
+                            ? "读取文件"
+                            : "读取 " + path;
+
+            case "search_file", "search_manual" ->
+                    "搜索代码";
+
+            case "verify_java_syntax" ->
+                    "执行代码验证";
+
+            default ->
+                    "执行 " + safeToolName(toolName);
+        };
     }
 
     /**
@@ -519,5 +603,17 @@ public class AgentChatStreamAssembler {
     private Long resolveTimestamp(AgentMessageDTO message) {
 
         return message.getTimestamp();
+    }
+
+    private Boolean booleanValue(Object value) {
+        if (value == null) {
+            return false;
+        }
+
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+
+        return Boolean.parseBoolean(String.valueOf(value));
     }
 }

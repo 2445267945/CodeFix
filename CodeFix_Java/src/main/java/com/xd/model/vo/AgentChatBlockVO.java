@@ -4,6 +4,7 @@ package com.xd.model.vo;
 import lombok.Data;
 
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Agent Chat 展示块
@@ -155,4 +156,26 @@ public class AgentChatBlockVO {
      * 时间戳
      */
     private Long timestamp;
+
+    /**
+     * 当前 Task
+     */
+    private String taskId;
+
+    /**
+     * 当前 Run
+     */
+    private String runId;
+
+    /**
+     * Runtime Action ID
+     *
+     * 用户批准 / 拒绝时使用。
+     */
+    private String actionId;
+
+    /**
+     * 是否需要人工审批
+     */
+    private Boolean requiresApproval;
 }

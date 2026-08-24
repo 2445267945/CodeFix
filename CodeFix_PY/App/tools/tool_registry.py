@@ -213,7 +213,13 @@ async def read_file(file_name: str, caller=None) -> str:
 
 @registry.register(
     name="write_file",
-    description="写入当前 Workspace 中指定文件。输入: {'file_name': '相对文件路径', 'content': '文件内容'}",
+    description="""
+    "在当前 Workspace 中创建新文件。"
+    "输入参数: {'file_name': '相对文件路径', 'content': '文件内容'}。"
+    "write_file 只用于创建不存在的文件，不用于修改已有文件。"
+    "如果目标文件已经存在，请使用 read_file 读取当前内容，"
+    "然后使用 apply_patch 修改指定片段。"
+    """,
     need_caller=True
 )
 async def write_file(file_name: str, content: str, caller=None) -> dict:
@@ -222,22 +228,30 @@ async def write_file(file_name: str, content: str, caller=None) -> dict:
     try:
         workspace = caller.run_context.workspace
         target = workspace.resolve(file_name)
-        existed = target.exists()
-        old_content = (target.read_text(encoding="utf-8") if existed else "")
-
+        # write_file 只负责创建新文件。
+        if target.exists():
+            return {
+                "success": False,
+                "error_type": "FILE_EXISTS",
+                "message": (
+                    f"文件已存在：{file_name}。"
+                    f"请先使用 read_file 查看文件内容，"
+                    f"再使用 apply_patch 修改。"
+                )
+            }
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
-        new_content = content
-        diff_text, added, removed = build_diff(old_content, new_content)
+        # 新建文件：before 为空，after 是新文件内容。
+        diff_text, added, removed = build_diff("", content)
         return FileChangeResult(
             file_path=file_name,
-            operation="modified" if existed else "created",
+            operation="created",
             added_lines=added,
             removed_lines=removed,
             diff=diff_text
         ).model_dump(by_alias=True)
     except Exception as e:
-        print(f"write_file 执行失败：{e}")
+        raise RuntimeError(f"write_file 执行失败: {file_name}") from e
 
 
 def build_diff(old_content: str, new_content: str):
@@ -315,3 +329,90 @@ async def delete_file(file_name: str, caller=None) -> dict:
         removed_lines=removed_lines,
         diff=diff_text
     ).model_dump(by_alias=True)
+
+@registry.register(
+    name="apply_patch",
+    description=(
+        "修改当前 Workspace 中已有文件的一段精确文本。"
+        "输入参数: "
+        "{'file_name': '相对文件路径', 'old_text': '文件中需要被替换的原始文本', 'new_text': '替换后的文本'}。"
+        "文件必须已经存在。"
+        "old_text 必须在文件中精确匹配一次。"
+        "如果文件不存在，请使用 write_file 创建。"
+    ),
+    need_caller=True
+)
+async def apply_patch(file_name: str, old_text: str, new_text: str, caller=None) -> dict:
+    if caller is None:
+        raise RuntimeError("apply_patch 执行失败：缺少 caller Agent")
+    if not old_text:
+        return {
+            "success": False,
+            "error_type": "INVALID_PATCH",
+            "message": "old_text 不能为空。"
+        }
+    try:
+        workspace = caller.run_context.workspace
+        target = workspace.resolve(file_name)
+        # apply_patch 只负责修改已有文件。
+        if not target.exists():
+            return {
+                "success": False,
+                "error_type": "FILE_NOT_FOUND",
+                "message": (
+                    f"文件不存在：{file_name}。"
+                    f"如果需要创建文件，请使用 write_file。"
+                )
+            }
+        if not target.is_file():
+            return {
+                "success": False,
+                "error_type": "NOT_A_FILE",
+                "message": (f"目标不是普通文件，无法执行 apply_patch：{file_name}")
+            }
+        old_content = target.read_text(encoding="utf-8")
+        occurrences = old_content.count(old_text)
+
+        # 0 次：模型提供的上下文已经过期，或者文本写错。
+        if occurrences == 0:
+            return {
+                "success": False,
+                "error_type": "PATCH_TARGET_NOT_FOUND",
+                "message": (
+                    f"未找到需要修改的目标文本：{file_name}。"
+                    f"请先使用 read_file 获取最新内容后再重试。"
+                )
+            }
+        # 多次：无法确定到底要改哪一个。
+        if occurrences > 1:
+            return {
+                "success": False,
+                "error_type": "PATCH_TARGET_AMBIGUOUS",
+                "message": (
+                    f"目标文本在 {file_name} 中出现 "
+                    f"{occurrences} 次，无法安全修改。"
+                    f"请提供更精确的 old_text。"
+                )
+            }
+        new_content = old_content.replace(old_text, new_text, 1)
+
+        # 实际没有产生变化。
+        if new_content == old_content:
+            return {
+                "success": False,
+                "error_type": "NO_CHANGE",
+                "message": (
+                    f"apply_patch 未产生任何文件变化：{file_name}"
+                )
+            }
+        target.write_text(new_content, encoding="utf-8")
+        diff_text, added, removed = build_diff(old_content, new_content)
+        return FileChangeResult(
+            file_path=file_name,
+            operation="modified",
+            added_lines=added,
+            removed_lines=removed,
+            diff=diff_text
+        ).model_dump(by_alias=True)
+    except Exception as e:
+        raise RuntimeError(f"apply_patch 执行失败: {file_name}") from e

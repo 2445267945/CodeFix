@@ -11,6 +11,7 @@ import com.xd.model.vo.FileChangeVO;
 import com.xd.model.vo.TaskCreateVO;
 import com.xd.mq.MessageHandler;
 import com.xd.service.*;
+import com.xd.state.AgentStateTransitionResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,7 +78,6 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
         // 2. Event + Task 状态必须同事务
         AgentMessageProcessContext messageProcessContext;
         try {
-
             messageProcessContext = transactionTemplate.execute(status -> {
                 AgentMessageProcessContext.AgentMessageProcessContextBuilder builder = AgentMessageProcessContext.builder();
                 // 历史事件
@@ -85,8 +85,8 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
                 // 代表消息重复
                 if (eventDO == null) return null;
                 // 当前 Task 状态
-                agentTaskService.updateTaskStatus(messageDTO);
-                // 3. 当前 Run 状态
+                agentTaskService.handleAgentEvent(messageDTO);
+                // 3. 当前如果需要人工操作就会有action
                 agentRunService.updateRun(messageDTO);
                 // 4. 文件变动信息解析并持久化
                 FileChangeVO fileChange = agentFileChangeService.parse(messageDTO);
@@ -100,7 +100,7 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
                 return builder.build();
             });
         } catch (Exception e) {
-//            log.info("Agent事件持久化失败: taskId={}, runId={}, messageId={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getMessageId(), e);
+            log.info("Agent事件持久化失败: taskId={}, runId={}, messageId={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getMessageId(), e);
             // 让MQ消费框架知道这次消费失败
             throw e;
         }
