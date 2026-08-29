@@ -1,16 +1,12 @@
 package com.xd.controller;
 
 import com.xd.controller.request.AgentCommandRequest;
-import com.xd.model.dto.AuditTaskCreateDTO;
-import com.xd.model.dto.ChatMessageCreateDTO;
 import com.xd.model.vo.*;
 import com.xd.service.AgentRunService;
 import com.xd.service.AgentSseService;
 import com.xd.service.AgentTaskService;
-import com.xd.state.AgentStateTransitionResult;
-import lombok.RequiredArgsConstructor;
+import com.xd.runtime.state.AgentStateTransitionResult;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -38,7 +34,7 @@ public class AuditTaskController {
         if (request == null) {
             throw new IllegalArgumentException("Command 请求不能为空");
         }
-        return agentTaskService.handleCommand(taskId, request.getRunId(), request.getActionId(), request.getCommand());
+        return agentTaskService.handleUserCommand(taskId, request.getRunId(), request.getActionId(), request.getCommand());
     }
 
     @GetMapping("/{taskId}")

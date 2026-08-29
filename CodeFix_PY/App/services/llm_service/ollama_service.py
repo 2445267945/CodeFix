@@ -5,6 +5,7 @@ import logging
 from typing import Optional, Any
 
 import httpx
+from transformers import AutoTokenizer
 
 from App.agents.client.llm_client import LLMClient
 from App.agents.agent_model.llm_message import LLMMessage
@@ -35,8 +36,6 @@ class OllamaLLM(LLMClient):
         self.timeout = config.llm.TIMEOUT or 60
 
         # Ollama 本地 API 不要求鉴权。
-        # OpenAI 兼容接口虽然要求提供 api_key 字段，
-        # Ollama 本地实现会忽略它。
         self.api_key = api_key or "ollama"
 
         self.headers = {
@@ -46,6 +45,15 @@ class OllamaLLM(LLMClient):
 
         self.client = httpx.AsyncClient(
             timeout=self.timeout
+        )
+
+        # =====================================================
+        # Tokenizer
+        # =====================================================
+
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self._get_tokenizer_model(),
+            trust_remote_code=True,
         )
 
     async def chat(
@@ -87,13 +95,6 @@ class OllamaLLM(LLMClient):
                 "type": "json_object"
             }
 
-        # 对于 Ollama 的 reasoning/thinking，
-        # 不同模型支持情况不同，因此这里不要像 DeepSeek
-        # 一样硬编码 thinking 字段。
-        #
-        # 当前你的 qwen2.5:3b 如果只是作为 compress model，
-        # 可以先不传 thinking。
-
         try:
             response = await self.client.post(
                 self.url,
@@ -121,8 +122,6 @@ class OllamaLLM(LLMClient):
 
             content = message.get("content")
 
-            # OpenAI-compatible Ollama 返回格式可能没有
-            # reasoning_content，因此统一抽取，但没有就 None。
             reasoning_content = message.get(
                 "reasoning_content"
             )
@@ -135,14 +134,22 @@ class OllamaLLM(LLMClient):
             tool_calls = []
 
             for item in provider_tool_calls:
-                arguments_raw = item["function"].get("arguments", "{}")
+                arguments_raw = item["function"].get(
+                    "arguments",
+                    "{}"
+                )
+
                 if isinstance(arguments_raw, str):
                     try:
                         arguments = json.loads(arguments_raw)
                     except json.JSONDecodeError as e:
-                        raise RuntimeError(f"Tool 参数 JSON 解析失败: "f"{item['function'].get('name')}") from e
+                        raise RuntimeError(
+                            "Tool 参数 JSON 解析失败: "
+                            f"{item['function'].get('name')}"
+                        ) from e
                 else:
                     arguments = arguments_raw
+
                 tool_calls.append(
                     ToolCall(
                         id=item["id"],
@@ -166,6 +173,7 @@ class OllamaLLM(LLMClient):
                 reasoning_content=reasoning_content,
                 tool_calls=tool_calls,
                 raw=result,
+                usage=tokens,
             )
 
         except httpx.TimeoutException as e:
@@ -190,6 +198,127 @@ class OllamaLLM(LLMClient):
 
     async def close(self):
         await self.client.aclose()
+
+    # =========================================================
+    # Tokenizer
+    # =========================================================
+
+    def _get_tokenizer_model(self) -> str:
+        """
+        根据 Ollama 模型名称选择对应 Hugging Face tokenizer。
+        """
+
+        mapping = {
+            "qwen2.5:3b": "Qwen/Qwen2.5-3B-Instruct",
+        }
+
+        tokenizer_model = mapping.get(self.model)
+
+        if tokenizer_model is None:
+            raise ValueError(
+                f"未找到 Ollama 模型对应 tokenizer: "
+                f"model={self.model}"
+            )
+
+        return tokenizer_model
+
+    # =========================================================
+    # Token Estimator
+    # =========================================================
+
+    def count_text(self, text: str) -> int:
+        """
+        统计纯文本 Token 数。
+
+        注意：
+        这是本地 tokenizer 估算值，
+        最终真实消耗应以 Ollama 返回的 usage 为准。
+        """
+
+        if not text:
+            return 0
+
+        return len(
+            self.tokenizer.encode(
+                text,
+                add_special_tokens=False,
+            )
+        )
+
+    def count_messages(
+        self,
+        messages: list[LLMMessage],
+        tools: list[dict] | None = None,
+    ) -> int:
+        """
+        估算当前消息列表的 Token 数。
+
+        第一版：
+        使用 Qwen tokenizer 对 OpenAI-compatible
+        message payload 做近似估算。
+
+        注意：
+        该值主要用于 Context Budget 判断，
+        不是 Provider 最终计费 Token。
+        """
+
+        if not messages and not tools:
+            return 0
+
+        payload_messages = [
+            self.to_ollama_message(message)
+            for message in messages
+        ]
+
+        if tools:
+            payload_messages.append(
+                {
+                    "role": "system",
+                    "content": json.dumps(
+                        tools,
+                        ensure_ascii=False,
+                    ),
+                }
+            )
+
+        serialized = json.dumps(
+            payload_messages,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+
+        return self.count_text(serialized)
+
+    # =========================================================
+    # Context Window
+    # =========================================================
+
+    @property
+    def context_window(self) -> int:
+        """
+        当前 qwen2.5:3b 模型的上下文窗口。
+
+        第一版根据当前使用模型固定。
+        后续可以根据 model 动态映射。
+        """
+
+        context_windows = {
+            "qwen2.5:3b": 32_768,
+        }
+
+        window = context_windows.get(self.model)
+
+        if window is None:
+            raise ValueError(
+                f"未配置 Ollama 模型 Context Window: "
+                f"model={self.model}"
+            )
+
+        return window
+
+    # =========================================================
+    # Message Convert
+    # =========================================================
 
     @staticmethod
     def to_ollama_message(

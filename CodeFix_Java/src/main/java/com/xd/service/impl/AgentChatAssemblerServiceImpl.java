@@ -194,7 +194,6 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
      */
     @Override
     public AgentChatStreamVO assemble(AgentMessageDTO agentMessageDTO, AgentMessageProcessContext messageProcessContext) {
-        if (messageProcessContext == null) return null;
         return agentChatStreamAssembler.assemble(agentMessageDTO, messageProcessContext);
     }
 

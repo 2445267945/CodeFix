@@ -13,7 +13,7 @@ public class AgentRunDO {
     private String actionId;
 
     private String sessionId;
-
+    private String permissionProfile;
     private Integer attempt;
 
     private Integer status;

@@ -3,16 +3,13 @@ package com.xd.service.impl;
 import com.alibaba.fastjson2.JSON;
 import com.xd.context.AgentMessageProcessContext;
 import com.xd.model.dto.AgentMessageDTO;
-import com.xd.model.dto.AuditTaskCreateDTO;
 import com.xd.model.entity.AgentEventDO;
+import com.xd.model.enums.AgentActionCommandEnum;
+import com.xd.model.enums.PermissionDecisionEnum;
 import com.xd.model.vo.AgentChatStreamVO;
-import com.xd.model.vo.AuditRequestVO;
 import com.xd.model.vo.FileChangeVO;
-import com.xd.model.vo.TaskCreateVO;
 import com.xd.mq.MessageHandler;
 import com.xd.service.*;
-import com.xd.state.AgentStateTransitionResult;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -30,6 +27,8 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
     private AgentRunService agentRunService;
     @Autowired
     private TransactionTemplate transactionTemplate;
+    @Autowired
+    private PermissionService permissionService;
     @Autowired
     private AgentSseService agentSseService;
     @Autowired
@@ -83,11 +82,16 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
                 // 历史事件
                 AgentEventDO eventDO = agentEventService.insertAgentEvent(messageDTO);
                 // 代表消息重复
-                if (eventDO == null) return null;
+                if (eventDO == null) return builder.duplicate(false).build();
                 // 当前 Task 状态
                 agentTaskService.handleAgentEvent(messageDTO);
                 // 3. 当前如果需要人工操作就会有action
                 agentRunService.updateRun(messageDTO);
+                // 3-1. 如果是可以被自动审批的,将无需推送给前端审批,直接调用审批通过,并快速结束.
+                PermissionDecisionEnum permissionDecision = permissionService.evaluate(messageDTO);
+                builder.permissionDecision(permissionDecision);
+                if (permissionDecision != PermissionDecisionEnum.ASK) return builder.build();
+
                 // 4. 文件变动信息解析并持久化
                 FileChangeVO fileChange = agentFileChangeService.parse(messageDTO);
                 if (fileChange != null) {
@@ -104,8 +108,22 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
             // 让MQ消费框架知道这次消费失败
             throw e;
         }
+        if (messageProcessContext.isDuplicate()) return;
+        PermissionDecisionEnum permissionDecision = messageProcessContext.getPermissionDecision();
+        if (permissionDecision != PermissionDecisionEnum.ASK) {
+            String command = permissionDecision.equals(PermissionDecisionEnum.ALLOW) ?
+                    AgentActionCommandEnum.APPROVE.commandDesc_EN : AgentActionCommandEnum.REJECT.commandDesc_EN;
+            agentTaskService.handleCommand(
+                    messageDTO.getTaskId(),
+                    messageDTO.getRunId(),
+                    messageDTO.getActionId(),
+                    command
+            );
+
+            return;
+        }
         AgentChatStreamVO assemble = agentChatAssemblerService.assemble(messageDTO, messageProcessContext);
-        // 3. 事务成功提交之后，再推给前端
+        // . 事务成功提交之后，再推给前端
         agentSseService.send(assemble);
         log.debug("Agent事件持久化成功: taskId={}, runId={}, event={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getEvent());
     }

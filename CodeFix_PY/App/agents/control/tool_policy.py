@@ -9,17 +9,17 @@ class ToolPermission(str, Enum):
 
 
 TOOL_PERMISSION = {
-    "read_file": ToolPermission.AUTO,
-    "list_files": ToolPermission.AUTO,
-    "search_file": ToolPermission.AUTO,
-    "write_file": ToolPermission.AUTO,
-    "apply_patch": ToolPermission.AUTO,
+    "read_file": ToolPermission.CONFIRM,
+    "list_files": ToolPermission.CONFIRM,
+    "search_file": ToolPermission.CONFIRM,
+    "write_file": ToolPermission.CONFIRM,
+    "apply_patch": ToolPermission.CONFIRM,
 
     "delete_file": ToolPermission.CONFIRM,
-    "run_explorer": ToolPermission.AUTO,
-    "run_fixer": ToolPermission.AUTO,
-    "search_manual": ToolPermission.AUTO,
-    "verify_java_syntax": ToolPermission.AUTO,
+    "run_explorer": ToolPermission.CONFIRM,
+    "run_fixer": ToolPermission.CONFIRM,
+    "search_manual": ToolPermission.CONFIRM,
+    "verify_java_syntax": ToolPermission.CONFIRM,
 }
 
 

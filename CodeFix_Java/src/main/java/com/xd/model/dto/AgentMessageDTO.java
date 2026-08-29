@@ -15,6 +15,7 @@ public class AgentMessageDTO extends BaseMessage {
     private String event;
     private String runId;
     private String actionId;
+    private String workspaceId;
     private String step;
     private String agentName;     // 哪个agent
     private String parentAgent;   // 谁调用了我

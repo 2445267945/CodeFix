@@ -57,4 +57,18 @@ public class AgentEventServiceImpl implements AgentEventService {
     public List<AgentEventDO> getEvents(String taskId, String runId) {
         return agentEventMapper.selectByTaskIdAndRunId(taskId, runId);
     }
+
+    @Override
+    public AgentEventDO getToolWaitingByActionId(String taskId, String runId, String actionId) {
+        if (taskId == null || taskId.isBlank()) {
+            return null;
+        }
+        if (runId == null || runId.isBlank()) {
+            return null;
+        }
+        if (actionId == null || actionId.isBlank()) {
+            return null;
+        }
+        return agentEventMapper.selectToolWaitingByActionId(taskId, runId, actionId);
+    }
 }

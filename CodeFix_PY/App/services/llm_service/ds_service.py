@@ -4,11 +4,14 @@ import httpx
 import logging
 from typing import Optional
 
+from transformers import AutoTokenizer
+
 from App.agents.agent_model.llm_message import LLMMessage
 from App.agents.agent_model.llm_response import LLMResponse
 from App.agents.agent_model.tool_call import ToolCall
 from App.agents.client.llm_client import LLMClient
 from App.config import config
+from App.services.llm_service.deepseek_extension.encoding_dsv4 import encode_messages
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +34,8 @@ class DeepSeekLLM(LLMClient):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.thinking = thinking
+        self.tokenizer = AutoTokenizer.from_pretrained(self.get_tokenizer_model(), trust_remote_code=True)
+
         if not self.api_key:
             logger.warning("警告：未设置 LLM_API_KEY，AI 调用会失败")
         self.headers = {
@@ -61,10 +66,7 @@ class DeepSeekLLM(LLMClient):
         }
 
         if tools:
-            payload["tools"] = [
-                {"type": "function", "function": tool}
-                for tool in tools
-            ]
+            payload["tools"] = self.format_tools(tools=tools)
 
         # 没有指定tools，就指定json_object让llm输出json格式
         if self.en_json_format and not tools:
@@ -117,7 +119,7 @@ class DeepSeekLLM(LLMClient):
                         arguments=arguments,
                     )
                 )
-            return LLMResponse(content=content, reasoning_content=reasoning_content, tool_calls=tool_calls, raw=result)
+            return LLMResponse(content=content, reasoning_content=reasoning_content, tool_calls=tool_calls, raw=result, usage=result.get("usage"),)
         except httpx.TimeoutException as e:
             logger.error("LLM 请求超时", exc_info=True)
             raise RuntimeError("AI 服务响应超时，请稍后重试") from e
@@ -156,3 +158,112 @@ class DeepSeekLLM(LLMClient):
         if message.name is not None:
             result["name"] = message.name
         return result
+
+    def count_messages(self, messages: list[LLMMessage], tools: list[dict] | None = None) -> int:
+        """
+        使用 DeepSeek V4 官方 encoding + tokenizer
+        估算当前 messages 的输入 Token 数。
+
+        注意：
+        - 这是调用前的 Token 估算。
+        - 最终真实 Token 以 API 返回的 usage.prompt_tokens 为准。
+        """
+
+        if not messages and not tools:
+            return 0
+        # =========================================================
+        # 1. LLMMessage -> DeepSeek OpenAI-compatible message
+        # =========================================================
+        payload_messages = [
+            self.to_deepseek_message(message)
+            for message in messages
+        ]
+        # =========================================================
+        # 2. Tool schema
+        #
+        # get_tool_definitions() 返回的是 function schema：
+        #
+        # {
+        #   "name": "...",
+        #   "description": "...",
+        #   "parameters": {...}
+        # }
+        #
+        # DeepSeek V4 encoder 需要：
+        #
+        # {
+        #   "type": "function",
+        #   "function": {
+        #       "name": "...",
+        #       ...
+        #   }
+        # }
+        # =========================================================
+        if tools:
+            formatted_tools = self.format_tools(tools=tools)
+
+            if (payload_messages and payload_messages[0].get("role") == "system"):
+                payload_messages[0]["tools"] = formatted_tools
+            else:
+                payload_messages.insert(
+                    0,
+                    {
+                        "role": "system",
+                        "content": "",
+                        "tools": formatted_tools,
+                    },
+                )
+
+        # =========================================================
+        # 3. DeepSeek V4 thinking mode
+        # =========================================================
+        thinking_mode = "thinking" if self.thinking in ("enabled", "adaptive", "thinking") else "chat"
+
+        # =========================================================
+        # 4. DeepSeek V4 official encoding
+        # =========================================================
+        prompt = encode_messages(
+            payload_messages,
+            thinking_mode=thinking_mode,
+            drop_thinking=True,
+            reasoning_effort=None,
+        )
+
+        # =========================================================
+        # 5. Tokenizer
+        # =========================================================
+        return len(self.tokenizer.encode(prompt, add_special_tokens=False))
+
+
+    def count_text(self, text: str) -> int:
+        if not text:
+            return 0
+        return len(self.tokenizer.encode(text, add_special_tokens=False))
+
+
+    @property
+    def context_window(self) -> int:
+        return 6000
+
+
+    def get_tokenizer_model(self) -> str:
+        mapping = {
+            "deepseek-v4-flash": "deepseek-ai/DeepSeek-V4-Flash",
+            "deepseek-v4-pro": "deepseek-ai/DeepSeek-V4-Pro",
+        }
+        tokenizer_model = mapping.get(self.model)
+        if tokenizer_model is None:
+            raise ValueError(f"不支持的 DeepSeek tokenizer: model={self.model}")
+        return tokenizer_model
+
+
+    def format_tools(self, tools: list[dict] | None) -> list[dict]:
+        if not tools:
+            return []
+        return [
+            {
+                "type": "function",
+                "function": tool,
+            }
+            for tool in tools
+        ]

@@ -4,23 +4,19 @@ import com.alibaba.fastjson2.JSON;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xd.assembler.AgentChatBlockAssembler;
 import com.xd.mapper.*;
 import com.xd.model.context.TaskRunContext;
 import com.xd.model.dto.*;
 import com.xd.model.entity.*;
-import com.xd.model.enums.AgentActionCommandEnum;
-import com.xd.model.enums.AgentRunCommandEnum;
-import com.xd.model.enums.AgentEventEnum;
-import com.xd.model.enums.AgentTaskStatusEnum;
+import com.xd.model.enums.*;
 import com.xd.model.vo.*;
 import com.xd.mq.MQProducer;
+import com.xd.runtime.permission.PermissionRuntimeStore;
 import com.xd.service.*;
-import com.xd.state.AgentStateTransitionResult;
-import com.xd.state.AgentTaskStateMachine;
-import com.xd.state.AgentTransitionContext;
-import com.xd.state.AgentTransitionGuard;
-import com.xd.validator.JavaSyntaxValidator;
+import com.xd.runtime.state.AgentStateTransitionResult;
+import com.xd.runtime.state.AgentTaskStateMachine;
+import com.xd.runtime.state.AgentTransitionContext;
+import com.xd.runtime.state.AgentTransitionGuard;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -56,6 +52,10 @@ public class AgentTaskServiceImpl implements AgentTaskService {
     @Autowired
     private AgentTransitionGuard agentTransitionGuard;
     @Autowired
+    private PermissionRuntimeStore permissionRuntimeStore;
+    @Autowired
+    private AgentEventService agentEventService;
+    @Autowired
     private MQProducer mqProducer;
 
     @Autowired
@@ -63,11 +63,14 @@ public class AgentTaskServiceImpl implements AgentTaskService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public TaskRunContext createTaskWithRun(String sessionId, String question, String workspaceName) {
+    public TaskRunContext createTaskWithRun(ChatMessageCreateDTO request) {
 
         String runId = UUID.randomUUID().toString();
         String taskId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
+        String sessionId = request.getSessionId();
+        String question = request.getContent();
+        String workspaceName = request.getWorkspaceName();
         // 1. 获取 / 创建 Session
         AgentSessionDO session = agentSessionService.getOrCreateSession(sessionId, question);
 
@@ -102,6 +105,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         run.setSessionId(actualSessionId);
         run.setAttempt(1);
         run.setStatus(AgentTaskStatusEnum.QUEUED.statusCode);
+        run.setPermissionProfile(request.getPermissionProfile());
         run.setStartedAt(now);
         run.setCreatedAt(now);
 
@@ -523,7 +527,8 @@ public class AgentTaskServiceImpl implements AgentTaskService {
          */
         AgentTaskDO task = agentTaskMapper.selectByTaskId(messageDTO.getTaskId());
         if (task == null) {
-            throw new IllegalStateException("Task 不存在: " + messageDTO.getTaskId());
+            log.info("Task 不存在: {}", messageDTO.getTaskId());
+            return null;
         }
         AgentTaskStatusEnum currentState = AgentTaskStatusEnum.getStatusByCode(task.getStatus());
         /*
@@ -703,7 +708,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                     .reason(buildCommandReason(currentState, actionCommand, nextState, actionId))
                     .build();
         });
-
         if (result == null) {
             throw new IllegalStateException("Agent Command 状态迁移失败: taskId=" + taskId);
         }
@@ -720,6 +724,91 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         agentMessage.setActionId(actionId);
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(agentMessage));
 
+        return result;
+    }
+
+    @Override
+    public AgentStateTransitionResult handleUserCommand(String taskId, String runId, String actionId, String command) {
+        if (taskId == null || taskId.isBlank()) {
+            throw new IllegalArgumentException("taskId 不能为空");
+        }
+
+        if (runId == null || runId.isBlank()) {
+            throw new IllegalArgumentException("runId 不能为空");
+        }
+
+        if (actionId == null || actionId.isBlank()) {
+            throw new IllegalArgumentException("actionId 不能为空");
+        }
+
+        if (command == null || command.isBlank()) {
+            throw new IllegalArgumentException("command 不能为空");
+        }
+
+        AgentActionCommandEnum actionCommand;
+
+        try {
+            actionCommand = AgentActionCommandEnum.valueOf(command.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("未知 Agent Action Command: " + command, e);
+        }
+
+        /*
+         * 人工拒绝：
+         * 只执行 REJECT，不写 Permission Cache。
+         */
+        if (actionCommand == AgentActionCommandEnum.REJECT) {
+            return handleCommand(taskId, runId, actionId, actionCommand.commandDesc_EN);
+        }
+
+        /*
+         * 人工允许：
+         * 先找到当前 TOOL_WAITING，
+         * 从中恢复 Tool 信息。
+         */
+        AgentEventDO waitingEvent = agentEventService.getToolWaitingByActionId(taskId, runId, actionId);
+
+        if (waitingEvent == null) {
+            throw new IllegalStateException("找不到对应的 TOOL_WAITING Event: " + "taskId=" + taskId + ", runId=" + runId + ", actionId=" + actionId);
+        }
+        Map<String, Object> data;
+        try {
+            data = JSON.parseObject(waitingEvent.getOutput());
+        } catch (Exception e) {
+            throw new IllegalStateException("TOOL_WAITING output 解析失败: actionId=" + actionId, e);
+        }
+        String toolName = data == null ? null : String.valueOf(data.get("tool"));
+        if (toolName == null || toolName.isBlank() || "null".equals(toolName)) {
+            throw new IllegalStateException("TOOL_WAITING 缺少 tool: actionId=" + actionId);
+        }
+
+        /*
+         * 先真正执行 APPROVE。
+         */
+        AgentStateTransitionResult result = handleCommand(taskId, runId, actionId, actionCommand.commandDesc_EN);
+
+        /*
+         * Command 成功后，再保存 Permission Rule。
+         */
+        PermissionRuleDTO rule = PermissionRuleDTO.builder()
+                .toolName(toolName)
+                .decision(PermissionDecisionEnum.ALLOW)
+                .scope(PermissionScopeEnum.TOOL)
+                .pattern(null)
+                .build();
+
+        try {
+            permissionRuntimeStore.saveRule(runId, rule);
+            log.info("人工 Permission 允许已缓存: runId={}, actionId={}, tool={}", runId, actionId, toolName);
+        } catch (Exception e) {
+            /*
+             * Permission Cache 写失败不能让已经成功的 Tool
+             * 变成一次“命令失败”。
+             *
+             * 最坏结果只是下一次再次询问。
+             */
+            log.error("Permission Cache 写入失败: runId={}, actionId={}, tool={}", runId, actionId, toolName, e);
+        }
         return result;
     }
 

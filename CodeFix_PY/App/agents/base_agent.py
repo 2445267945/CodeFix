@@ -9,6 +9,8 @@ import datetime
 from App.infrastructure.memory.message_manager import MessageManager
 from .context.agent_context import AgentContext
 from .context.agent_run_context import AgentRunContext
+from ..infrastructure.memory.context_manager import ContextManager
+from ..infrastructure.memory.context_state import ContextState
 from ..infrastructure.memory.working_memory import WorkingMemory
 from ..models.agent_result import AgentResult
 from ..models.enum.agent_event import AgentEvent
@@ -31,7 +33,6 @@ class BaseAgent(ABC):
         self.window_size = 50  # 窗口大小
         self.max_iterations = 30  # 防止死循环
         self.current_step = 0  # 当前步数
-        self.messages: list[LLMMessage] = []  # 维护对话历史（上下文）
         self.systemPrompt = None  # 系统提示词
         self.tools = registry.tools  # 工具
         self.tools_schemas = registry  # 工具入参规则
@@ -39,28 +40,40 @@ class BaseAgent(ABC):
         self.status = AgentState.IDLE  # Agent状态
         self.last_time = None  # 上一次模型开始执行时间
         self.watch_dog = 30  # 看门狗存活时长上限
-        self.history_summary = ""
         self.manager = MessageManager()
+        self.context_state = ContextState()
+        self.context_manager = ContextManager()
 
     def add_user_message(self, content: str) -> None:
-        self.messages.append(LLMMessage(role="user", content=content))
-        self.messages = self.manager.trim_messages(self.window_size, self.messages)
-
-    def add_assistant_message(self, response: LLMResponse) -> None:
-        self.messages.append(
-            LLMMessage(
-                role="assistant",
-                content=response.content,
-                reasoning_content=response.reasoning_content,
-                tool_calls=response.tool_calls,
+        self.context_state.messages.append(LLMMessage(role="user", content=content))
+        self.context_state.messages = (
+            self.context_manager.trim_messages(
+                messages=self.context_state.messages,
+                llm=self.main_llm,
+                tools=self.get_tool_definitions(),
             )
         )
-        self.messages = self.manager.trim_messages(self.window_size, self.messages)
+
+    def add_assistant_message(self, response: LLMResponse) -> None:
+        self.context_state.messages.append(LLMMessage( role="assistant", content=response.content, reasoning_content=response.reasoning_content, tool_calls=response.tool_calls))
+        self.context_state.messages = (
+            self.context_manager.trim_messages(
+                messages=self.context_state.messages,
+                llm=self.main_llm,
+                tools=self.get_tool_definitions(),
+            )
+        )
 
     def add_tool_message(self, tool_call_id: str, result: object) -> None:
         content = result if isinstance(result, str) else json.dumps(result, ensure_ascii=False)
-        self.messages.append(LLMMessage(role="tool", tool_call_id=tool_call_id, content=content))
-        self.messages = self.manager.trim_messages(self.window_size, self.messages)
+        self.context_state.messages.append(LLMMessage(role="tool", tool_call_id=tool_call_id, content=content))
+        self.context_state.messages = (
+            self.context_manager.trim_messages(
+                messages=self.context_state.messages,
+                llm=self.main_llm,
+                tools=self.get_tool_definitions()
+            )
+        )
 
     async def run(self, question: str, resume: bool = False, session_context: SessionContext | None = None):
         self.status = AgentState.THINKING
@@ -72,13 +85,18 @@ class BaseAgent(ABC):
                     raise RuntimeError(f"任务 {self.base_message.task_id} " f"没有可恢复的 checkpoint")
             if not restored:
                 # START / RETRY：从全新上下文开始
-                self.build_initial_messages(question=question, session_context=session_context)
+                self.build_initial_context(question=question, session_context=session_context)
             self.last_time = datetime.datetime.now()
             # 进入ReAct循环
             while self.status not in (AgentState.FINISHED, AgentState.ERROR):
                 self.current_step += 1
-                self.history_summary, self.messages = \
-                    await self.manager.compress_history_msg(self.window_size,self.messages,self.compress_llm,self.history_summary)
+                tool_definitions = self.tools_schemas.get_tool_definitions(self.allowed_tools)
+                await self.context_manager.compress_if_needed(
+                    state=self.context_state,
+                    main_llm=self.main_llm,
+                    compress_llm=self.compress_llm,
+                    tools=tool_definitions,
+                )
                 cur_time = datetime.datetime.now()
                 # 当前时间 - 过去时间 > 30s(watch_dog) ? 超时 : 未超时更新过去时间;
                 if cur_time - self.last_time > datetime.timedelta(seconds=self.watch_dog):
@@ -113,44 +131,26 @@ class BaseAgent(ABC):
             session_id=self.base_message.session_id,
             task_id=self.base_message.task_id,
             run_id=self.base_message.run_id,
-            agent_name=self.name
+            agent_name=self.name,
         )
         if memory is None:
             return False
         self.current_step = memory.step
-        self.history_summary = memory.history_summary
-        self.messages = memory.recent_messages
-        # 恢复后重新进入推理状态
+        self.context_state.history_summary = (memory.history_summary)
+        self.context_state.messages = (memory.recent_messages)
         self.status = AgentState.THINKING
         return True
 
     # 构建初始化记忆
-    def build_initial_messages(self, question: str, session_context: SessionContext | None = None) -> None:
-        """
-        构建新 Run 的初始消息。
-        结构：
-        system
-          ↓
-        session history
-          ↓
-        current user question
-        """
-        messages = []
-        # 1. System Prompt
+    def build_initial_context(self, question: str, session_context=None) -> None:
         tool_desc = registry.get_tools_desc(allowed_tools=self.allowed_tools)
         system_prompt = self.systemPrompt.format(name=self.name, tool_desc=tool_desc)
-        messages.append(LLMMessage(role="system", content=system_prompt))
-        # 2. Session 历史
-        if session_context:
-            for item in session_context.messages:
-                role = item.role.lower()
-                if role not in ("user", "assistant", "system"):
-                    continue
-                messages.append(LLMMessage(role=role, content=item.content))
-        # 3. 当前用户问题
-        if question:
-            messages.append(LLMMessage(role="user", content=question))
-        self.messages = messages
+        self.context_manager.initialize(
+            state=self.context_state,
+            question=question,
+            system_prompt=system_prompt,
+            session_context=session_context,
+        )
 
     # 存储当前步骤的工作快照
     async def checkpoint_working_memory(self) -> None:
@@ -164,8 +164,8 @@ class BaseAgent(ABC):
             step=self.current_step,
             status=self.status.value,
             question=self.base_message.question,
-            summary=self.history_summary,
-            recent_messages=self.messages,
+            history_summary=self.context_state.history_summary,
+            recent_messages=self.context_state.messages,
         )
         await self.working_memory_store.save(memory)
 
@@ -178,6 +178,15 @@ class BaseAgent(ABC):
             run_id=self.base_message.run_id,
             agent_name=self.name,
         )
+
+    def get_tool_definitions(self) -> list[dict]:
+        return self.tools_schemas.get_tool_definitions(
+            self.allowed_tools
+        )
+
+    def cleanup_context(self) -> None:
+        self.context_state.messages.clear()
+        self.context_state.history_summary = ""
 
     @abstractmethod
     def step(self):

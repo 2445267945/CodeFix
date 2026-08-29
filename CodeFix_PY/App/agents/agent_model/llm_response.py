@@ -10,6 +10,7 @@ class LLMResponse:
     reasoning_content: str | None = None
     tool_calls: list[ToolCall] = field(default_factory=list)
     raw: object | None = None
+    usage: dict | None = None
 
     @property
     def has_tool_calls(self) -> bool:

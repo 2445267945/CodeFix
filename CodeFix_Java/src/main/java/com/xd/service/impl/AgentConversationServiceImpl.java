@@ -50,7 +50,7 @@ public class AgentConversationServiceImpl implements AgentConversationService {
         SessionContext sessionContext = buildSessionContext(request.getSessionId());
 
         // 2. 创建 Task + Run + Workspace 上下文
-        TaskRunContext context = agentTaskService.createTaskWithRun(request.getSessionId(), request.getContent(), request.getWorkspaceName());
+        TaskRunContext context = agentTaskService.createTaskWithRun(request);
         AgentSessionDO session = context.getSession();
         WorkspaceDO workspace = context.getWorkspace();
         AgentTaskDO task = context.getTask();

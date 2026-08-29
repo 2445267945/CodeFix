@@ -1,25 +1,45 @@
 package com.xd.service.impl;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xd.model.vo.AuditResponseVO;
+import com.xd.model.enums.PermissionDecisionEnum;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
+
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class CacheService {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;
-    @Autowired
-    private ObjectMapper objectMapper;
 
-    public String get(String md5) {
-        return (String) redisTemplate.opsForValue().get(md5);
+    public String get(String key) {
+        return (String) redisTemplate.opsForValue().get(key);
     }
 
-    public void put(String md5, String auditResponse) {
-        redisTemplate.opsForValue().setIfAbsent(md5, auditResponse);
+    public void put(String key, String value) {
+        redisTemplate.opsForValue().setIfAbsent(key, value);
+    }
+
+    public void put(String key, String value, long timeout, TimeUnit unit) {
+        redisTemplate.opsForValue().setIfAbsent(key, value, timeout, unit);
+    }
+
+    public String permissionKey(String sessionId, String workspaceId, String toolName) {
+        return String.format("agent:permission:%s:%s:%s", sessionId, workspaceId, toolName);
+    }
+
+    public boolean hasPermission(String sessionId, String workspaceId, String toolName) {
+        String key = permissionKey(sessionId, workspaceId, toolName);
+        return PermissionDecisionEnum.ALLOW.desc.equals(get(key));
+    }
+
+    public void grantPermission(String sessionId, String workspaceId, String toolName, long timeout, TimeUnit unit) {
+        String key = permissionKey(sessionId, workspaceId, toolName);
+        put(key, PermissionDecisionEnum.ALLOW.desc, timeout, unit);
+    }
+
+    public Boolean delete(String key) {
+        return redisTemplate.delete(key);
     }
 }

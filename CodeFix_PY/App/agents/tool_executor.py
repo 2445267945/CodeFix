@@ -38,13 +38,15 @@ class ToolExecutor(ReActAgent):
             return False
         try:
             # 1. 获取当前 Agent 有权限使用的工具
-            tool_definitions = (self.tools_schemas.get_tool_definitions(self.allowed_tools))
+            tool_definitions = self.tools_schemas.get_tool_definitions(self.allowed_tools)
             # 2. 调用 LLM
+            messages = self.context_manager.get_messages(self.context_state)
             print(f"当前AI：{self.name}")
-            print(
-                f"准备调用 LLM，messages={len(self.messages)}"
+            print(f"准备调用 LLM，messages={len(messages)}")
+            response: LLMResponse = await self.main_llm.chat(
+                messages=messages,
+                tools=tool_definitions,
             )
-            response: LLMResponse = await self.main_llm.chat(messages=self.messages, tools=tool_definitions)
             print(f"LLM content：{response.content}")
             print(f"LLM reasoning："f"{response.reasoning_content}")
             print(f"LLM tool_calls："f"{response.tool_calls}")
@@ -174,8 +176,9 @@ class ToolExecutor(ReActAgent):
         return results
 
     def cleanup(self):
-        self.messages.clear()
+        self.cleanup_context()
         self.action_history.clear()
+        self.cur_tool_calls.clear()
 
     async def before_tool_call(self, tool_call: ToolCall, validated_args: dict) -> tuple[bool, str | None]:
         """

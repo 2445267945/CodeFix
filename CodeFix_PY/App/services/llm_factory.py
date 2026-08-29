@@ -49,7 +49,7 @@ class LLMFactory:
                 "thinking": "disabled",
             },
             "mid": {
-                "provider": "deepseek",
+                "provider": "deepseek_extension",
                 "url": "https://api.deepseek.com/chat/completions",
                 "model": "deepseek-v4-flash",
                 "max_tokens": max_tokens,
@@ -57,7 +57,7 @@ class LLMFactory:
                 "thinking": "enabled",
             },
             "high": {
-                "provider": "deepseek",
+                "provider": "deepseek_extension",
                 "url": "https://api.deepseek.com/chat/completions",
                 "model": "deepseek-v4-pro",
                 "max_tokens": max_tokens,
@@ -70,7 +70,7 @@ class LLMFactory:
 
         provider = cfg["provider"]
         # 创建 LLMService 实例
-        if provider == "deepseek":
+        if provider == "deepseek_extension":
             return DeepSeekLLM(
                 url=cfg["url"],
                 model=cfg["model"],

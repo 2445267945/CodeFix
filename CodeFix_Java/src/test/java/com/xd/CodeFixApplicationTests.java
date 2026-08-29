@@ -4,7 +4,7 @@ package com.xd;
 import com.xd.model.enums.AgentRunCommandEnum;
 import com.xd.model.enums.AgentEventEnum;
 import com.xd.model.enums.AgentTaskStatusEnum;
-import com.xd.state.AgentTaskStateMachine;
+import com.xd.runtime.state.AgentTaskStateMachine;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 

@@ -83,4 +83,16 @@
         ORDER BY event_timestamp ASC, id ASC
 
     </select>
+
+    <select id="selectToolWaitingByActionId" resultType="com.xd.model.entity.AgentEventDO">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_event
+        WHERE task_id = #{taskId}
+          AND run_id = #{runId}
+          AND action_id = #{actionId}
+          AND event = 'TOOL_WAITING'
+        ORDER BY event_timestamp DESC
+            LIMIT 1
+    </select>
 </mapper>

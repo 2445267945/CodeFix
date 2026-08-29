@@ -2,8 +2,9 @@ package com.xd.service;
 
 import com.xd.model.context.TaskRunContext;
 import com.xd.model.dto.AgentMessageDTO;
+import com.xd.model.dto.ChatMessageCreateDTO;
 import com.xd.model.vo.*;
-import com.xd.state.AgentStateTransitionResult;
+import com.xd.runtime.state.AgentStateTransitionResult;
 
 import java.util.List;
 
@@ -12,7 +13,7 @@ public interface AgentTaskService {
     /**
      * 获取session,创建一个 Task，并创建该 Task 的第一条 Run
      */
-    TaskRunContext createTaskWithRun(String sessionId, String question, String workspaceName);
+    TaskRunContext createTaskWithRun(ChatMessageCreateDTO request);
 
     /**
      * 创建 Task 的第一阶段入口
@@ -76,4 +77,6 @@ public interface AgentTaskService {
 
     // Command
     AgentStateTransitionResult handleCommand(String taskId, String runId, String actionId, String command);
+
+    AgentStateTransitionResult handleUserCommand(String taskId, String runId, String actionId, String command);
 }

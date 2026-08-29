@@ -13,6 +13,7 @@
         <result property="actionId" column="action_id"/>
         <result property="attempt" column="attempt"/>
         <result property="status" column="status"/>
+        <result property="permissionProfile" column="permission_profile"/>
         <result property="startedAt" column="started_at"/>
         <result property="endedAt" column="ended_at"/>
         <result property="errorMessage" column="error_message"/>
@@ -27,6 +28,7 @@
         action_id,
         attempt,
         status,
+        permission_profile,
         started_at,
         ended_at,
         error_message,
@@ -40,6 +42,7 @@
             session_id,
             attempt,
             status,
+            permission_profile,
             started_at,
             ended_at,
             error_message,
@@ -51,6 +54,7 @@
             #{sessionId},
             #{attempt},
             #{status},
+            #{permissionProfile},
             #{startedAt},
             #{endedAt},
             #{errorMessage},

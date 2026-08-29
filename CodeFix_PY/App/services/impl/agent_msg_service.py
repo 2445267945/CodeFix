@@ -85,6 +85,7 @@ class AgentMsgService(BaseMsgHandler):
             timestamp=int(time.time() * 1000),
             run_id=msg.run_id,
             task_id=msg.task_id,
+            workspace_id=agent.run_context.workspace.workspace_id,
             action_id=actionId,
             session_id=msg.session_id,
             message_id=str(uuid4()),

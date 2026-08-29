@@ -156,7 +156,7 @@ public class AgentChatBlockAssembler {
         /*
          * Action Runtime Metadata
          */
-
+        block.setActionId(event.getActionId());
         block.setRequiresApproval(booleanValue(data.get("requiresApproval")));
 
         block.setSummary(buildWaitingSummary(action, toolName, data));
@@ -214,7 +214,6 @@ public class AgentChatBlockAssembler {
 
             existingBlock.setAction(action);
             existingBlock.setStatus("running");
-
             /*
              * 一般情况下如果前面的 TOOL_WAITING 已经是 true，
              * 这里不会覆盖成 false。
