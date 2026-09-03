@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 class OllamaLLM(LLMClient):
-
     def __init__(
             self,
             api_key: Optional[str] = None,
@@ -26,127 +25,72 @@ class OllamaLLM(LLMClient):
             max_tokens: Optional[int] = None,
             temperature: Optional[float] = None,
             thinking: Optional[str] = None,
+            timeout: Optional[float] = None,
     ):
         self.url = url
         self.model = model
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.thinking = thinking
-
-        self.timeout = config.llm.TIMEOUT or 60
-
+        self.timeout = timeout or 60
         # Ollama 本地 API 不要求鉴权。
         self.api_key = api_key or "ollama"
-
         self.headers = {
             "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
-
-        self.client = httpx.AsyncClient(
-            timeout=self.timeout
-        )
-
-        # =====================================================
+        self.client = httpx.AsyncClient(timeout=self.timeout)
         # Tokenizer
-        # =====================================================
+        self.tokenizer = AutoTokenizer.from_pretrained(self.get_tokenizer_model(), trust_remote_code=True)
 
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            self._get_tokenizer_model(),
-            trust_remote_code=True,
-        )
-
-    async def chat(
-            self,
-            messages: list[LLMMessage],
-            tools: list[dict] | None = None,
-    ) -> LLMResponse:
-
+    async def chat(self, messages: list[LLMMessage], tools: list[dict] | None = None) -> LLMResponse:
         payload_messages = [
             self.to_ollama_message(message)
             for message in messages
         ]
-
         payload: dict[str, Any] = {
             "model": self.model,
             "messages": payload_messages,
             "stream": False,
         }
-
         if self.max_tokens is not None:
             payload["max_tokens"] = self.max_tokens
-
         if self.temperature is not None:
             payload["temperature"] = self.temperature
-
-        # Ollama OpenAI-compatible API 支持 tools。
+        # Ollama OpenAI-compatible API 支持 agent_boost。
         if tools:
-            payload["tools"] = [
+            payload["agent_boost"] = [
                 {
                     "type": "function",
                     "function": tool,
                 }
                 for tool in tools
             ]
-
         # 非 Tool Calling 场景才启用 JSON mode。
-        if config.llm.JSON_FORMAT and not tools:
+        if not tools:
             payload["response_format"] = {
                 "type": "json_object"
             }
-
         try:
-            response = await self.client.post(
-                self.url,
-                headers=self.headers,
-                json=payload,
-            )
-
+            response = await self.client.post(self.url, headers=self.headers, json=payload)
             if response.status_code != 200:
                 error_detail = response.text
-
-                logger.error(
-                    "Ollama 服务返回错误: status=%s, detail=%s",
-                    response.status_code,
-                    error_detail,
-                )
-
-                raise RuntimeError(
-                    f"Ollama API 请求失败: "
-                    f"{response.status_code} - {error_detail}"
-                )
-
+                logger.error("Ollama 服务返回错误: status=%s, detail=%s", response.status_code, error_detail)
+                raise RuntimeError(f"Ollama API 请求失败: {response.status_code} - {error_detail}")
             result = response.json()
-
             message = result["choices"][0]["message"]
-
             content = message.get("content")
-
-            reasoning_content = message.get(
-                "reasoning_content"
-            )
-
-            provider_tool_calls = message.get(
-                "tool_calls",
-                []
-            )
+            reasoning_content = message.get("reasoning_content")
+            provider_tool_calls = message.get("tool_calls",[])
 
             tool_calls = []
-
             for item in provider_tool_calls:
-                arguments_raw = item["function"].get(
-                    "arguments",
-                    "{}"
-                )
-
+                arguments_raw = item["function"].get("arguments","{}")
                 if isinstance(arguments_raw, str):
                     try:
                         arguments = json.loads(arguments_raw)
                     except json.JSONDecodeError as e:
-                        raise RuntimeError(
-                            "Tool 参数 JSON 解析失败: "
-                            f"{item['function'].get('name')}"
-                        ) from e
+                        raise RuntimeError("Tool 参数 JSON 解析失败: {item['function'].get('name')}") from e
                 else:
                     arguments = arguments_raw
 
@@ -157,17 +101,8 @@ class OllamaLLM(LLMClient):
                         arguments=arguments,
                     )
                 )
-
-            tokens = result.get(
-                "usage",
-                {}
-            )
-
-            logger.info(
-                "Ollama 调用成功，消耗 tokens: %s",
-                tokens,
-            )
-
+            tokens = result.get("usage",{})
+            logger.info("Ollama 调用成功，消耗 tokens: %s", tokens)
             return LLMResponse(
                 content=content,
                 reasoning_content=reasoning_content,
@@ -175,57 +110,29 @@ class OllamaLLM(LLMClient):
                 raw=result,
                 usage=tokens,
             )
-
         except httpx.TimeoutException as e:
-            logger.error(
-                "Ollama 请求超时",
-                exc_info=True,
-            )
-
-            raise RuntimeError(
-                "Ollama 服务响应超时，请稍后重试"
-            ) from e
-
+            logger.error("Ollama 请求超时", exc_info=True)
+            raise RuntimeError("Ollama 服务响应超时，请稍后重试") from e
         except httpx.HTTPError as e:
-            logger.error(
-                "Ollama HTTP 请求异常",
-                exc_info=True,
-            )
-
-            raise RuntimeError(
-                f"Ollama HTTP 请求异常: {e}"
-            ) from e
-
+            logger.error("Ollama HTTP 请求异常", exc_info=True)
+            raise RuntimeError(f"Ollama HTTP 请求异常: {e}") from e
     async def close(self):
         await self.client.aclose()
 
-    # =========================================================
     # Tokenizer
-    # =========================================================
-
-    def _get_tokenizer_model(self) -> str:
+    def get_tokenizer_model(self) -> str:
         """
         根据 Ollama 模型名称选择对应 Hugging Face tokenizer。
         """
-
         mapping = {
             "qwen2.5:3b": "Qwen/Qwen2.5-3B-Instruct",
         }
-
         tokenizer_model = mapping.get(self.model)
-
         if tokenizer_model is None:
-            raise ValueError(
-                f"未找到 Ollama 模型对应 tokenizer: "
-                f"model={self.model}"
-            )
-
+            raise ValueError(f"未找到 Ollama 模型对应 tokenizer: model={self.model}")
         return tokenizer_model
 
-    # =========================================================
     # Token Estimator
-    # =========================================================
-
     def count_text(self, text: str) -> int:
         """
         统计纯文本 Token 数。
@@ -234,22 +141,11 @@ class OllamaLLM(LLMClient):
         这是本地 tokenizer 估算值，
         最终真实消耗应以 Ollama 返回的 usage 为准。
         """
-
         if not text:
             return 0
+        return len(self.tokenizer.encode(text,add_special_tokens=False))
 
-        return len(
-            self.tokenizer.encode(
-                text,
-                add_special_tokens=False,
-            )
-        )
-
-    def count_messages(
-        self,
-        messages: list[LLMMessage],
-        tools: list[dict] | None = None,
-    ) -> int:
+    def count_messages(self, messages: list[LLMMessage], tools: list[dict] | None = None) -> int:
         """
         估算当前消息列表的 Token 数。
 
@@ -261,15 +157,12 @@ class OllamaLLM(LLMClient):
         该值主要用于 Context Budget 判断，
         不是 Provider 最终计费 Token。
         """
-
         if not messages and not tools:
             return 0
-
         payload_messages = [
             self.to_ollama_message(message)
             for message in messages
         ]
-
         if tools:
             payload_messages.append(
                 {
@@ -281,18 +174,10 @@ class OllamaLLM(LLMClient):
                 }
             )
 
-        serialized = json.dumps(
-            payload_messages,
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
-
+        serialized = json.dumps(payload_messages, ensure_ascii=False, separators=(",", ":"))
         return self.count_text(serialized)
 
-    # =========================================================
     # Context Window
-    # =========================================================
-
     @property
     def context_window(self) -> int:
         """
@@ -307,36 +192,20 @@ class OllamaLLM(LLMClient):
         }
 
         window = context_windows.get(self.model)
-
         if window is None:
-            raise ValueError(
-                f"未配置 Ollama 模型 Context Window: "
-                f"model={self.model}"
-            )
-
+            raise ValueError(f"未配置 Ollama 模型 Context Window: model={self.model}")
         return window
 
-    # =========================================================
     # Message Convert
-    # =========================================================
-
     @staticmethod
-    def to_ollama_message(
-            message: LLMMessage,
-    ) -> dict:
-
+    def to_ollama_message(message: LLMMessage) -> dict:
         result = {
             "role": message.role,
         }
-
         if message.content is not None:
             result["content"] = message.content
-
         if message.reasoning_content is not None:
-            result["reasoning_content"] = (
-                message.reasoning_content
-            )
-
+            result["reasoning_content"] = (message.reasoning_content)
         if message.tool_calls:
             result["tool_calls"] = [
                 {
@@ -352,13 +221,8 @@ class OllamaLLM(LLMClient):
                 }
                 for tool_call in message.tool_calls
             ]
-
         if message.tool_call_id is not None:
-            result["tool_call_id"] = (
-                message.tool_call_id
-            )
-
+            result["tool_call_id"] = (message.tool_call_id)
         if message.name is not None:
             result["name"] = message.name
-
         return result

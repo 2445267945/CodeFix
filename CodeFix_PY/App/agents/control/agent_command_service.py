@@ -3,7 +3,7 @@ import logging
 from App.infrastructure.message.base_message import BaseMessage
 from App.models.agent_command_message import AgentCommandMessage
 from App.models.enum.agent_command import (AgentCommandType, AgentActionCommand)
-from App.services.base_handler import BaseMsgHandler
+from App.infrastructure.handler.base_handler import BaseMsgHandler
 from App.agents.control.execution_gate import ExecutionDecision
 from App.agents.manager.agent_run_manager import AgentRunManager
 

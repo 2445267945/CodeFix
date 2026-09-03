@@ -8,8 +8,8 @@ from App.config import config
 
 # ===================== 1. 从配置读取参数 =====================
 embedding_fn = OllamaEmbeddingFunction(
-    url=config.vector_db.OLLAMA_URL,
-    model_name=config.vector_db.EMBEDDING_MODEL
+    url=config.embedding.BASE_URL,
+    model_name=config.embedding.MODEL
 )
 
 chroma_client = chromadb.PersistentClient(

@@ -16,7 +16,6 @@ class BaseMessage(BaseModel):
     type: str = ""
 
     # ===== 通用方法 =====
-    @classmethod
     def to_json(self) -> str:
         """序列化为JSON字符串（发给MQ）"""
         return self.model_dump_json(by_alias=True, exclude_none=True)

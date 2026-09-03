@@ -8,17 +8,19 @@ from App.agents.supervisor.supervisor_agent import SupervisorAgent
 from App.models.enum.agent_event import AgentEvent
 from App.models.agent_message import AgentMessage
 from App.models.agent_running import AgentRunning
+from App.infrastructure.heartbeat.agent_heartbeat_service import AgentHeartbeatService
 
 logger = logging.getLogger(__name__)
 
 
 class AgentRunManager:
 
-    def __init__(self, loop: asyncio.AbstractEventLoop, context: AgentContext):
+    def __init__(self, loop: asyncio.AbstractEventLoop, context: AgentContext, heartbeat_service: AgentHeartbeatService):
         self.loop = loop
         self.context = context
         self.running: dict[str, AgentRunning] = {}
         self.running_lock = threading.RLock()
+        self.heartbeat_service = heartbeat_service
 
     def start(self, msg: AgentMessage):
         """
@@ -47,6 +49,8 @@ class AgentRunManager:
 
             with self.running_lock:
                 self.running[msg.run_id] = run
+            # 启动 Task Heartbeat
+            await self.heartbeat_service.start(task_id=msg.task_id, run_id=msg.run_id)
 
             try:
                 if resume:
@@ -57,14 +61,17 @@ class AgentRunManager:
             except asyncio.CancelledError:
                 await self.handle_cancelled(run)
                 raise
-            except Exception:
-                print("Agent执行异常 taskId=%s", msg.task_id)
+            except Exception as e:
+                print("Agent执行异常 taskId={}", e)
+                logger.info("Agent执行异常 taskId={}", e)
                 raise
             finally:
+                await self.heartbeat_service.stop(task_id=msg.task_id, run_id=msg.run_id)
                 with self.running_lock:
                     self.running.pop(msg.run_id, None)
         except Exception as e:
-            print("出问题了", e)
+            print("run manager启动异常：{}", e)
+            logger.info("run manager启动异常：{}", e)
 
     async def handle_cancelled(self, run: AgentRunning):
         agent = run.agent

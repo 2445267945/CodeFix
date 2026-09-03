@@ -1,3 +1,4 @@
+# deepseek用不上
 import json
 import logging
 from pydantic import TypeAdapter, ValidationError

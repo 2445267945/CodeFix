@@ -19,7 +19,7 @@ class AgentContext:
     def create_run_context(self, msg: AgentMessage):
         workspace = WorkspaceInfo(
             workspace_id=msg.workspace_id,
-            root_path=Path(config.ws.WORKSPACE_ROOT) / msg.workspace_id
+            root_path=Path(config.workspace.ROOT) / msg.workspace_id
         )
         return AgentRunContext(
             task_id=msg.task_id,

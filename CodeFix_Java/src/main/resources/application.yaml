@@ -20,12 +20,17 @@ mq:
     consumer:
       groupName: cid_status_group_test
       topics: agent_status_topic
+    heartbeat-consumer:
+      groupName: cid_heartbeat_group
+      topics: agent_heartbeat_topic
     producer:
       groupName: cid_task_group
       topics: agent_task_topic
     topic:
       status: agent_status_topic
       statusQueueNum: 8
+      heartbeat: agent_heartbeat_topic
+      heartbeatQueueNum: 8
 
 py:
   url: http://localhost:8000/analyze

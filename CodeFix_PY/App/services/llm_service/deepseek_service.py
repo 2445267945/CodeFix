@@ -25,10 +25,10 @@ class DeepSeekLLM(LLMClient):
             max_tokens: Optional[int] = None,
             temperature: Optional[float] = None,
             thinking: Optional[str] = None,
+            timeout: Optional[float] = None,
     ):
         self.api_key = api_key or config.llm.API_KEY
-        self.en_json_format = config.llm.JSON_FORMAT
-        self.timeout = config.llm.TIMEOUT or 60
+        self.timeout = timeout or 60
         self.url = url
         self.model = model
         self.max_tokens = max_tokens
@@ -69,7 +69,7 @@ class DeepSeekLLM(LLMClient):
             payload["tools"] = self.format_tools(tools=tools)
 
         # 没有指定tools，就指定json_object让llm输出json格式
-        if self.en_json_format and not tools:
+        if not tools:
             payload["response_format"] = {
                 "type": "json_object"
             }
@@ -203,14 +203,14 @@ class DeepSeekLLM(LLMClient):
             formatted_tools = self.format_tools(tools=tools)
 
             if (payload_messages and payload_messages[0].get("role") == "system"):
-                payload_messages[0]["tools"] = formatted_tools
+                payload_messages[0]["agent_boost"] = formatted_tools
             else:
                 payload_messages.insert(
                     0,
                     {
                         "role": "system",
                         "content": "",
-                        "tools": formatted_tools,
+                        "agent_boost": formatted_tools,
                     },
                 )
 

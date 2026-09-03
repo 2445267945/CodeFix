@@ -10,7 +10,7 @@ class RedisService:
         return await self.client.ping()
 
     async def close(self):
-        await self.client.aclose()
+        await self.client.close()
 
 
-redis_service = RedisService(config.redis.REDIS_URL)
+redis_service = RedisService(config.redis.URL)

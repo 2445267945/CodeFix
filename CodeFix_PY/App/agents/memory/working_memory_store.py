@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from .working_memory import WorkingMemory
+from App.agents.agent_model.working_memory import WorkingMemory
 
 
 class WorkingMemoryStore(ABC):

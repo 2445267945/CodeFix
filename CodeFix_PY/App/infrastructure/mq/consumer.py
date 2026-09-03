@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class Consumer:
     def __init__(self, topics: dict, group: str, handler):
-        self.endpoints = config.mq.ROCKETMQ_NAMESRV_ADDR
+        self.endpoints = config.mq.NAMESRV_ADDR
         self.topics = topics
         self.group = group
         self.handler = handler
@@ -20,11 +20,7 @@ class Consumer:
         credentials = Credentials("", "")
         mq_config = ClientConfiguration(self.endpoints, credentials)
 
-        self.consumer = SimpleConsumer(
-            mq_config,
-            group,
-            self.topics
-        )
+        self.consumer = SimpleConsumer(mq_config, group, self.topics)
 
     def start(self):
         if self.running:

@@ -123,6 +123,15 @@ public class AgentTaskServiceImpl implements AgentTaskService {
     }
 
     @Override
+    public boolean updateHeartbeat(AgentHeartbeatDTO heartbeat) {
+        AgentTaskDO updateTask = new AgentTaskDO();
+        updateTask.setTaskId(heartbeat.getTaskId());
+        updateTask.setRunId(heartbeat.getRunId());
+        updateTask.setLastHeartbeatAt(heartbeat.getTimestamp());
+        return agentTaskMapper.updateHeartbeat(updateTask) > 0;
+    }
+
+    @Override
     public List<TaskDetailVO> getTasksBySessionId(String sessionId) {
         List<AgentTaskDO> tasks = agentTaskMapper.selectBySessionId(sessionId);
 
@@ -632,6 +641,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             if (task == null || run == null) {
                 throw new IllegalStateException("Task或Run 不存在: taskId:" + taskId + ", runId:" + runId);
             }
+            if (!task.getRunId().equals(runId)) {
+                throw new IllegalStateException("runId不是当前的最新: 当前:" + task.getRunId() + ", 接收:" + runId);
+            }
 
             // 4. 当前状态
             AgentTaskStatusEnum currentState = AgentTaskStatusEnum.getStatusByCode(task.getStatus());
@@ -812,8 +824,45 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         return result;
     }
 
-    private String buildCommandReason(AgentTaskStatusEnum currentState, AgentActionCommandEnum command,
-                                      AgentTaskStatusEnum nextState, String actionId) {
+    @Override
+    public void handleHeartbeatTimeout(String taskId, String runId) {
+        AgentTaskDO task = agentTaskMapper.selectByTaskId(taskId);
+
+        if (task == null) {
+            log.warn("Heartbeat timeout处理失败，Task不存在: taskId={}, runId={}", taskId, runId);
+            return;
+        }
+        // 防止旧 Run 的 watchdog 影响当前 Task
+        if (!runId.equals(task.getRunId())) {
+            log.debug("忽略旧 Run 的 heartbeat timeout: taskId={}, runId={}, currentRunId={}", taskId, runId, task.getRunId());
+            return;
+        }
+
+        AgentTaskStatusEnum currentState = AgentTaskStatusEnum.getStatusByCode(task.getStatus());
+
+        // 当前状态本身不允许 heartbeat timeout
+        if (!stateMachine.canTransition(currentState, AgentEventEnum.HEARTBEAT_TIMEOUT)) {
+            return;
+        }
+
+        AgentTaskStatusEnum nextState = stateMachine.transition(currentState, AgentEventEnum.HEARTBEAT_TIMEOUT);
+
+
+        TaskHeartbeatTimeoutUpdateDTO update = new TaskHeartbeatTimeoutUpdateDTO();
+        update.setTaskId(taskId);
+        update.setRunId(runId);
+        update.setCurrentStatus(task.getStatus());
+        update.setNextStatus(nextState.statusCode);
+        update.setUpdatedAt(System.currentTimeMillis());
+        update.setLastHeartbeatAt(task.getLastHeartbeatAt());
+        int updated = agentTaskMapper.updateStatusByHeartbeatTimeout(update);
+        if (updated == 0) {
+            // 并发条件下已经被其他流程修改
+            log.debug("Heartbeat timeout状态更新未生效，Task可能已被其他流程处理: taskId={}, runId={}", taskId, runId);
+        }
+    }
+
+    private String buildCommandReason(AgentTaskStatusEnum currentState, AgentActionCommandEnum command, AgentTaskStatusEnum nextState, String actionId) {
         return String.format(
                 "Agent Action Command: %s, actionId=%s, %s -> %s",
                 command.commandDesc_EN, actionId, currentState.statusDesc_EN, nextState.statusDesc_EN

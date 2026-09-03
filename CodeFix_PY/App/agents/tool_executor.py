@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 
@@ -8,15 +9,14 @@ from App.agents.control.tool_policy import (
     ToolPermission,
     get_tool_permission,
 )
-from .agent_model.llm_response import LLMResponse
 from .agent_model.tool_call import ToolCall
 from .agent_state import AgentState
 from .context.agent_context import AgentContext
 from .context.agent_run_context import AgentRunContext
 from .react_agent import ReActAgent
-import datetime
 
 from App.models.enum.agent_event import AgentEvent
+from App.agents.timeout.timeout_manager import TimeoutManager
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +43,19 @@ class ToolExecutor(ReActAgent):
             messages = self.context_manager.get_messages(self.context_state)
             print(f"当前AI：{self.name}")
             print(f"准备调用 LLM，messages={len(messages)}")
-            response: LLMResponse = await self.main_llm.chat(
-                messages=messages,
-                tools=tool_definitions,
+            response = await self.timeout_manager.execute(
+                self.main_llm.chat(messages=messages, tools=tool_definitions),
+                phase=TimeoutManager.LLM,
             )
+            self.metrics.record_llm_call(response.usage)
             print(f"LLM content：{response.content}")
             print(f"LLM reasoning："f"{response.reasoning_content}")
             print(f"LLM tool_calls："f"{response.tool_calls}")
+        except asyncio.TimeoutError:
+            self.status = AgentState.ERROR
+            self.final_answer = {"success": False, "error_type": "LLM_TIMEOUT", "message": f"AI 推理超时({self.timeout_manager.llm_timeout}s)，已终止。"}
+            self.msg_sender.agent_report(agent=self, event=AgentEvent.ERROR, output=self.final_answer, runId=self.base_message.run_id)
+            return False
         except Exception as e:
             logger.exception(f"{self.name} LLM 调用失败")
             self.status = AgentState.ERROR
@@ -144,20 +150,25 @@ class ToolExecutor(ReActAgent):
                          },
                          runId=self.base_message.run_id
                     )
-                    tool_res = await self.tools_schemas.execute(tool_name=tool_name, args=validated_args, caller=self)
+                    tool_res = await self.timeout_manager.execute(
+                        self.tools_schemas.execute( tool_name=tool_name, args=validated_args, caller=self),
+                        phase=TimeoutManager.TOOL,
+                    )
                     print(f"工具 {tool_name} 执行结果：{tool_res}")
                     # 5. 看门狗
-                    self.last_time += datetime.timedelta(seconds=self.watch_dog)
                 except json.JSONDecodeError as e:
                     tool_res = {"success": False, "error_type": "JSON_PARSE_ERROR", "tool": tool_name, "message": str(e)}
                 except ValueError as e:
                     tool_res = {"success": False, "error_type": "TOOL_ARGUMENT_ERROR", "tool": tool_name, "message": str(e)}
                 except PermissionError as e:
                     tool_res = {"success": False, "error_type": "TOOL_PERMISSION_ERROR", "tool": tool_name, "message": str(e)}
+                except asyncio.TimeoutError:
+                    tool_res = {"success": False, "error_type": "TOOL_TIMEOUT", "tool": tool_name, "message": (f"Tool 执行超时({self.timeout_manager.tool_timeout}s)")}
+                    self.status = AgentState.ERROR
                 except Exception as e:
-                    print("Tool 执行异常: tool=%s",tool_name)
                     tool_res = {"success": False, "error_type": "TOOL_EXECUTION_ERROR", "tool": tool_name, "message": str(e)}
 
+            self.metrics.record_tool_call(tool_result=tool_res)
             # 6. 标准 Tool Message
             self.add_tool_message(tool_call_id=tool_id, result=tool_res)
             print(f"Tool Message 已加入历史：" f"tool_call_id={tool_id}")
@@ -197,9 +208,9 @@ class ToolExecutor(ReActAgent):
         # 1. 自动允许
         if permission is ToolPermission.AUTO:
             return True, None
-
         # 2. 需要人工确认
         action_id = str(uuid.uuid4())
+        self.metrics.record_permission("ASK")
         self.status = AgentState.BLOCKED
         self.msg_sender.agent_report(
             agent=self,
@@ -217,16 +228,20 @@ class ToolExecutor(ReActAgent):
         logger.info("Agent 等待人工确认: runId=%s, actionId=%s, tool=%s", self.base_message.run_id, action_id, tool_name)
 
         # 3. 真正阻塞当前 Agent 协程
+        self.timeout_manager.enter_waiting("WAITING_APPROVAL")
         decision = await self.run_context.execution_gate.wait_for_decision(action_id)
-
+        # 超时控制
+        self.timeout_manager.leave_waiting()
         # 4. 用户批准
         if decision is ExecutionDecision.ALLOW:
+            self.metrics.record_permission("ALLOW")
             self.status = AgentState.EXECUTING
             logger.info("Agent Action approved: runId=%s, actionId=%s, tool=%s", self.base_message.run_id, action_id, tool_name,)
             return True, action_id
 
         # 5. 用户拒绝
         if decision is ExecutionDecision.DENY:
+            self.metrics.record_permission("DENY")
             logger.info("Agent Action rejected: runId=%s, actionId=%s, tool=%s", self.base_message.run_id, action_id, tool_name,)
             return False, action_id
         # 理论上不应该到这里

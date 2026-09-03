@@ -1,13 +1,10 @@
 import json
-from dataclasses import is_dataclass, asdict
 from App.agents.agent_model.llm_message_serializer import (
     serialize_message,
     deserialize_message,
 )
-from App.agents.agent_model.llm_message import LLMMessage
-from App.agents.agent_model.tool_call import ToolCall
-from App.infrastructure.memory.working_memory import WorkingMemory
-from App.infrastructure.memory.working_memory_store import WorkingMemoryStore
+from App.agents.agent_model.working_memory import WorkingMemory
+from App.agents.memory.working_memory_store import WorkingMemoryStore
 from App.infrastructure.redis.redis_client import RedisService
 
 
@@ -18,7 +15,7 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
         self.redis = redis_service.client
 
     @staticmethod
-    def _key(session_id: str, task_id: str, run_id: str, agent_name: str) -> str:
+    def key(session_id: str, task_id: str, run_id: str, agent_name: str) -> str:
         return f"agent:wm:{session_id}:{task_id}:{run_id}:{agent_name}"
 
     """
@@ -36,7 +33,7 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
     """
 
     async def save(self, memory: WorkingMemory) -> None:
-        key = self._key(memory.session_id, memory.task_id, memory.run_id, memory.agent_name)
+        key = self.key(memory.session_id, memory.task_id, memory.run_id, memory.agent_name)
         recent_messages = [
             # 持久化前把LLMMessage转成可序列话对象
             serialize_message(message)
@@ -74,7 +71,7 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
     """
 
     async def load(self, session_id: str, task_id: str, run_id: str, agent_name: str) -> WorkingMemory | None:
-        key = self._key(session_id, task_id, run_id, agent_name)
+        key = self.key(session_id, task_id, run_id, agent_name)
         data = await self.redis.hgetall(key)
         if not data:
             return None
@@ -96,5 +93,5 @@ class RedisWorkingMemoryStore(WorkingMemoryStore):
         )
 
     async def clear(self, session_id: str, task_id: str, run_id: str, agent_name: str) -> None:
-        key = self._key(session_id, task_id, run_id, agent_name)
+        key = self.key(session_id, task_id, run_id, agent_name)
         await self.redis.delete(key)

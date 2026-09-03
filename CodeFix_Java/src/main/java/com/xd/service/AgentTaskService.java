@@ -1,6 +1,7 @@
 package com.xd.service;
 
 import com.xd.model.context.TaskRunContext;
+import com.xd.model.dto.AgentHeartbeatDTO;
 import com.xd.model.dto.AgentMessageDTO;
 import com.xd.model.dto.ChatMessageCreateDTO;
 import com.xd.model.vo.*;
@@ -15,12 +16,7 @@ public interface AgentTaskService {
      */
     TaskRunContext createTaskWithRun(ChatMessageCreateDTO request);
 
-    /**
-     * 创建 Task 的第一阶段入口
-     *
-     * 新建审计任务时使用
-     */
-//    TaskCreateVO createTask(AuditTaskCreateDTO request);
+   boolean updateHeartbeat(AgentHeartbeatDTO heartbeat);
 
     /**
      * 查询全部 Task
@@ -79,4 +75,6 @@ public interface AgentTaskService {
     AgentStateTransitionResult handleCommand(String taskId, String runId, String actionId, String command);
 
     AgentStateTransitionResult handleUserCommand(String taskId, String runId, String actionId, String command);
+
+    void handleHeartbeatTimeout(String taskId, String runId);
 }

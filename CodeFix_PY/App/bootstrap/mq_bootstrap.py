@@ -3,7 +3,7 @@ from rocketmq import FilterExpression
 from App.infrastructure.message.types import MESSAGE_TYPE_MAP
 from App.infrastructure.mq.consumer import Consumer
 from App.infrastructure.mq.handler import Handler
-from App.services.impl.agent_msg_service import AgentMsgService
+from App.services.agent_msg_service import AgentMsgService
 from App.config import MQConfig
 
 
@@ -13,9 +13,8 @@ class MQBootstrap:
         self.consumers = []
 
     def start(self):
-        topics = MQConfig.ROCKETMQ_TOPIC.split(",")
-        group_name = MQConfig.ROCKETMQ_GROUP_NAME
-
+        topics = MQConfig.CONSUMER_TOPICS
+        group_name = MQConfig.CONSUMER_GROUP
         # 1. 校验配置中的消息类型是否有对应 Message Schema
         configured_types = set(MQConfig.MESSAGE_TYPES)
         supported_types = set(MESSAGE_TYPE_MAP)

@@ -2,10 +2,8 @@
 import logging
 from typing import Dict
 
-from App.config import MQConfig
 from App.infrastructure.message.messagec import MessageCodec
-from App.infrastructure.message.types import MESSAGE_TYPE_MAP
-from App.services.base_handler import BaseMsgHandler
+from App.infrastructure.handler.base_handler import BaseMsgHandler
 
 logger = logging.getLogger(__name__)
 
@@ -39,4 +37,7 @@ class Handler:
             return
 
         # 3. 分发
-        handler.handle(message)
+        try:
+            handler.handle(message)
+        except Exception as e:
+            print("错误：" + str(e))

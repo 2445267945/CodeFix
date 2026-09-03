@@ -12,7 +12,7 @@ import java.util.List;
 
 @Component
 @Slf4j
-public class MQListener implements MessageListenerOrderly {
+public class AgentMQListener implements MessageListenerOrderly {
 
     @Autowired
     private TaskDispatcher taskDispatcher;

@@ -1,19 +1,20 @@
 import json
 from abc import ABC, abstractmethod
 
-from App.tools.tool_registry import registry
 from .agent_model.llm_message import LLMMessage
 from .agent_model.llm_response import LLMResponse
+from .agent_model.working_memory import WorkingMemory
 from .agent_state import AgentState
 import datetime
-from App.infrastructure.memory.message_manager import MessageManager
+from App.agents.memory.message_manager import MessageManager
 from .context.agent_context import AgentContext
 from .context.agent_run_context import AgentRunContext
-from ..infrastructure.memory.context_manager import ContextManager
-from ..infrastructure.memory.context_state import ContextState
-from ..infrastructure.memory.working_memory import WorkingMemory
+from App.agents.memory.context_manager import ContextManager
+from App.agents.agent_model.context_state import ContextState
+from App.agents.metrics.runtime_metrics import RuntimeMetrics
+from App.agents.timeout.timeout_manager import TimeoutManager
+from ..agent_boost.tools.tool_registry import registry
 from ..models.agent_result import AgentResult
-from ..models.enum.agent_event import AgentEvent
 from ..models.session_context import SessionContext
 
 
@@ -38,8 +39,8 @@ class BaseAgent(ABC):
         self.tools_schemas = registry  # 工具入参规则
         self.final_answer = None  # 最终回复
         self.status = AgentState.IDLE  # Agent状态
-        self.last_time = None  # 上一次模型开始执行时间
-        self.watch_dog = 30  # 看门狗存活时长上限
+        self.timeout_manager = TimeoutManager(llm_timeout=60.0, tool_timeout=120.0)
+        self.metrics = RuntimeMetrics()
         self.manager = MessageManager()
         self.context_state = ContextState()
         self.context_manager = ContextManager()
@@ -76,7 +77,7 @@ class BaseAgent(ABC):
         )
 
     async def run(self, question: str, resume: bool = False, session_context: SessionContext | None = None):
-        self.status = AgentState.THINKING
+        self.metrics.start()
         restored = False
         try:
             if resume:
@@ -90,20 +91,19 @@ class BaseAgent(ABC):
             # 进入ReAct循环
             while self.status not in (AgentState.FINISHED, AgentState.ERROR):
                 self.current_step += 1
+                self.metrics.record_step(self.current_step)
                 tool_definitions = self.tools_schemas.get_tool_definitions(self.allowed_tools)
-                await self.context_manager.compress_if_needed(
-                    state=self.context_state,
-                    main_llm=self.main_llm,
-                    compress_llm=self.compress_llm,
-                    tools=tool_definitions,
+                # 压缩
+                compression_result = (
+                    await self.context_manager.compress_if_needed(
+                        state=self.context_state,
+                        main_llm=self.main_llm,
+                        compress_llm=self.compress_llm,
+                        tools=tool_definitions,
+                    )
                 )
-                cur_time = datetime.datetime.now()
-                # 当前时间 - 过去时间 > 30s(watch_dog) ? 超时 : 未超时更新过去时间;
-                if cur_time - self.last_time > datetime.timedelta(seconds=self.watch_dog):
-                    self.status = AgentState.ERROR
-                    self.final_answer = {"error": f"Error: AI 推理超时（{self.watch_dog}），已强制终止。"}
-                    self.msg_sender.agent_report(agent=self, event=AgentEvent.ERROR, output=self.final_answer, runId=self.base_message.run_id)
-                    break
+                if compression_result.compressed:
+                    self.metrics.record_compression(before_tokens=compression_result.before_tokens, after_tokens=compression_result.after_tokens)
                 await self.step()
                 await self.checkpoint_working_memory()
                 if self.current_step >= self.max_iterations:
@@ -111,12 +111,16 @@ class BaseAgent(ABC):
                     self.final_answer = {"error": f"Error: 超过最大推理步数 {self.max_iterations}"}
                     break
                 if self.status is AgentState.FINISHED:
+                    self.metrics.finish()
+                    print("[RUNTIME METRICS]", self.metrics.to_dict())
                     await self.clear_working_memory()
                     self.cleanup()
                     self.status = AgentState.IDLE
                     return AgentResult.ok(agent_name=self.name, result=self.final_answer, iterations=self.current_step)
             return AgentResult.fail(agent_name=self.name, result=self.final_answer, iterations=self.current_step)
         except Exception as e:
+            self.metrics.record_error()
+            self.metrics.finish()
             self.status = AgentState.ERROR
             if self.final_answer is None:
                 self.final_answer = {"error": f"{self.name} 执行失败", "status": self.status.value}

@@ -3,8 +3,8 @@ from typing import Any
 
 from App.agents.agent_model.llm_message import LLMMessage
 from App.agents.prompts import COMPRESS_PROMPT_TEMPLATE
-from .context_state import ContextState
-from ...agents.client.llm_client import LLMClient
+from App.agents.agent_model.context_state import ContextState
+from App.models.compression_result import CompressionResult
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +75,12 @@ class ContextManager:
     # =========================================================
     # Compression
     # =========================================================
-    async def compress_if_needed(self, state: ContextState, main_llm, compress_llm, tools: list[dict] | None = None) -> None:
+    async def compress_if_needed(self, state: ContextState, main_llm, compress_llm, tools: list[dict] | None = None) -> CompressionResult:
         """
         Token-aware Context Compression。
+        返回 CompressionResult，
+        用于 Runtime Metrics 记录本次是否发生压缩
+        以及压缩前后的 Token 数。
 
         流程：
 
@@ -94,34 +97,40 @@ class ContextManager:
             raise ValueError("main_llm 不能为空")
         if compress_llm is None:
             raise ValueError("compress_llm 不能为空")
+
         messages = state.messages
         if not messages:
-            return
+            return CompressionResult()
+
         # =========================================================
-        # 1. 当前 Context Token
+        # 1. 压缩前 Token
         # =========================================================
         estimated_tokens = self.estimate_tokens(state=state, llm=main_llm, tools=tools)
         compress_limit = int(main_llm.context_window * self.COMPRESS_THRESHOLD)
+
         # 尚未达到压缩阈值
         if estimated_tokens < compress_limit:
-            return
+            return CompressionResult(compressed=False, before_tokens=estimated_tokens, after_tokens=estimated_tokens)
+
         # =========================================================
-        # 2. 计算压缩后希望保留的 Token Budget
+        # 2. 压缩后希望保留的 Token Budget
         # =========================================================
         keep_tokens = int(main_llm.context_window * self.KEEP_CONTEXT_RATIO)
-        # 防止极端配置
         keep_tokens = max(1, keep_tokens)
-        # =========================================================
-        # 3. 按完整 Message Group 切分
-        # =========================================================
 
+        # =========================================================
+        # 3. Token-aware Message Group Selection
+        # =========================================================
         head, tail = self.split_message_groups(messages=messages, keep_tokens=keep_tokens, llm=main_llm, tools=tools)
+
         # 没有可以压缩的内容
         if not head:
             state.messages = tail
-            return
+            after_tokens = self.estimate_tokens(state=state, llm=main_llm, tools=tools)
+            return CompressionResult(compressed=False, before_tokens=estimated_tokens, after_tokens=after_tokens)
+
         # =========================================================
-        # 4. 历史消息转成摘要输入
+        # 4. 历史消息转摘要
         # =========================================================
         head_text = "\n".join(
             self.format_message_for_compression(message)
@@ -135,20 +144,31 @@ class ContextManager:
         try:
             summary_response = await compress_llm.chat(messages=[LLMMessage(role="user", content=compress_prompt)], tools=None)
             new_summary = (summary_response.content or state.history_summary)
+
         except Exception as e:
             print(f"摘要生成失败，保留原历史摘要并继续使用裁剪后的 Context: {e}")
             new_summary = state.history_summary
+
         # =========================================================
         # 6. 更新 ContextState
         # =========================================================
         state.history_summary = new_summary
         state.messages = tail
 
+        # =========================================================
+        # 7. 计算压缩后 Token
+        # =========================================================
+        after_tokens = self.estimate_tokens(state=state, llm=main_llm, tools=tools)
+
         print(
             "[COMPRESS RESULT]",
+            f"before={estimated_tokens}",
+            f"after={after_tokens}",
             f"summary_length={len(state.history_summary or '')}",
             f"message_count={len(state.messages)}",
         )
+
+        return CompressionResult(compressed=True, before_tokens=estimated_tokens, after_tokens=after_tokens)
 
 
     # =========================================================

@@ -24,6 +24,7 @@ public class AgentTaskDO {
     private Integer status;
     private String output;
     private Long createdAt;
+    private Long lastHeartbeatAt;
 
     private Long updatedAt;
 }

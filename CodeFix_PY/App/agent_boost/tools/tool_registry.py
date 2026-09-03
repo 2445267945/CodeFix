@@ -1,8 +1,8 @@
 import difflib
 import httpx, os, json
 
-from App.tools.tool_model.file_change_result import FileChangeResult
-from App.models.tool_schemas import TOOL_SCHEMAS
+from App.agent_boost.tool_model.file_change_result import FileChangeResult
+from App.agent_boost.tool_model.tool_schemas import TOOL_SCHEMAS
 from App.services.rag_service import search_manual
 
 

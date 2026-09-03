@@ -1,10 +1,10 @@
 package com.xd.config;
 
-import com.xd.mq.MQListener;
+import com.xd.mq.AgentMQListener;
+import com.xd.mq.HeartbeatMQListener;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.rocketmq.client.consumer.DefaultMQPushConsumer;
 import org.apache.rocketmq.client.exception.MQClientException;
-import org.apache.rocketmq.client.producer.DefaultMQProducer;
 import org.apache.rocketmq.common.consumer.ConsumeFromWhere;
 import org.apache.rocketmq.remoting.protocol.heartbeat.MessageModel;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,29 +23,38 @@ public class RocketMQConsumerConfig {
     private String nameSrvAddr;
 
     @Value("${mq.rocketmq.consumer.groupName}")
-    private String consumerGroup;
+    private String agentConsumerGroup;
 
     @Value("#{'${mq.rocketmq.consumer.topics}'.split(',')}")
-    private List<String> topicList;
+    private List<String> agentTopicList;
 
     @Autowired
-    private MQListener registerMessageListener;
+    private AgentMQListener AgentMessageListener;
+
+    @Value("${mq.rocketmq.heartbeat-consumer.groupName}")
+    private String heartbeatConsumerGroup;
+
+    @Value("#{'${mq.rocketmq.heartbeat-consumer.topics}'.split(',')}")
+    private List<String> heartbeatTopicList;
+
+    @Autowired
+    private HeartbeatMQListener heartbeatMessageListener;
 
     @Bean
-    public DefaultMQPushConsumer getRocketMQConsumer() throws RuntimeException {
+    public DefaultMQPushConsumer getAgentRocketMQConsumer() throws RuntimeException {
 
-        if (StringUtils.isEmpty(consumerGroup)) {
+        if (StringUtils.isEmpty(agentConsumerGroup)) {
             throw new RuntimeException("consumerGroup is null !!!");
         }
         if (StringUtils.isEmpty(nameSrvAddr)) {
             throw new RuntimeException("namesrvAddr is null !!!");
         }
-        if (StringUtils.isEmpty(topicList)) {
+        if (StringUtils.isEmpty(agentTopicList)) {
             throw new RuntimeException("topics is null !!!");
         }
-        DefaultMQPushConsumer consumer = new DefaultMQPushConsumer(consumerGroup);
+        DefaultMQPushConsumer consumer = new DefaultMQPushConsumer(agentConsumerGroup);
         consumer.setNamesrvAddr(nameSrvAddr);
-        consumer.registerMessageListener(registerMessageListener);
+        consumer.registerMessageListener(AgentMessageListener);
         /**
          * 设置Consumer第一次启动是从队列头部开始消费还是队列尾部开始消费
          * 如果非第一次启动，那么按照上次消费的位置继续消费
@@ -61,30 +70,77 @@ public class RocketMQConsumerConfig {
         consumer.setConsumeMessageBatchMaxSize(1);
         log.info(
                 "RocketMQ Consumer started: group={}, instanceName={}, topics={}, nameSrv={}",
-                consumerGroup,
+                agentConsumerGroup,
                 consumer.getInstanceName(),
-                topicList,
+                agentTopicList,
                 nameSrvAddr
         );
         try {
             /**
              * 设置该消费者订阅的主题和tag，如果是订阅该主题下的所有tag，则tag使用*；如果需要指定订阅该主题下的某些tag，则使用||分割，例如tag1||tag2||tag3
              */
-            topicList.forEach(topic -> {
+            agentTopicList.forEach(topic -> {
                 try {
                     consumer.subscribe(topic, "*");
                 } catch (MQClientException e) {
-                    e.printStackTrace();
+                    throw new RuntimeException(e);
                 }
             });
             consumer.start();
-            log.info("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}", consumerGroup, topicList, nameSrvAddr);
+            log.info("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}", agentConsumerGroup, agentTopicList, nameSrvAddr);
         } catch (MQClientException e) {
-            log.error("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}", consumerGroup, topicList, nameSrvAddr, e);
+            log.error("consumer is start !!! groupName:{},topics:{},namesrvAddr:{}", agentConsumerGroup, agentTopicList, nameSrvAddr, e);
             throw new RuntimeException(e);
         }
         return consumer;
     }
 
+
+    @Bean
+    public DefaultMQPushConsumer getHeartbeatRocketMQConsumer() throws RuntimeException {
+        if (StringUtils.isEmpty(heartbeatConsumerGroup)) {
+            throw new RuntimeException("heartbeatConsumerGroup is null !!!");
+        }
+        if (StringUtils.isEmpty(nameSrvAddr)) {
+            throw new RuntimeException("namesrvAddr is null !!!");
+        }
+        if (StringUtils.isEmpty(heartbeatTopicList)) {
+            throw new RuntimeException("heartbeat topics is null !!!");
+        }
+
+        DefaultMQPushConsumer consumer = new DefaultMQPushConsumer(heartbeatConsumerGroup);
+        consumer.setNamesrvAddr(nameSrvAddr);
+        consumer.registerMessageListener(heartbeatMessageListener);
+        consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_LAST_OFFSET);
+        consumer.setMessageModel(MessageModel.CLUSTERING);
+        consumer.setConsumeMessageBatchMaxSize(1);
+        log.info(
+                "RocketMQ Heartbeat Consumer started: group={}, topics={}, nameSrv={}",
+                heartbeatConsumerGroup,
+                heartbeatTopicList,
+                nameSrvAddr
+        );
+        try {
+            heartbeatTopicList.forEach(topic -> {
+                try {
+                    consumer.subscribe(topic, "*");
+                } catch (MQClientException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            consumer.start();
+        } catch (MQClientException e) {
+            log.error(
+                    "RocketMQ Heartbeat Consumer start failed: group={}, topics={}, nameSrv={}",
+                    heartbeatConsumerGroup,
+                    heartbeatTopicList,
+                    nameSrvAddr,
+                    e
+            );
+            throw new RuntimeException(e);
+        }
+
+        return consumer;
+    }
 
 }

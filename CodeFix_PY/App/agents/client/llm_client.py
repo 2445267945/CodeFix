@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 from App.agents.agent_model.llm_message import LLMMessage
 from App.agents.agent_model.llm_response import LLMResponse
-from App.infrastructure.memory.token_estimator import TokenEstimator
+from App.agents.memory.token_estimator import TokenEstimator
 
 
 class LLMClient(TokenEstimator, ABC):

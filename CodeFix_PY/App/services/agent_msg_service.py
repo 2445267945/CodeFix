@@ -9,18 +9,19 @@ from App.agents.context.agent_context import AgentContext
 from App.infrastructure.message.base_message import BaseMessage
 from App.infrastructure.mq.event_bus import event_bus
 from App.models.agent_message import AgentMessage
-from App.services.base_handler import BaseMsgHandler
-from App.services.llm_factory import llm_factory
-from .redis_working_memory_store import RedisWorkingMemoryStore
-from ...agents.control.agent_command_service import AgentCommandService
-from ...agents.manager.agent_run_manager import AgentRunManager
-from ...infrastructure.redis.redis_client import redis_service
+from App.infrastructure.handler.base_handler import BaseMsgHandler
+from App.services.factory.llm_factory import llm_factory
+from App.infrastructure.heartbeat.agent_heartbeat_service import AgentHeartbeatService
+from App.services.redis_working_memory_store import RedisWorkingMemoryStore
+from App.agents.control.agent_command_service import AgentCommandService
+from App.agents.manager.agent_run_manager import AgentRunManager
+from App.infrastructure.redis.redis_client import redis_service
 from App.models.enum.agent_event import AgentEvent
-from ...models.enum.agent_command import AgentRunCommand
+from App.models.enum.agent_command import AgentRunCommand
 
 logger = logging.getLogger(__name__)
-main_llm = llm_factory.get_llm(4096, 0.1, "mid")
-compress_llm = llm_factory.get_llm(4096, 0.1, "low")
+main_llm = llm_factory.get_llm("mid")
+compress_llm = llm_factory.get_llm("low")
 
 
 class AgentMsgService(BaseMsgHandler):
@@ -42,7 +43,8 @@ class AgentMsgService(BaseMsgHandler):
         self.loop = asyncio.new_event_loop()
         self.run_manager = AgentRunManager(
             loop=self.loop,
-            context=self.context
+            context=self.context,
+            heartbeat_service=AgentHeartbeatService()
         )
         self.command_service = AgentCommandService(
             run_manager=self.run_manager
@@ -75,7 +77,7 @@ class AgentMsgService(BaseMsgHandler):
     def agent_report(self, agent: BaseAgent, event: AgentEvent, output: dict, runId: str, actionId: str = None):
         output = output if isinstance(output, dict) else {"output": output}
         msg = self.assemble(event=event, agent=agent, output=output, actionId=actionId)
-        event_bus.publish("agent_status_topic", msg.model_dump_json(by_alias=True), runId)
+        event_bus.publish("agent_status_topic", msg.to_json(), runId)
 
     def assemble(self, event: AgentEvent, agent: BaseAgent, output, actionId) -> AgentMessage:
         """从当前 Agent 状态构造回传 Java 的消息（信封沿用原任务）"""
