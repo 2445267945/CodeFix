@@ -11,14 +11,8 @@ public class AgentCommandRequest {
     private String runId;
 
     /**
-     * 当前需要审批的 Action。
-     * START / RETRY / CANCEL 等 Run Command 可以为空。
-     */
-    private String actionId;
-
-    /**
      * 命令：
-     * APPROVE / REJECT
+     * APPROVE / REJECT / CANCEL / RESUME ...
      */
     private String command;
 }

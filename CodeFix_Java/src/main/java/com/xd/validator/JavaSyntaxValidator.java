@@ -35,9 +35,4 @@ public class JavaSyntaxValidator {
         }
     }
 
-//    public static void main(String[] args) {
-//        JavaSyntaxValidator javaSyntaxValidator = new JavaSyntaxValidator();
-//        javaSyntaxValidator.validate("public class HelloWorld {public static void main(String[] args) {System.out.println(\"Hello, world!\")}}");
-//    }
-
 }

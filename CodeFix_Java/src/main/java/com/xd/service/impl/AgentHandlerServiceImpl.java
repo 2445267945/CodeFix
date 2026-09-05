@@ -17,7 +17,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
 @Service("AGENT_STATUS")
-public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHandler {
+public class AgentHandlerServiceImpl implements MessageHandler {
 
     @Autowired
     private AgentTaskService agentTaskService;
@@ -38,22 +38,6 @@ public class AuditHandlerServiceImpl implements AuditHandlerService, MessageHand
     @Autowired
     private AgentConversationService agentConversationService;
 
-    /**
-     * 兼容旧版接口。
-     * 新前端应该直接调用 /api/audit/tasks。
-     */
-//    @Override
-//    public String analyzeCode(AuditRequestVO request) {
-//        if (request == null || request.getCode() == null || request.getCode().isBlank()) {
-//            throw new IllegalArgumentException("Java代码不能为空");
-//        }
-//        AuditTaskCreateDTO dto = new AuditTaskCreateDTO();
-//        dto.setCode(request.getCode());
-//        dto.setFileName(request.getFileName());
-//        dto.setSmells(request.getSmells());
-//        TaskCreateVO result = agentTaskService.createTask(dto);
-//        return result.getTaskId();
-//    }
 
     /**
      * MQ / Agent状态消息入口

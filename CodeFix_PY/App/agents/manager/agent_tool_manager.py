@@ -1,7 +1,8 @@
 class AgentToolSet:
     SUPERVISOR = (
         "list_files",
-        "search_file",
+        "glob",
+        "grep",
         "read_file",
         "write_file",
         "apply_patch",
@@ -9,15 +10,19 @@ class AgentToolSet:
         "run_explorer",
         "run_fixer",
     )
+
     EXPLORER = (
         "list_files",
-        "search_file",
+        "glob",
+        "grep",
         "read_file",
         "parse_java_code",
     )
+
     FIXER = (
         "list_files",
-        "search_file",
+        "glob",
+        "grep",
         "read_file",
         "write_file",
         "apply_patch",

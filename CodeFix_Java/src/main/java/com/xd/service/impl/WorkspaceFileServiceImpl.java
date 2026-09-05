@@ -1,5 +1,6 @@
 package com.xd.service.impl;
 
+import com.xd.exception.BusinessException;
 import com.xd.mapper.WorkSpaceMapper;
 import com.xd.model.dto.WorkspaceFileUpdateDTO;
 import com.xd.model.entity.WorkspaceDO;
@@ -38,7 +39,7 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
         WorkspaceDO workspace = workSpaceMapper.selectByWorkspaceId(workspaceId);
 
         if (workspace == null) {
-            throw new RuntimeException("Workspace 不存在: " + workspaceId);
+            throw new BusinessException("Workspace 不存在: " + workspaceId);
         }
 
         if (filePath == null || filePath.isBlank()) {
@@ -60,7 +61,7 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
         }
 
         if (!Files.exists(target) || !Files.isRegularFile(target)) {
-            throw new RuntimeException("文件不存在: " + filePath);
+            throw new BusinessException("文件不存在: " + filePath);
         }
 
         try {
@@ -73,7 +74,7 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
                     .build();
 
         } catch (IOException e) {
-            throw new RuntimeException("读取文件失败: " + filePath, e);
+            throw new BusinessException("读取文件失败: " + filePath, e);
         }
     }
 
@@ -81,11 +82,11 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
     public WorkspaceTreeVO getTree(String workspaceId) {
         WorkspaceDO workspace = workspaceService.getWorkspace(workspaceId);
         if (workspace == null) {
-            throw new RuntimeException("Workspace不存在: " + workspaceId);
+            throw new BusinessException("Workspace不存在: " + workspaceId);
         }
         Path rootPath = Paths.get(workspace.getRootPath());
         if (!Files.exists(rootPath)) {
-            throw new RuntimeException("Workspace目录不存在: " + workspace.getRootPath());
+            throw new BusinessException("Workspace目录不存在: " + workspace.getRootPath());
         }
         WorkspaceTreeVO tree = new WorkspaceTreeVO();
         tree.setWorkspaceId(workspace.getWorkspaceId());
@@ -99,28 +100,28 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
     public void updateFile(String workspaceId, WorkspaceFileUpdateDTO request) {
         WorkspaceDO workspace = workspaceService.getWorkspace(workspaceId);
         if (workspace == null) {
-            throw new RuntimeException("Workspace不存在: " + workspaceId);
+            throw new BusinessException("Workspace不存在: " + workspaceId);
         }
         if (request.getPath() == null || request.getPath().isBlank()) {
-            throw new RuntimeException("文件路径不能为空");
+            throw new BusinessException("文件路径不能为空");
         }
         Path rootPath = Paths.get(workspace.getRootPath()).toAbsolutePath().normalize();
 
         Path targetPath = rootPath.resolve(request.getPath()).normalize();
         if (!targetPath.startsWith(rootPath)) {
-            throw new RuntimeException("非法文件路径");
+            throw new BusinessException("非法文件路径");
         }
         if (!Files.exists(targetPath)) {
-            throw new RuntimeException("文件不存在: " + request.getPath());
+            throw new BusinessException("文件不存在: " + request.getPath());
         }
         if (!Files.isRegularFile(targetPath)) {
-            throw new RuntimeException("目标不是文件: " + request.getPath());
+            throw new BusinessException("目标不是文件: " + request.getPath());
         }
         try {
             Files.writeString(targetPath, request.getContent() == null ? "" : request.getContent(), StandardCharsets.UTF_8);
         } catch (IOException e) {
             log.error("Workspace文件写入失败: workspaceId={}, path={}", workspaceId, request.getPath(), e);
-            throw new RuntimeException("文件保存失败", e);
+            throw new BusinessException("文件保存失败", e);
         }
     }
 
@@ -140,7 +141,7 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
                 treeNodes.add(node);
             });
         } catch (IOException e) {
-            throw new RuntimeException("读取 Workspace 文件树失败", e);
+            throw new BusinessException("读取 Workspace 文件树失败", e);
         }
         treeNodes.sort(Comparator.comparing(
                 (WorkspaceTreeNodeVO node) -> !"DIRECTORY".equals(node.getType()))

@@ -100,19 +100,17 @@
 
     <select id="selectByTaskIdAndRunId" resultMap="BaseResultMap">
         SELECT
-            id,
-            run_id,
-            task_id,
-            session_id,
-            attempt,
-            status,
-            started_at,
-            ended_at,
-            error_message,
-            created_at
+        <include refid="Base_Column_List"/>
         FROM agent_run
         WHERE task_id = #{taskId}
           AND run_id = #{runId}
             LIMIT 1
+    </select>
+
+    <select id="selectByRunId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_run
+        WHERE run_id = #{runId}
     </select>
 </mapper>

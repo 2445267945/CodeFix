@@ -1,9 +1,19 @@
 import difflib
+import re
+from pathlib import Path
+
 import httpx, os, json
 
 from App.agent_boost.tool_model.file_change_result import FileChangeResult
 from App.agent_boost.tool_model.tool_schemas import TOOL_SCHEMAS
 from App.services.rag_service import search_manual
+from App.infrastructure.files_search.search_ignore import DEFAULT_SEARCH_IGNORES
+
+
+MAX_READ_LINES = 500
+MAX_GLOB_RESULTS = 100
+MAX_GREP_RESULTS = 100
+MAX_GREP_LINE_LENGTH = 300
 
 
 class ToolRegistry:
@@ -173,14 +183,14 @@ async def run_fixer(code: str, report: dict, caller=None) -> str:
 
 @registry.register(
     name="list_files",
-    description="列出当前 Workspace 中的文件和目录。输入: {'path': '可选的相对目录'}",
+    description=(
+        "列出当前 Workspace 中的文件和目录。"
+        "输入参数: {'path': '可选的相对目录'}"
+    ),
     need_caller=True
 )
 async def list_files(path: str = "", caller=None) -> list:
-    if caller is None:
-        raise RuntimeError("list_files 执行失败：缺少 caller Agent")
-    workspace = caller.run_context.workspace
-    directory = workspace.resolve(path or ".")
+    _, _, directory = resolve_workspace_path(caller, path)
     if not directory.exists():
         raise FileNotFoundError(f"路径不存在: {path}")
     if not directory.is_dir():
@@ -190,25 +200,111 @@ async def list_files(path: str = "", caller=None) -> list:
             "name": p.name,
             "type": "directory" if p.is_dir() else "file"
         }
-        for p in sorted(directory.iterdir())
+        for p in sorted(
+            directory.iterdir(),
+            key=lambda p: (not p.is_dir(), p.name.lower())
+        )
     ]
 
 
 @registry.register(
     name="read_file",
-    description="读取当前 Workspace 中指定文件。输入: {'file_name': '相对文件路径'}",
+    description=(
+        "读取当前 Workspace 中指定文件。"
+        "默认读取整个文件，也可以指定行范围。"
+        "对于较大文件，优先使用 start_line/end_line。"
+        "单次最多读取 500 行。"
+        "输入参数: "
+        "{'file_name': '相对文件路径', "
+        "'start_line': '可选，起始行号，从1开始', "
+        "'end_line': '可选，结束行号，包含该行'}"
+    ),
     need_caller=True
 )
-async def read_file(file_name: str, caller=None) -> str:
-    if caller is None:
-        raise RuntimeError("read_file 执行失败：缺少 caller Agent")
-    workspace = caller.run_context.workspace
-    target = workspace.resolve(file_name)
+async def read_file(file_name: str, start_line: int | None = None, end_line: int | None = None, caller=None) -> str:
+    _, _, target = resolve_workspace_path(caller, file_name)
     if not target.exists():
         raise FileNotFoundError(f"文件不存在: {file_name}")
     if not target.is_file():
         raise ValueError(f"不是文件: {file_name}")
-    return target.read_text(encoding="utf-8")
+    if start_line is not None and start_line < 1:
+        raise ValueError("start_line 必须从 1 开始")
+    if end_line is not None and end_line < 1:
+        raise ValueError("end_line 必须从 1 开始")
+    if (start_line is not None and end_line is not None and start_line > end_line):
+        raise ValueError("start_line 不能大于 end_line")
+    if (start_line is not None and end_line is not None and end_line - start_line + 1 > MAX_READ_LINES):
+        raise ValueError(f"单次最多读取 {MAX_READ_LINES} 行，请缩小 start_line/end_line 范围")
+    content = target.read_text(encoding="utf-8")
+    if start_line is None and end_line is None:
+        lines = content.splitlines()
+        if len(lines) > MAX_READ_LINES:
+            raise ValueError(f"文件共有 {len(lines)} 行，请使用 start_line/end_line 分段读取，单次最多 {MAX_READ_LINES} 行")
+        return content
+    lines = content.splitlines()
+    start = (start_line or 1) - 1
+    end = end_line or len(lines)
+    if start >= len(lines):
+        return ""
+    end = min(end, len(lines))
+    return "\n".join(
+        f"{index + 1}: {line}"
+        for index, line in enumerate(lines[start:end], start=start)
+    )
+
+
+@registry.register(
+    name="glob",
+    description=(
+        "在 Workspace 中按文件匹配模式查找文件。"
+        "例如 **/*.java、**/*Controller.java。"
+    ),
+    need_caller=True,
+)
+async def glob(pattern: str, path: str = "", caller=None,):
+    try:
+        _, workspace_root, search_root = resolve_workspace_path(caller, path)
+        rg_manager = caller.run_context.rg_manager
+        args = [
+            "--files",
+            "--hidden",
+        ]
+        print(f"[GLOB START] args={args}")
+
+        for ignore in DEFAULT_SEARCH_IGNORES:
+            args.extend(["--glob", f"!{ignore}"])
+
+        args.extend(["--glob",pattern])
+
+        lines = await rg_manager.run(
+            args=args,
+            search_root=search_root,
+            max_results=MAX_GLOB_RESULTS + 1,
+        )
+
+        truncated = len(lines) > MAX_GLOB_RESULTS
+        results = []
+
+        for line in lines[:MAX_GLOB_RESULTS]:
+            absolute_path = (search_root / line).resolve()
+            try:
+                relative_path = absolute_path.relative_to(workspace_root)
+            except ValueError:
+                continue
+            results.append({"path": relative_path.as_posix()})
+
+        return {
+            "success": True,
+            "count": len(results),
+            "results": results,
+            "truncated": truncated,
+        }
+    except PermissionError as e:
+        return {"success": False, "error_type": "TOOL_PERMISSION_ERROR", "message": str(e)}
+    except RuntimeError as e:
+        return {"success": False, "error_type": "TOOL_ENVIRONMENT_ERROR", "message": str(e)}
+    except Exception as e:
+        return {"success": False, "error_type": "TOOL_EXECUTION_ERROR", "message": str(e)}
 
 
 @registry.register(
@@ -269,36 +365,78 @@ def build_diff(old_content: str, new_content: str):
 
 
 @registry.register(
-    name="search_file",
-    description="在当前 Workspace 中搜索文本。输入: {'query': '搜索内容', 'path': '可选目录'}",
-    need_caller=True
+    name="grep",
+    description=(
+        "在 Workspace 中搜索文本、类名、方法名、字段、配置项、错误信息或其他代码内容。"
+        "默认按普通文本搜索，query 会按字面文本匹配，不支持 |、.* 等正则语法。"
+        "需要同时匹配多个模式或使用正则表达式时，设置 regex=true。"
+    ),
+    need_caller=True,
 )
-async def search_file(query: str, path: str = "", caller=None) -> list:
-    if caller is None:
-        raise RuntimeError("search_file 执行失败：缺少 caller Agent")
-    workspace = caller.run_context.workspace
-    base = workspace.resolve(path or ".")
-    results = []
-    for file in base.rglob("*"):
-        if not file.is_file():
-            continue
-        try:
-            content = file.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
-            continue
-        if query in content:
+async def grep(query: str, path: str = "", include: str | None = None, regex: bool = False, caller=None,):
+    try:
+        _, workspace_root, search_root = resolve_workspace_path(caller, path)
+        rg_manager = caller.run_context.rg_manager
+        args = [
+            "--line-number",
+            "--no-heading",
+            "--color",
+            "never",
+            "--hidden",
+        ]
+        for ignore in DEFAULT_SEARCH_IGNORES:
+            args.extend(["--glob", f"!{ignore}"])
+        if not regex:
+            args.append("--fixed-strings")
+        if include:
+            args.extend(["--glob",include])
+
+        args.append(query)
+        lines = await rg_manager.run(args=args, search_root=search_root, max_results=MAX_GREP_RESULTS + 1)
+        truncated = len(lines) > MAX_GREP_RESULTS
+        results = []
+        for line in lines[:MAX_GREP_RESULTS]:
+            match = re.match(r"^(.*):(\d+):(.*)$", line)
+            if not match:
+                continue
+            file_name, line_number, content = match.groups()
+            try:
+                line_number = int(line_number)
+            except ValueError:
+                continue
+            absolute_path = Path(file_name).resolve()
+            try:
+                relative_path = absolute_path.relative_to(workspace_root)
+            except ValueError:
+                continue
+
             results.append({
-                "file": str(file.relative_to(workspace.root_path))
+                "file": relative_path.as_posix(),
+                "line": line_number,
+                "content": content[:MAX_GREP_LINE_LENGTH],
             })
-    return results
+
+        return {
+            "success": True,
+            "count": len(results),
+            "results": results,
+            "truncated": truncated,
+        }
+
+    except PermissionError as e:
+        return {"success": False, "error_type": "TOOL_PERMISSION_ERROR", "message": str(e)}
+    except RuntimeError as e:
+        return {"success": False, "error_type": "TOOL_ENVIRONMENT_ERROR", "message": str(e)}
+    except Exception as e:
+        return {"success": False, "error_type": "TOOL_EXECUTION_ERROR", "message": str(e)}
 
 
 @registry.register(
     name="delete_file",
     description=(
-            "删除当前 Workspace 中指定的文件。"
-            "输入参数: {'file_name': 'Workspace 内的相对文件路径'}"
-            "只能删除 Workspace 内的文件，不能删除 Workspace 外部路径。"
+        "删除当前 Workspace 中指定的文件。"
+        "输入参数: {'file_name': 'Workspace 内的相对文件路径'}"
+        "只能删除 Workspace 内的文件，不能删除 Workspace 外部路径。"
     ),
     need_caller=True
 )
@@ -330,6 +468,7 @@ async def delete_file(file_name: str, caller=None) -> dict:
         diff=diff_text
     ).model_dump(by_alias=True)
 
+
 @registry.register(
     name="apply_patch",
     description=(
@@ -359,10 +498,7 @@ async def apply_patch(file_name: str, old_text: str, new_text: str, caller=None)
             return {
                 "success": False,
                 "error_type": "FILE_NOT_FOUND",
-                "message": (
-                    f"文件不存在：{file_name}。"
-                    f"如果需要创建文件，请使用 write_file。"
-                )
+                "message": f"文件不存在：{file_name}。如果需要创建文件，请使用 write_file。"
             }
         if not target.is_file():
             return {
@@ -378,22 +514,17 @@ async def apply_patch(file_name: str, old_text: str, new_text: str, caller=None)
             return {
                 "success": False,
                 "error_type": "PATCH_TARGET_NOT_FOUND",
-                "message": (
-                    f"未找到需要修改的目标文本：{file_name}。"
-                    f"请先使用 read_file 获取最新内容后再重试。"
-                )
+                "message": f"未找到需要修改的目标文本：{file_name}。请先使用 read_file 获取最新内容后再重试。"
             }
+
         # 多次：无法确定到底要改哪一个。
         if occurrences > 1:
             return {
                 "success": False,
                 "error_type": "PATCH_TARGET_AMBIGUOUS",
-                "message": (
-                    f"目标文本在 {file_name} 中出现 "
-                    f"{occurrences} 次，无法安全修改。"
-                    f"请提供更精确的 old_text。"
-                )
+                "message": f"目标文本在 {file_name} 中出现 {occurrences} 次，无法安全修改。请提供更精确的 old_text。"
             }
+
         new_content = old_content.replace(old_text, new_text, 1)
 
         # 实际没有产生变化。
@@ -401,12 +532,12 @@ async def apply_patch(file_name: str, old_text: str, new_text: str, caller=None)
             return {
                 "success": False,
                 "error_type": "NO_CHANGE",
-                "message": (
-                    f"apply_patch 未产生任何文件变化：{file_name}"
-                )
+                "message": f"apply_patch 未产生任何文件变化：{file_name}"
             }
+
         target.write_text(new_content, encoding="utf-8")
         diff_text, added, removed = build_diff(old_content, new_content)
+
         return FileChangeResult(
             file_path=file_name,
             operation="modified",
@@ -414,5 +545,24 @@ async def apply_patch(file_name: str, old_text: str, new_text: str, caller=None)
             removed_lines=removed,
             diff=diff_text
         ).model_dump(by_alias=True)
+
     except Exception as e:
         raise RuntimeError(f"apply_patch 执行失败: {file_name}") from e
+
+
+def resolve_workspace_path(caller, path: str = ""):
+    if caller is None:
+        raise RuntimeError("Workspace 工具执行失败：缺少 caller Agent")
+
+    workspace = caller.run_context.workspace
+    root = workspace.root_path.resolve()
+    target = workspace.resolve(path or ".").resolve()
+
+    try:
+        target.relative_to(root)
+    except ValueError:
+        raise PermissionError(
+            f"路径超出 Workspace 范围：{path}"
+        )
+
+    return workspace, root, target

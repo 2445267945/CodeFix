@@ -1,5 +1,6 @@
 package com.xd.service.impl;
 
+import com.xd.exception.BusinessException;
 import com.xd.mapper.WorkSpaceMapper;
 import com.xd.model.entity.AgentSessionDO;
 import com.xd.model.entity.WorkspaceDO;
@@ -63,7 +64,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
             workspace.setStatus("ERROR");
             workspace.setUpdatedAt(System.currentTimeMillis());
             workspaceMapper.updateWorkspace(workspace);
-            throw new RuntimeException("Workspace初始化失败", e);
+            throw new BusinessException("Workspace初始化失败", e);
         }
     }
 
@@ -156,7 +157,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
             log.error("初始化Workspace文件失败: workspaceId={}, fileName={}", workspaceId, fileName, e);
 
-            throw new RuntimeException("Workspace文件初始化失败", e);
+            throw new BusinessException("Workspace文件初始化失败", e);
         }
     }
 

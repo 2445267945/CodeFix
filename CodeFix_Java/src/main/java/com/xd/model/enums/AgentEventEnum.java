@@ -12,7 +12,8 @@ public enum AgentEventEnum {
 
     TOOL_RESULT(5, "TOOL_RESULT"),
     ERROR(6, "ERROR"),
-    HEARTBEAT_TIMEOUT(7, "HEARTBEAT_TIMEOUT")
+    HEARTBEAT_TIMEOUT(7, "HEARTBEAT_TIMEOUT"),
+    INTERRUPTED(8, "INTERRUPTED")
     ;
 
     public final Integer eventNum;

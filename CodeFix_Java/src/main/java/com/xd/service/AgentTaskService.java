@@ -16,7 +16,6 @@ public interface AgentTaskService {
      */
     TaskRunContext createTaskWithRun(ChatMessageCreateDTO request);
 
-   boolean updateHeartbeat(AgentHeartbeatDTO heartbeat);
 
     /**
      * 查询全部 Task
@@ -74,7 +73,7 @@ public interface AgentTaskService {
     // Command
     AgentStateTransitionResult handleCommand(String taskId, String runId, String actionId, String command);
 
-    AgentStateTransitionResult handleUserCommand(String taskId, String runId, String actionId, String command);
+    AgentStateTransitionResult handleUserCommand(String runId, String command);
 
     void handleHeartbeatTimeout(String taskId, String runId);
 }

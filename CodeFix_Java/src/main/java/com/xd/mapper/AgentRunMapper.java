@@ -17,4 +17,6 @@ public interface AgentRunMapper {
     void updateRun(AgentRunDO update);
 
     AgentRunDO selectByTaskIdAndRunId(@Param("taskId") String taskId, @Param("runId") String runId);
+
+    AgentRunDO selectByRunId(@Param("runId") String runId);
 }

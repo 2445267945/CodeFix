@@ -59,11 +59,9 @@ public class PermissionRuntimeStoreImpl implements PermissionRuntimeStore {
 
     @Override
     public void saveRule(String runId, PermissionRuleDTO rule) {
-
         if (runId == null || runId.isBlank()) {
             throw new IllegalArgumentException("runId 不能为空");
         }
-
         if (rule == null) {
             throw new IllegalArgumentException("PermissionRule 不能为空");
         }
@@ -126,7 +124,9 @@ public class PermissionRuntimeStoreImpl implements PermissionRuntimeStore {
             return false;
         }
 
-        return equals(a.getToolName(), b.getToolName()) && a.getDecision() == b.getDecision() && a.getScope() == b.getScope() && equals(a.getPattern(), b.getPattern());
+        return equals(a.getToolName(), b.getToolName())
+                && a.getScope() == b.getScope()
+                && equals(a.getPattern(), b.getPattern());
     }
 
     private boolean equals(String a, String b) {

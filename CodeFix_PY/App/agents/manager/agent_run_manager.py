@@ -35,16 +35,17 @@ class AgentRunManager:
 
     async def run(self, msg: AgentMessage, resume: bool = False):
         try:
-            run_context = self.context.create_run_context(msg)
-            agent = SupervisorAgent(context=self.context, run_context=run_context, base_message=msg, parent_agent=None)
             task = asyncio.current_task()
+            cancel_event = asyncio.Event()
+            run_context = self.context.create_run_context(msg, cancel_event)
+            agent = SupervisorAgent(context=self.context, run_context=run_context, base_message=msg, parent_agent=None)
             run = AgentRunning(
                 task_id=msg.task_id,
                 run_id=msg.run_id,
                 session_id=msg.session_id,
                 agent=agent,
                 task=task,
-                cancel_event=asyncio.Event()
+                cancel_event=cancel_event
             )
 
             with self.running_lock:
@@ -79,7 +80,7 @@ class AgentRunManager:
         await agent.checkpoint_working_memory()
         agent.msg_sender.agent_report(
             agent=agent,
-            event=AgentEvent.ERROR,
+            event=AgentEvent.INTERRUPTED,
             output={"reason": "TASK_CANCELLED"},
             runId=run.run_id
         )
@@ -91,7 +92,10 @@ class AgentRunManager:
         if run.task_id != task_id:
             return False
         # 跨线程取消
-        self.loop.call_soon_threadsafe(run.task.cancel)
+        def request_cancel():
+            run.cancel_event.set()
+            run.agent.run_context.execution_gate.deny_all()
+        self.loop.call_soon_threadsafe(request_cancel)
         return True
 
     # 本指重新执行start，用run_id区别同一个任务的两次执行

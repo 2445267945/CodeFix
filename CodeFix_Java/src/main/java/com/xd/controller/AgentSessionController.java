@@ -1,5 +1,6 @@
 package com.xd.controller;
 
+import com.xd.model.Result;
 import com.xd.model.dto.ChatMessageCreateDTO;
 import com.xd.model.entity.AgentSessionDO;
 import com.xd.model.vo.*;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/audit/sessions")
+@RequestMapping("/api/agent/sessions")
 public class AgentSessionController {
 
     @Autowired
@@ -32,32 +33,35 @@ public class AgentSessionController {
      * 查询 Session
      */
     @GetMapping("/{sessionId}")
-    public AgentSessionVO getSession(@PathVariable String sessionId) {
+    public Result<AgentSessionVO> getSession(@PathVariable String sessionId) {
         AgentSessionDO session = agentSessionService.getSessionById(sessionId);
-        return AgentSessionVO.builder()
+        AgentSessionVO sessionVO = AgentSessionVO.builder()
                 .sessionId(session.getSessionId())
                 .workspaceId(session.getWorkspaceId())
                 .createdAt(session.getCreatedAt())
                 .updatedAt(session.getUpdatedAt())
                 .build();
+        return Result.success(sessionVO);
     }
 
     /**
      * 查询 Session 下的所有 Task
      */
     @GetMapping("/{sessionId}/tasks")
-    public List<TaskDetailVO> getSessionTasks(@PathVariable String sessionId) {
+    public Result<List<TaskDetailVO>> getSessionTasks(@PathVariable String sessionId) {
         // 先确认 Session 存在
         agentSessionService.getSessionById(sessionId);
-        return agentTaskService.getTasksBySessionId(sessionId);
+        List<TaskDetailVO> tasksBySessionId = agentTaskService.getTasksBySessionId(sessionId);
+        return Result.success(tasksBySessionId);
     }
 
     /**
      * 查询 Session 聊天记录
      */
     @GetMapping("/{sessionId}/messages")
-    public List<ChatMessageVO> getMessages(@PathVariable String sessionId) {
-        return agentConversationService.getMessages(sessionId);
+    public Result<List<ChatMessageVO>> getMessages(@PathVariable String sessionId) {
+        List<ChatMessageVO> messages = agentConversationService.getMessages(sessionId);
+        return Result.success(messages);
     }
 
     /**
@@ -66,17 +70,20 @@ public class AgentSessionController {
      * 一条消息会创建一个新的 Task + session + Run
      */
     @PostMapping("/messages")
-    public ChatMessageVO sendMessage(@Validated @RequestBody ChatMessageCreateDTO request) {
-        return agentConversationService.sendMessage(request);
+    public Result<ChatMessageVO> sendMessage(@Validated @RequestBody ChatMessageCreateDTO request) {
+        ChatMessageVO chatMessageVO = agentConversationService.sendMessage(request);
+        return Result.success(chatMessageVO);
     }
 
     @GetMapping
-    public List<SessionVO> getMessages() {
-        return agentConversationService.getMessages();
+    public Result<List<SessionVO>> getMessages() {
+        List<SessionVO> messages = agentConversationService.getMessages();
+        return Result.success(messages);
     }
 
     @GetMapping("/{sessionId}/chat")
-    public AgentChatViewVO getChat(@PathVariable String sessionId) {
-        return agentChatAssemblerService.assemble(sessionId);
+    public Result<AgentChatViewVO> getChat(@PathVariable String sessionId) {
+        AgentChatViewVO assemble = agentChatAssemblerService.assemble(sessionId);
+        return Result.success(assemble);
     }
 }

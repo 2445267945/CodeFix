@@ -65,6 +65,9 @@ class DeepSeekLLM(LLMClient):
             },
         }
 
+        for i, message in enumerate(messages):
+            print(f"[RESUME MESSAGE {i}] {message}")
+
         if tools:
             payload["tools"] = self.format_tools(tools=tools)
 
@@ -243,7 +246,7 @@ class DeepSeekLLM(LLMClient):
 
     @property
     def context_window(self) -> int:
-        return 6000
+        return 1_000_000
 
 
     def get_tokenizer_model(self) -> str:

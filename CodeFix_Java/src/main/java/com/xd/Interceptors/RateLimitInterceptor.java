@@ -1,5 +1,6 @@
 package com.xd.Interceptors;
 
+import com.xd.exception.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -47,7 +48,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         System.out.println(result);
         if (result.get(0) == 0L) {
             response.setStatus(429);
-            throw new RuntimeException("请求过于频繁，请稍后重试");
+            throw new BusinessException("请求过于频繁，请稍后重试");
         }
         System.out.println("放行");
         return true;

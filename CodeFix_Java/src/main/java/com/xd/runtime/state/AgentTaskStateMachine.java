@@ -9,6 +9,8 @@ import org.springframework.stereotype.Component;
 import java.util.EnumMap;
 import java.util.Map;
 
+import static com.xd.model.enums.AgentActionCommandEnum.APPROVE;
+import static com.xd.model.enums.AgentActionCommandEnum.REJECT;
 import static com.xd.model.enums.AgentRunCommandEnum.*;
 import static com.xd.model.enums.AgentEventEnum.*;
 import static com.xd.model.enums.AgentTaskStatusEnum.*;
@@ -53,13 +55,17 @@ public class AgentTaskStateMachine {
         /**
          * 没有排队机制前先加入这个
          */
-        registerEvent(AgentTaskStatusEnum.CREATED, AgentEventEnum.THINK, AgentTaskStatusEnum.AGENT_THINKING);
+        registerEvent(CREATED, THINK, AGENT_THINKING);
 
         registerEvent(AGENT_THINKING, TOOL_WAITING, WAITING_HUMAN);
         registerEvent(TOOL_CALLING, TOOL_CALL, TOOL_CALLING);
         registerEvent(AGENT_THINKING, TOOL_RESULT, AGENT_THINKING);
         registerEvent(AGENT_THINKING, HEARTBEAT_TIMEOUT, NEED_RETRY);
         registerEvent(TOOL_CALLING, HEARTBEAT_TIMEOUT, NEED_RETRY);
+
+        registerEvent(TOOL_CALLING, INTERRUPTED, CANCELLED);
+        registerEvent(AGENT_THINKING, INTERRUPTED, CANCELLED);
+        registerEvent(WAITING_HUMAN, INTERRUPTED, CANCELLED);
         /*
          * THINKING
          *
@@ -161,23 +167,6 @@ public class AgentTaskStateMachine {
          */
         registerCommand(WAITING_HUMAN, CANCEL, CANCELLED);
 
-        /*
-         * 注意：
-         *
-         * RETRY 不注册。
-         *
-         * ERROR -> RETRY 并不是简单的状态迁移，
-         * 而是：
-         *
-         *   Task
-         *     ↓
-         *   创建新的 Run
-         *     ↓
-         *   New Run = QUEUED
-         *
-         * 所以它应该由 AgentTaskService / RunService
-         * 负责，而不是 StateMachine。
-         */
     }
 
     /**
@@ -195,7 +184,7 @@ public class AgentTaskStateMachine {
          * Java 告诉 Python：
          * 可以继续执行当前 Tool。
          */
-        registerActionCommand(WAITING_HUMAN, AgentActionCommandEnum.APPROVE, TOOL_CALLING);
+        registerActionCommand(WAITING_HUMAN, APPROVE, TOOL_CALLING);
 
         /*
          * 用户拒绝：
@@ -206,7 +195,7 @@ public class AgentTaskStateMachine {
          * 将 USER_REJECTED 作为 Tool Result，
          * 下一轮重新 THINK。
          */
-        registerActionCommand(WAITING_HUMAN, AgentActionCommandEnum.REJECT, AGENT_THINKING);
+        registerActionCommand(WAITING_HUMAN, REJECT, AGENT_THINKING);
     }
 
     /**
@@ -279,8 +268,7 @@ public class AgentTaskStateMachine {
             throw new IllegalArgumentException("Agent Action Command 不能为空");
         }
 
-        Map<AgentActionCommandEnum, AgentStateTransition> transitions =
-                actionCommandTransitions.get(currentState);
+        Map<AgentActionCommandEnum, AgentStateTransition> transitions = actionCommandTransitions.get(currentState);
 
         if (transitions == null) {
             throw illegalTransition(currentState, command);

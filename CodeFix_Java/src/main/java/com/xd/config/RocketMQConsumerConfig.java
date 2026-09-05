@@ -1,5 +1,6 @@
 package com.xd.config;
 
+import com.xd.exception.BusinessException;
 import com.xd.mq.AgentMQListener;
 import com.xd.mq.HeartbeatMQListener;
 import lombok.extern.slf4j.Slf4j;
@@ -41,7 +42,7 @@ public class RocketMQConsumerConfig {
     private HeartbeatMQListener heartbeatMessageListener;
 
     @Bean
-    public DefaultMQPushConsumer getAgentRocketMQConsumer() throws RuntimeException {
+    public DefaultMQPushConsumer getAgentRocketMQConsumer() throws BusinessException {
 
         if (StringUtils.isEmpty(agentConsumerGroup)) {
             throw new RuntimeException("consumerGroup is null !!!");

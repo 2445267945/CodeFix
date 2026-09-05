@@ -3,6 +3,8 @@ package com.xd.model.vo;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @Builder
 public class AgentChatStreamVO {
@@ -27,7 +29,7 @@ public class AgentChatStreamVO {
      * Block 数据
      */
     private AgentChatBlockVO block;
-
+    private List<AgentChatPhaseVO> phases;
     /**
      * 是否要求前端重新拉取完整 Result
      */

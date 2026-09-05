@@ -10,7 +10,6 @@ import java.util.List;
 public interface AgentEventService {
     AgentEventDO insertAgentEvent(AgentMessageDTO agentMessageDTO);
 
-
     /**
      * 查询某个 Task / Run 的 Agent Event
      */

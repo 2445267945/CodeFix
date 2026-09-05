@@ -41,7 +41,7 @@ public class TaskWatchdog {
             if (now - lastHeartbeatAt <= HEARTBEAT_TIMEOUT_MS) {
                 continue;
             }
-            agentTaskService.handleHeartbeatTimeout(task.getTaskId(), task.getRunId());
+//            agentTaskService.handleHeartbeatTimeout(task.getTaskId(), task.getRunId());
         }
     }
 }

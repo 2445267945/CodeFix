@@ -29,16 +29,6 @@ public class CacheService {
         return String.format("agent:permission:%s:%s:%s", sessionId, workspaceId, toolName);
     }
 
-    public boolean hasPermission(String sessionId, String workspaceId, String toolName) {
-        String key = permissionKey(sessionId, workspaceId, toolName);
-        return PermissionDecisionEnum.ALLOW.desc.equals(get(key));
-    }
-
-    public void grantPermission(String sessionId, String workspaceId, String toolName, long timeout, TimeUnit unit) {
-        String key = permissionKey(sessionId, workspaceId, toolName);
-        put(key, PermissionDecisionEnum.ALLOW.desc, timeout, unit);
-    }
-
     public Boolean delete(String key) {
         return redisTemplate.delete(key);
     }

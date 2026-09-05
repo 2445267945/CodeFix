@@ -1,12 +1,6 @@
+import json
+
 from pydantic import ValidationError
-
-
-TOOL_LIMITS = {
-    "search_manual": 3,
-    "verify_java_syntax": 5,
-    "run_explorer": 2,
-    "run_fixer": 3,
-}
 
 
 class MessageManager:
@@ -28,27 +22,29 @@ class MessageManager:
 
     def checkLoop(self, tool_name, tool_args, action_history) -> bool:
         """
-        检测 Agent 是否陷入重复工具调用或工具调用次数过多。
+        检测 Agent 是否陷入重复工具调用。
 
         规则：
-        1. 最近 3 次完全相同的工具 + 参数 -> 死循环
-        2. 同一个工具调用次数超过该工具限制 -> 死循环
+        最近 3 次完全相同的工具 + 参数 -> 判定为死循环。
         """
-        action_signature = f"{tool_name}:{tool_args}"
-        # 先加入当前动作
+        action_signature = self.build_action_signature(
+            tool_name,
+            tool_args
+        )
         action_history.append(action_signature)
-        # 只保留最近 5 次
+
         if len(action_history) > 5:
             action_history.pop(0)
-        # 规则1：最近3次完全相同
+
         if len(action_history) >= 3:
-            if len(set(action_history[-3:])) == 1:
-                return True
-        # 规则2：同一个工具调用次数达到上限
-        tool_count = sum(
-            1 for action in action_history
-            if action.startswith(f"{tool_name}:")
-        )
-        if tool_count >= TOOL_LIMITS.get(tool_name, 5):
-            return True
+            return len(set(action_history[-3:])) == 1
+
         return False
+    def build_action_signature(self, tool_name, tool_args):
+        normalized_args = json.dumps(
+            tool_args,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":")
+        )
+        return f"{tool_name}:{normalized_args}"

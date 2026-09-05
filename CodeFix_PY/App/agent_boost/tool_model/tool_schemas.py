@@ -27,18 +27,24 @@ class RunFixerInput(BaseModel):
 class ListFilesInput(BaseModel):
     path: str = Field(default="", description="Workspace 中的相对目录")
 
+class GlobInput(BaseModel):
+    pattern: str = Field(..., description="文件匹配模式，例如 **/*.java、**/*Controller.java", min_length=1, max_length=500)
+    path: str = Field(default="", description="Workspace 中的搜索范围")
 
 class ReadFileInput(BaseModel):
-    file_name: str = Field(..., description="Workspace 中的相对文件路径", min_length=1)
-
+    file_name: str = Field(..., description="Workspace 中的相对文件路径", min_length=1, max_length=1000)
+    start_line: Optional[int] = Field(default=None, ge=1, description="起始行号，从1开始")
+    end_line: Optional[int] = Field(default=None, ge=1, description="结束行号，从1开始")
 
 class WriteFileInput(BaseModel):
-    file_name: str = Field(..., description="Workspace 中的相对文件路径", min_length=1)
+    file_name: str = Field(..., description="Workspace 中的相对文件路径", min_length=1, max_length=1000)
     content: str = Field(..., description="要写入的文件内容")
 
-class SearchFileInput(BaseModel):
-    query: str = Field(..., description="搜索关键词", min_length=1, max_length=500)
+class GrepInput(BaseModel):
+    query: str = Field(..., description="搜索文本或正则表达式", min_length=1, max_length=500)
     path: str = Field(default="", description="Workspace 中的搜索范围")
+    include: str | None = Field(default=None, description="可选的文件匹配模式，例如 **/*.java")
+    regex: bool = Field(default=False, description="是否使用正则表达式。false=普通文本搜索，true=正则搜索。")
 
 class DeleteFileInput(BaseModel):
     file_name: str = Field(..., description="Workspace 中要删除的相对文件路径", min_length=1, max_length=1000)
@@ -57,9 +63,10 @@ TOOL_SCHEMAS = {
     "run_fixer": RunFixerInput,
 
     "list_files": ListFilesInput,
+    "glob": GlobInput,
     "read_file": ReadFileInput,
     "write_file": WriteFileInput,
     "apply_patch": ApplyPatchInput,
-    "search_file": SearchFileInput,
+    "grep": GrepInput,
     "delete_file": DeleteFileInput,
 }

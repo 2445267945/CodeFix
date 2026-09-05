@@ -41,16 +41,52 @@ class ToolExecutor(ReActAgent):
             tool_definitions = self.tools_schemas.get_tool_definitions(self.allowed_tools)
             # 2. 调用 LLM
             messages = self.context_manager.get_messages(self.context_state)
-            print(f"当前AI：{self.name}")
-            print(f"准备调用 LLM，messages={len(messages)}")
+            print(
+                f"\n[SUPERVISOR THINK] "
+                f"step={self.step} "
+                f"agent={self.name} "
+                f"messages={len(messages)}"
+            )
+
             response = await self.timeout_manager.execute(
                 self.main_llm.chat(messages=messages, tools=tool_definitions),
                 phase=TimeoutManager.LLM,
             )
             self.metrics.record_llm_call(response.usage)
-            print(f"LLM content：{response.content}")
-            print(f"LLM reasoning："f"{response.reasoning_content}")
-            print(f"LLM tool_calls："f"{response.tool_calls}")
+            prompt_tokens = getattr(response.usage, "prompt_tokens", 0)
+            completion_tokens = getattr(response.usage, "completion_tokens", 0)
+            total_tokens = getattr(response.usage, "total_tokens", 0)
+
+            print(
+                f"[LLM USAGE] prompt={prompt_tokens} completion={completion_tokens} total={total_tokens} messages={len(messages)}"
+            )
+            estimated_tokens = self.context_manager.estimate_tokens(
+                state=self.context_state,
+                llm=self.main_llm,
+                tools=tool_definitions,
+            )
+            decision = "TOOL_CALL" if response.tool_calls else "FINISH"
+
+            print(
+                f"[SUPERVISOR DECISION] "
+                f"step={self.step} "
+                f"decision={decision} "
+                f"tools={[tool.name for tool in response.tool_calls]} "
+                f"context={estimated_tokens} "
+                f"prompt={prompt_tokens} "
+                f"completion={completion_tokens} "
+                f"total={total_tokens}"
+            )
+
+            print(
+                f"[LLM RESPONSE] "
+                f"content={response.content!r}"
+            )
+
+            print(
+                f"[LLM REASONING] "
+                f"{response.reasoning_content}"
+            )
         except asyncio.TimeoutError:
             self.status = AgentState.ERROR
             self.final_answer = {"success": False, "error_type": "LLM_TIMEOUT", "message": f"AI 推理超时({self.timeout_manager.llm_timeout}s)，已终止。"}
@@ -109,7 +145,13 @@ class ToolExecutor(ReActAgent):
             tool_name = tool_call.name
             tool_args = tool_call.arguments
 
-            print(f"使用工具 {tool_name}，" f"toolCallId={tool_id}，" f"传入参数={tool_args}")
+            print(
+                f"[TOOL CALL] "
+                f"step={self.step} "
+                f"tool={tool_name} "
+                f"toolCallId={tool_id} "
+                f"arguments={tool_args}"
+            )
             # 1. 死循环检测
             if self.manager.checkLoop(tool_name, tool_args, self.action_history):
                 tool_res = {"success": False, "error_type": "LOOP_DETECTED", "tool": tool_name, "message": "AI陷入死循环"}
@@ -150,11 +192,19 @@ class ToolExecutor(ReActAgent):
                          },
                          runId=self.base_message.run_id
                     )
+                    print(f"[DEBUG] before timeout execute tool={tool_name}")
                     tool_res = await self.timeout_manager.execute(
                         self.tools_schemas.execute( tool_name=tool_name, args=validated_args, caller=self),
                         phase=TimeoutManager.TOOL,
                     )
-                    print(f"工具 {tool_name} 执行结果：{tool_res}")
+                    print(f"[DEBUG] after timeout execute tool={tool_name}")
+                    print(f"[DEBUG] before timeout_manager.execute tool={tool_name}")
+                    print(
+                        f"[TOOL RESULT] "
+                        f"tool={tool_name} "
+                        f"toolCallId={tool_id} "
+                        f"success={tool_res.get('success') if isinstance(tool_res, dict) else None}"
+                    )
                     # 5. 看门狗
                 except json.JSONDecodeError as e:
                     tool_res = {"success": False, "error_type": "JSON_PARSE_ERROR", "tool": tool_name, "message": str(e)}
@@ -171,7 +221,6 @@ class ToolExecutor(ReActAgent):
             self.metrics.record_tool_call(tool_result=tool_res)
             # 6. 标准 Tool Message
             self.add_tool_message(tool_call_id=tool_id, result=tool_res)
-            print(f"Tool Message 已加入历史：" f"tool_call_id={tool_id}")
             self.msg_sender.agent_report(agent=self,event=AgentEvent.TOOL_RESULT,
                 output={
                     "toolCallId": tool_id,

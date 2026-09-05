@@ -1,6 +1,7 @@
 package com.xd.service.impl;
 
 import com.xd.assembler.AgentFileChangeAssembler;
+import com.xd.exception.BusinessException;
 import com.xd.mapper.AgentFileChangeMapper;
 import com.xd.model.dto.AgentMessageDTO;
 import com.xd.model.entity.AgentEventDO;
@@ -53,7 +54,7 @@ public class AgentFileChangeServiceImpl implements AgentFileChangeService {
     public FileDiffVO getByDiffId(String diffId) {
         AgentFileChangeDO changeDO = agentFileChangeMapper.selectByDiffId(diffId);
         if (changeDO == null) {
-            throw new RuntimeException("文件变更不存在: " + diffId);
+            throw new BusinessException("文件变更不存在: " + diffId);
         }
 
         return FileDiffVO.builder()

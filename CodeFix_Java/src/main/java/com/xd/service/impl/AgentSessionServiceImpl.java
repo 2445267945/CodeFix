@@ -1,5 +1,6 @@
 package com.xd.service.impl;
 
+import com.xd.exception.BusinessException;
 import com.xd.mapper.AgentSessionMapper;
 import com.xd.mapper.AgentTaskMapper;
 import com.xd.model.entity.AgentSessionDO;
@@ -51,7 +52,7 @@ public class AgentSessionServiceImpl implements AgentSessionService {
         AgentSessionDO session = agentSessionMapper.selectBySessionId(sessionId);
 
         if (session == null) {
-            throw new RuntimeException("Session不存在: " + sessionId);
+            throw new BusinessException("Session不存在: " + sessionId);
         }
 
         return session;
@@ -72,7 +73,7 @@ public class AgentSessionServiceImpl implements AgentSessionService {
             return session;
         }
         // 防止调用方传入一个不存在的 sessionId
-        throw new RuntimeException("Session不存在: " + sessionId);
+        throw new BusinessException("Session不存在: " + sessionId);
     }
 
     @Override

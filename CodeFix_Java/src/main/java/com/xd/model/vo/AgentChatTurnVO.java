@@ -2,6 +2,7 @@ package com.xd.model.vo;
 
 import lombok.Data;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -31,4 +32,5 @@ public class AgentChatTurnVO {
      * Agent 内容
      */
     private AgentChatViewVO.AgentMessageVO agent;
+    private List<AgentChatPhaseVO> phases = new ArrayList<>();
 }

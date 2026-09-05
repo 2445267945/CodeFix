@@ -1,5 +1,6 @@
 package com.xd.service.impl;
 
+import com.xd.exception.BusinessException;
 import com.xd.mapper.AgentRunMapper;
 import com.xd.mapper.AgentTaskMapper;
 import com.xd.model.dto.AgentMessageDTO;
@@ -69,7 +70,7 @@ public class AgentRunServiceImpl implements AgentRunService {
         AgentTaskDO task = agentTaskMapper.selectByTaskId(taskId);
 
         if (task == null) {
-            throw new RuntimeException("任务不存在: " + taskId);
+            throw new BusinessException("任务不存在: " + taskId);
         }
 
         List<AgentRunDO> runs = agentRunMapper.selectByTaskId(taskId);
@@ -120,7 +121,7 @@ public class AgentRunServiceImpl implements AgentRunService {
         AgentRunDO run = agentRunMapper.selectByTaskIdAndRunId(taskId, runId);
 
         if (run == null) {
-            throw new RuntimeException("Run不存在: taskId=" + taskId + ", runId=" + runId);
+            throw new BusinessException("Run不存在: taskId=" + taskId + ", runId=" + runId);
         }
 
         return run;

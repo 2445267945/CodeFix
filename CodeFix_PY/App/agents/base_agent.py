@@ -15,6 +15,7 @@ from App.agents.metrics.runtime_metrics import RuntimeMetrics
 from App.agents.timeout.timeout_manager import TimeoutManager
 from ..agent_boost.tools.tool_registry import registry
 from ..models.agent_result import AgentResult
+from ..models.enum.agent_event import AgentEvent
 from ..models.session_context import SessionContext
 
 
@@ -89,7 +90,7 @@ class BaseAgent(ABC):
                 self.build_initial_context(question=question, session_context=session_context)
             self.last_time = datetime.datetime.now()
             # 进入ReAct循环
-            while self.status not in (AgentState.FINISHED, AgentState.ERROR):
+            while self.status not in (AgentState.FINISHED, AgentState.ERROR, AgentState.CANCELLED):
                 self.current_step += 1
                 self.metrics.record_step(self.current_step)
                 tool_definitions = self.tools_schemas.get_tool_definitions(self.allowed_tools)
@@ -106,6 +107,11 @@ class BaseAgent(ABC):
                     self.metrics.record_compression(before_tokens=compression_result.before_tokens, after_tokens=compression_result.after_tokens)
                 await self.step()
                 await self.checkpoint_working_memory()
+                if self.run_context.cancel_event.is_set():
+                    self.status = AgentState.CANCELLED
+                    await self.checkpoint_working_memory()
+                    self.msg_sender.agent_report(agent=self, event=AgentEvent.INTERRUPTED, output={"reason": "TASK_CANCELLED"}, runId=self.base_message.run_id)
+                    return AgentResult.fail(agent_name=self.name, result={"reason": "TASK_CANCELLED"}, iterations=self.current_step)
                 if self.current_step >= self.max_iterations:
                     self.status = AgentState.ERROR
                     self.final_answer = {"error": f"Error: 超过最大推理步数 {self.max_iterations}"}

@@ -117,6 +117,7 @@ class TimeoutManager:
             phase="TOOL"
             -> self.tool_timeout
         """
+        print(f"[TIMEOUT ENTER] phase={phase} timeout={timeout}")
         self.start_phase(phase)
 
         if timeout is None:
@@ -124,14 +125,24 @@ class TimeoutManager:
                 timeout = self.llm_timeout
             elif phase == self.TOOL:
                 timeout = self.tool_timeout
-
+        print(f"[TIMEOUT CONFIG] phase={phase} timeout={timeout}")
         try:
             if timeout is None:
+                print(f"[TIMEOUT AWAIT DIRECT] phase={phase}")
                 result = await awaitable
+                print(f"[TIMEOUT AWAIT DIRECT DONE] phase={phase}")
             else:
+                print(f"[TIMEOUT START] phase={phase}")
                 result = await asyncio.wait_for(awaitable, timeout=timeout)
+                print(f"[TIMEOUT END] phase={phase}")
             self.mark_activity()
             return result
-
+        except asyncio.TimeoutError:
+            print(
+                f"[TIMEOUT EXPIRED] "
+                f"phase={phase} "
+                f"timeout={timeout}"
+            )
+            raise
         finally:
             self.finish_phase()

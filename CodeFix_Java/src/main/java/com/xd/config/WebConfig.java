@@ -14,12 +14,16 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(rateLimitInterceptor).addPathPatterns("/api/audit/analyze"); // 只拦截核心接口
+        registry.addInterceptor(rateLimitInterceptor).addPathPatterns("/api/agent/analyze"); // 只拦截核心接口
     }
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-
-        registry.addMapping("/api/**").allowedOrigins("http://localhost:5173").allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS").allowedHeaders("*").allowCredentials(false).maxAge(3600);
+        registry.addMapping("/api/**")
+                .allowedOrigins("http://localhost:5173")
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(false)
+                .maxAge(3600);
     }
 }
