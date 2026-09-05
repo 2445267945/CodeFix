@@ -46,6 +46,18 @@ class ExecutionGate:
         finally:
             await self.pending.pop(action_id, None)
 
+    def deny_all(self) -> int:
+        """
+        拒绝当前所有 pending action。
+        返回实际唤醒的 action 数量。
+        """
+        action_ids = list(self.pending.keys())
+        count = 0
+        for action_id in action_ids:
+            if self.resolve(action_id, ExecutionDecision.DENY):
+                count += 1
+        return count
+
     def resolve(self, action_id: str, decision: ExecutionDecision) -> bool:
         """
         由 Command Handler 调用。
