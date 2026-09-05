@@ -1,0 +1,27 @@
+:root {
+  color-scheme: dark;
+  --cf-canvas: #090b10; --cf-panel: #0e1118; --cf-panel-raised: #141923;
+  --cf-panel-hover: #1a202c; --cf-border: #262d3a; --cf-border-strong: #394456;
+  --cf-text: #e6eaf2; --cf-text-muted: #98a2b3; --cf-text-subtle: #687386;
+  --cf-accent: #7785ff; --cf-accent-strong: #929dff; --cf-accent-soft: rgb(119 133 255 / 16%);
+  --cf-success: #50c997; --cf-success-soft: rgb(80 201 151 / 13%);
+  --cf-warning: #f2bd6b; --cf-warning-soft: rgb(242 189 107 / 14%);
+  --cf-danger: #fa8181; --cf-danger-soft: rgb(250 129 129 / 14%);
+  --cf-focus: #9da6ff; --cf-shadow: 0 18px 45px rgb(0 0 0 / 32%);
+  --cf-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  /* Compatibility aliases used by existing feature components. */
+  --page: var(--cf-canvas); --surface: var(--cf-panel); --surface-soft: var(--cf-panel-raised);
+  --surface-hover: var(--cf-panel-hover); --border: var(--cf-border); --border-subtle: var(--cf-border);
+  --text: var(--cf-text); --text-soft: #c3cad7; --muted-strong: var(--cf-text-muted);
+  --muted: var(--cf-text-subtle); --accent: var(--cf-accent); --accent-soft: var(--cf-accent-soft);
+  --success: var(--cf-success); --success-soft: var(--cf-success-soft); --warning: var(--cf-warning);
+  --warning-soft: var(--cf-warning-soft); --danger: var(--cf-danger); --danger-soft: var(--cf-danger-soft);
+
+  --el-bg-color: var(--cf-panel); --el-bg-color-page: var(--cf-canvas); --el-bg-color-overlay: var(--cf-panel-raised);
+  --el-fill-color: var(--cf-panel-raised); --el-fill-color-light: var(--cf-panel-hover); --el-fill-color-lighter: #171c26;
+  --el-fill-color-dark: #2b3444; --el-text-color-primary: var(--cf-text); --el-text-color-regular: #c3cad7;
+  --el-text-color-secondary: var(--cf-text-muted); --el-text-color-placeholder: var(--cf-text-subtle);
+  --el-border-color: var(--cf-border-strong); --el-border-color-light: var(--cf-border); --el-border-color-lighter: var(--cf-border);
+  --el-color-primary: var(--cf-accent); --el-color-success: var(--cf-success); --el-color-warning: var(--cf-warning); --el-color-danger: var(--cf-danger);
+}

@@ -1,0 +1,54 @@
+/* Visual layer only: API calls, stores and component events remain unchanged. */
+.workspace { background: radial-gradient(circle at 52% -20%, rgb(96 109 240 / 13%), transparent 32rem), var(--cf-canvas); }
+.workspace .topbar { height: 52px; flex-basis: 52px; padding: 0 16px; border-bottom-color: var(--cf-border); background: rgb(14 17 24 / 88%); backdrop-filter: blur(18px); }
+.workspace .brand-mark { width: 26px; height: 26px; border: 1px solid rgb(151 162 255 / 30%); border-radius: 8px; background: linear-gradient(145deg, #8d99ff, #5967da); color: #fff; box-shadow: 0 5px 16px rgb(89 103 218 / 28%); }
+.workspace .brand-name { color: var(--cf-text); font-size: 13px; letter-spacing: -.01em; }
+.workspace .icon-btn, .workspace .section-icon-btn { color: var(--cf-text-muted); }
+.workspace .icon-btn:hover, .workspace .section-icon-btn:hover { background: var(--cf-panel-hover); color: var(--cf-text); }
+.workspace .workspace-context-name { color: var(--cf-text-muted); font-weight: 550; }
+.workspace .run-state { min-height: 28px; padding: 0 10px; border: 1px solid var(--cf-border); background: var(--cf-panel-raised); color: var(--cf-text-muted); font-size: 11px; }
+.workspace .run-state.working { border-color: rgb(119 133 255 / 35%); background: var(--cf-accent-soft); color: var(--cf-accent-strong); }
+.workspace .main { grid-template-columns: var(--sidebar-width, 264px) 8px minmax(0, 1fr); }
+.workspace .sidebar { padding: 10px 8px; border-right-color: var(--cf-border); background: rgb(14 17 24 / 90%); }
+.workspace .sidebar-section { border-color: var(--cf-border); border-radius: 10px; background: transparent; }
+.workspace .section-header { min-height: 36px; color: var(--cf-text-muted); }
+.workspace .section-header:hover, .workspace .conversation-item:hover, .workspace .new-conversation:hover { background: var(--cf-panel-hover); }
+.workspace .section-title { font-size: 10px; letter-spacing: .1em; }
+.workspace .new-conversation { min-height: 36px; border: 1px dashed var(--cf-border-strong); border-radius: 8px; color: var(--cf-text-muted); }
+.workspace .new-conversation:hover { border-color: rgb(119 133 255 / 55%); color: var(--cf-text); }
+.workspace .new-conversation-icon { border: 0; background: var(--cf-accent-soft); color: var(--cf-accent-strong); }
+.workspace .conversation-item { margin-bottom: 3px; border: 1px solid transparent; border-radius: 8px; }
+.workspace .conversation-item.active { border-color: rgb(119 133 255 / 25%); background: var(--cf-accent-soft); color: var(--cf-text); }
+.workspace .workspace-root, .workspace .selected-path { color: var(--cf-text-muted); }
+.workspace .icon.folder { color: #f1bf72; background: rgb(241 191 114 / 14%); }
+.workspace .icon.java { color: #ff9887; background: rgb(255 152 135 / 14%); }
+.workspace .icon.js { color: #f2cf74; background: rgb(242 207 116 / 14%); }
+.workspace .icon.config { color: #b8a8ff; background: rgb(184 168 255 / 14%); }
+.workspace .icon.md { color: #8bc5ff; background: rgb(139 197 255 / 14%); }
+.workspace .content-pane, .workspace .workspace-tab-view, .workspace .chat-shell { background: transparent; }
+.workspace .tab-bar { min-height: 42px; border-bottom-color: var(--cf-border); background: rgb(14 17 24 / 68%); }
+.workspace .tab { height: 42px; min-width: 124px; border-right-color: var(--cf-border); color: var(--cf-text-muted); }
+.workspace .tab:hover { background: var(--cf-panel-hover); }
+.workspace .tab.active { position: relative; background: var(--cf-panel); color: var(--cf-text); }
+.workspace .tab.active::before { position: absolute; top: 0; right: 10px; left: 10px; height: 2px; border-radius: 2px; background: var(--cf-accent); content: ''; }
+.workspace .chat-content { width: min(840px, calc(100% - 64px)); padding-top: 52px; }
+.workspace .chat-turn { padding-bottom: 48px; }
+.workspace .user-text { border: 1px solid var(--cf-border); border-bottom-right-radius: 5px; background: var(--cf-panel-raised); color: var(--cf-text); box-shadow: 0 4px 14px rgb(0 0 0 / 12%); }
+.workspace .agent-heading { color: var(--cf-text); }
+.workspace .agent-mark { color: var(--cf-accent-strong); }
+.workspace .phase-header { min-height: 38px; border: 1px solid transparent; border-radius: 8px; }
+.workspace .phase-header:hover { border-color: var(--cf-border); background: var(--cf-panel-hover); }
+.workspace .phase-activities { border-left-color: var(--cf-border-strong); }
+.workspace .project-toolbar { min-height: 44px; border-top-color: var(--cf-border); background: rgb(14 17 24 / 88%); }
+.workspace .composer-wrap { padding: 14px 22px 22px; background: linear-gradient(transparent, rgb(9 11 16 / 72%) 30%); }
+.workspace .composer { width: min(840px, calc(100% - 64px)); overflow: hidden; border-color: var(--cf-border-strong); border-radius: 13px; background: #111620; box-shadow: var(--cf-shadow); }
+.workspace .composer:focus-within { border-color: rgb(119 133 255 / 75%); box-shadow: 0 0 0 3px rgb(119 133 255 / 12%), var(--cf-shadow); }
+.workspace .composer textarea, .workspace .permission-select { color: var(--cf-text); }
+.workspace .permission-select { border-color: var(--cf-border); background: var(--cf-panel-raised); }
+.workspace .composer-footer button { background: var(--cf-accent); }
+.workspace .chat-empty .empty-mark { display: grid; width: 50px; height: 50px; place-items: center; border: 1px solid rgb(119 133 255 / 30%); border-radius: 15px; background: var(--cf-accent-soft); color: var(--cf-accent-strong); }
+.workspace .empty-title { color: var(--cf-text); letter-spacing: -.02em; }
+.workspace .empty-subtitle { color: var(--cf-text-muted); }
+.workspace .project-menu, .workspace .project-dialog, .el-message-box { border-color: var(--cf-border-strong) !important; background: var(--cf-panel-raised) !important; box-shadow: var(--cf-shadow) !important; }
+.workspace .project-menu-overlay, .workspace .project-dialog-overlay { background: rgb(0 0 0 / 56%); backdrop-filter: blur(3px); }
+@media (max-width: 760px) { .workspace .topbar { padding: 0 10px; } .workspace .main { grid-template-columns: 0 0 minmax(0, 1fr); } .workspace .chat-content, .workspace .composer { width: calc(100% - 28px); } .workspace .chat-content { padding-top: 28px; } }
