@@ -12,6 +12,7 @@ from App.agents.agent_model.llm_message import LLMMessage
 from App.agents.agent_model.llm_response import LLMResponse
 from App.agents.agent_model.tool_call import ToolCall
 from App.config import config
+from App.utils.hf_utils import load_tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,11 @@ class OllamaLLM(LLMClient):
         }
         self.client = httpx.AsyncClient(timeout=self.timeout)
         # Tokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(self.get_tokenizer_model(), trust_remote_code=True)
+        self.tokenizer = None
+        try:
+            self.tokenizer = load_tokenizer(self.get_tokenizer_model())
+        except Exception:
+            logger.warning("Tokenizer 加载失败，Token 统计功能暂时不可用")
 
     async def chat(self, messages: list[LLMMessage], tools: list[dict] | None = None) -> LLMResponse:
         payload_messages = [
@@ -141,7 +146,7 @@ class OllamaLLM(LLMClient):
         这是本地 tokenizer 估算值，
         最终真实消耗应以 Ollama 返回的 usage 为准。
         """
-        if not text:
+        if not text or self.tokenizer is None:
             return 0
         return len(self.tokenizer.encode(text,add_special_tokens=False))
 
@@ -157,6 +162,8 @@ class OllamaLLM(LLMClient):
         该值主要用于 Context Budget 判断，
         不是 Provider 最终计费 Token。
         """
+        if self.tokenizer is None:
+            return 0
         if not messages and not tools:
             return 0
         payload_messages = [

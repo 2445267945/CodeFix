@@ -22,8 +22,6 @@ public class AgentChatStreamAssembler {
     /**
      * toolCallId -> 当前实时 Activity Block
      *
-     * 用于：
-     *
      * TOOL_WAITING
      *      ↓
      * TOOL_CALL
@@ -34,7 +32,10 @@ public class AgentChatStreamAssembler {
      */
     private final Map<String, AgentChatBlockVO> pendingToolBlocks = new HashMap<>();
 
-    public AgentChatStreamVO assemble(AgentMessageDTO message, AgentMessageProcessContext messageProcessContext) {
+    public AgentChatStreamVO assemble(
+            AgentMessageDTO message,
+            AgentMessageProcessContext messageProcessContext
+    ) {
         if (message == null) {
             return null;
         }
@@ -42,10 +43,13 @@ public class AgentChatStreamAssembler {
         String event = normalize(message.getEvent());
 
         return switch (event) {
-            case "THINK" -> null;
+            case "THINK" -> assembleNarration(message);
             case "TOOL_WAITING" -> assembleToolWaiting(message);
             case "TOOL_CALL" -> assembleToolCall(message);
-            case "TOOL_RESULT" -> assembleToolResult(message, messageProcessContext);
+            case "TOOL_RESULT" -> assembleToolResult(
+                    message,
+                    messageProcessContext
+            );
             case "ERROR" -> assembleError(message);
             case "FINISH" -> assembleFinish(message);
             case "INTERRUPTED" -> assembleInterrupted(message);
@@ -53,8 +57,31 @@ public class AgentChatStreamAssembler {
         };
     }
 
-    private AgentChatStreamVO assembleToolWaiting(AgentMessageDTO message) {
+    private AgentChatStreamVO assembleNarration(AgentMessageDTO message) {
         Map<String, Object> data = safeOutput(message);
+
+        String content = toStringValue(data.get("content"));
+
+        if (isBlank(content)) {
+            return null;
+        }
+
+        AgentChatBlockVO block = baseBlock(message);
+
+        block.setType("narration");
+        block.setAction("THINK");
+        block.setStatus("completed");
+        block.setSummary(content);
+        block.setContent(content);
+
+        return buildAppend(message, block);
+    }
+
+    private AgentChatStreamVO assembleToolWaiting(
+            AgentMessageDTO message
+    ) {
+        Map<String, Object> data = safeOutput(message);
+
         String toolName = toStringValue(data.get("tool"));
         String toolCallId = toStringValue(data.get("toolCallId"));
         String action = activityMapper.resolveAction(toolName);
@@ -65,18 +92,34 @@ public class AgentChatStreamAssembler {
             block.setId(toolCallId);
         }
 
+        /*
+         * TOOL_WAITING 本身也可能携带 arguments。
+         * 保存下来，后续 TOOL_CALL / TOOL_RESULT 继续复用。
+         */
+        block.setToolName(toolName);
+        block.setArguments(extractArguments(data));
+
         block.setType("action");
         block.setAction(action);
         block.setStatus("waiting");
-        block.setSummary(activityMapper.buildWaitingSummary(action, toolName, data));
+        block.setSummary(
+                activityMapper.buildWaitingSummary(
+                        action,
+                        toolName,
+                        data
+                )
+        );
 
         /*
-         * actionId 来自 AgentMessageDTO 顶层，
-         * 不存在于 output。
+         * actionId 来自 AgentMessageDTO 顶层。
          */
         block.setActionId(message.getActionId());
 
-        block.setRequiresApproval(Boolean.TRUE.equals(data.get("requiresApproval")));
+        block.setRequiresApproval(
+                Boolean.TRUE.equals(
+                        data.get("requiresApproval")
+                )
+        );
 
         if (!isBlank(toolCallId)) {
             pendingToolBlocks.put(toolCallId, block);
@@ -85,13 +128,18 @@ public class AgentChatStreamAssembler {
         return buildAppend(message, block);
     }
 
-    private AgentChatStreamVO assembleToolCall(AgentMessageDTO message) {
+    private AgentChatStreamVO assembleToolCall(
+            AgentMessageDTO message
+    ) {
         Map<String, Object> data = safeOutput(message);
+
         String toolName = toStringValue(data.get("tool"));
         String toolCallId = toStringValue(data.get("toolCallId"));
         String action = activityMapper.resolveAction(toolName);
 
-        AgentChatBlockVO block = isBlank(toolCallId) ? null : pendingToolBlocks.get(toolCallId);
+        AgentChatBlockVO block = isBlank(toolCallId)
+                ? null
+                : pendingToolBlocks.get(toolCallId);
 
         if (block == null) {
             block = baseBlock(message);
@@ -108,78 +156,171 @@ public class AgentChatStreamAssembler {
             }
         }
 
+        /*
+         * TOOL_CALL 是真正拥有 arguments 的事件。
+         *
+         * 注意：
+         * 保存 arguments，而不是把整个 data 塞进去。
+         */
+        block.setToolName(toolName);
+        block.setArguments(extractArguments(data));
+
+        block.setType("action");
+        block.setAction(action);
         block.setStatus("running");
-        block.setSummary(activityMapper.buildRunningSummary(action, toolName, data));
+
+        block.setSummary(
+                activityMapper.buildRunningSummary(
+                        action,
+                        toolName,
+                        data
+                )
+        );
+
         block.setActionId(message.getActionId());
         block.setRequiresApproval(false);
-        appendSourceEvent(block, resolveMessageId(message));
 
-        return buildAppend(message, block);
+        appendSourceEvent(
+                block,
+                resolveMessageId(message)
+        );
+
+        return buildAppendOrUpdate(message, block);
     }
 
-    private AgentChatStreamVO assembleToolResult(AgentMessageDTO message, AgentMessageProcessContext messageProcessContext) {
+    private AgentChatStreamVO assembleToolResult(
+            AgentMessageDTO message,
+            AgentMessageProcessContext messageProcessContext
+    ) {
         Map<String, Object> data = safeOutput(message);
-        String toolCallId = toStringValue(data.get("toolCallId"));
+
+        String toolCallId = toStringValue(
+                data.get("toolCallId")
+        );
+
         if (isBlank(toolCallId)) {
             return null;
         }
 
         String toolName = toStringValue(data.get("tool"));
         String action = activityMapper.resolveAction(toolName);
-        System.out.println("[TOOL_RESULT] tool=" + toolName + ", data=" + data);
+
+        System.out.println(
+                "[TOOL_RESULT] tool="
+                        + toolName
+                        + ", data="
+                        + data
+        );
 
         /*
          * 优先使用 TOOL_WAITING / TOOL_CALL
          * 已经创建的 Block。
-         *
-         * 这样可以保留：
-         *
-         * 正在读取 user.java
-         *
-         * 而不是重新创建一个空 Block。
          */
-        AgentChatBlockVO block = pendingToolBlocks.get(toolCallId);
+        AgentChatBlockVO block =
+                pendingToolBlocks.get(toolCallId);
+
         if (block == null) {
+            /*
+             * 异常兜底：
+             * 如果当前 realtime 生命周期中没有找到
+             * 对应 TOOL_WAITING / TOOL_CALL，
+             * 至少创建一个 Block。
+             */
             block = baseBlock(message);
+
             block.setId(toolCallId);
-            pendingToolBlocks.put(toolCallId, block);
+            block.setType("action");
+            block.setAction(action);
+            block.setToolName(toolName);
+
+            pendingToolBlocks.put(
+                    toolCallId,
+                    block
+            );
         }
+
+        /*
+         * TOOL_RESULT 一般没有 arguments。
+         *
+         * 所以这里必须使用 Block 在 TOOL_CALL
+         * 阶段保存的 arguments。
+         */
+        Map<String, Object> arguments =
+                block.getArguments();
+
+        if (arguments == null) {
+            arguments = Collections.emptyMap();
+        }
+
+        /*
+         * 如果 Block 没有 toolName，
+         * 再使用 TOOL_RESULT 中的 toolName 兜底。
+         */
+        if (isBlank(block.getToolName())) {
+            block.setToolName(toolName);
+        }
+
         block.setType("action");
         block.setAction(action);
-        block.setStatus(activityMapper.resolveResultStatus(message.getStatus(), data));
+
+        block.setStatus(
+                activityMapper.resolveResultStatus(
+                        message.getStatus(),
+                        data
+                )
+        );
 
         /*
-         * actionId 从 AgentMessageDTO 顶层获取。
+         * 使用真实 Tool Call arguments
+         * 生成最终完成文案。
          */
-        block.setActionId(message.getActionId());
+        block.setSummary(
+                activityMapper.buildCompletedSummary(
+                        action,
+                        toolName,
+                        arguments
+                )
+        );
+
+        block.setActionId(
+                message.getActionId()
+        );
+
         block.setRequiresApproval(false);
 
+        appendSourceEvent(
+                block,
+                resolveMessageId(message)
+        );
+
         /*
-         * 使用当前 Block 已经拥有的上下文生成完成摘要。
-         *
-         * 例如：
-         *
-         * 正在读取 user.java
-         *      ↓
-         * 已读取 user.java
+         * 文件变更信息仍然从 TOOL_RESULT 处理。
          */
-        block.setSummary(activityMapper.buildCompletedSummary(action, toolName, data, block));
-        appendSourceEvent(block, resolveMessageId(message));
-        String diffId = messageProcessContext == null ? null : messageProcessContext.getDiffId();
-        activityMapper.applyFileChange(block, data, diffId);
+        String diffId =
+                messageProcessContext == null
+                        ? null
+                        : messageProcessContext.getDiffId();
+
+        activityMapper.applyFileChange(
+                block,
+                data,
+                diffId
+        );
 
         /*
          * 工具已经完成。
-         *
-         * 后续不会再有同一个 toolCallId 的正常事件，
-         * 可以从 Pending Map 中移除，避免长期占用。
+         * 后续正常情况下不会再次使用这个 toolCallId。
          */
         pendingToolBlocks.remove(toolCallId);
+
         return buildUpdate(message, block);
     }
 
-    private AgentChatStreamVO assembleError(AgentMessageDTO message) {
+    private AgentChatStreamVO assembleError(
+            AgentMessageDTO message
+    ) {
         AgentChatBlockVO block = baseBlock(message);
+
         block.setType("review");
         block.setAction("ERROR");
         block.setStatus("failed");
@@ -187,10 +328,13 @@ public class AgentChatStreamAssembler {
         block.setTitle("执行失败");
         block.setContent(buildErrorContent(message));
         block.setSummary("Agent 执行失败");
+
         return buildAppend(message, block);
     }
 
-    private AgentChatStreamVO assembleFinish(AgentMessageDTO message) {
+    private AgentChatStreamVO assembleFinish(
+            AgentMessageDTO message
+    ) {
         return AgentChatStreamVO.builder()
                 .taskId(message.getTaskId())
                 .runId(message.getRunId())
@@ -203,18 +347,28 @@ public class AgentChatStreamAssembler {
                 .build();
     }
 
-    private AgentChatStreamVO assembleInterrupted(AgentMessageDTO message) {
+    private AgentChatStreamVO assembleInterrupted(
+            AgentMessageDTO message
+    ) {
         AgentChatBlockVO block = baseBlock(message);
+
         block.setType("status");
         block.setStatus("cancelled");
         block.setLevel("warning");
         block.setTitle("任务已取消");
         block.setContent("用户取消了任务");
         block.setSummary("用户取消了任务");
-        return buildStatusAppend(message, block);
+
+        return buildStatusAppend(
+                message,
+                block
+        );
     }
 
-    private AgentChatStreamVO buildStatusAppend(AgentMessageDTO message, AgentChatBlockVO block) {
+    private AgentChatStreamVO buildStatusAppend(
+            AgentMessageDTO message,
+            AgentChatBlockVO block
+    ) {
         return AgentChatStreamVO.builder()
                 .taskId(message.getTaskId())
                 .runId(message.getRunId())
@@ -227,35 +381,80 @@ public class AgentChatStreamAssembler {
                 .build();
     }
 
-    private AgentChatStreamVO assembleUnknown(AgentMessageDTO message) {
+    private AgentChatStreamVO assembleUnknown(
+            AgentMessageDTO message
+    ) {
         AgentChatBlockVO block = baseBlock(message);
+
         block.setType("action");
         block.setAction("EXECUTE");
-        block.setStatus(activityMapper.resolveGenericStatus(message.getStatus()));
-        block.setSummary(buildUnknownSummary(message));
+        block.setStatus(
+                activityMapper.resolveGenericStatus(
+                        message.getStatus()
+                )
+        );
+        block.setSummary(
+                buildUnknownSummary(message)
+        );
 
         return buildAppend(message, block);
     }
 
-    private AgentChatBlockVO baseBlock(AgentMessageDTO message) {
-        AgentChatBlockVO block = new AgentChatBlockVO();
-        block.setId(!isBlank(message.getMessageId()) ? message.getMessageId() : UUID.randomUUID().toString());
-        block.setAgent(message.getAgentName());
-        block.setSourceEventIds(new ArrayList<>(Collections.singletonList(resolveMessageId(message))));
-        block.setTimestamp(resolveTimestamp(message));
-        block.setTaskId(message.getTaskId());
-        block.setRunId(message.getRunId());
-        block.setActionId(message.getActionId());
+    private AgentChatBlockVO baseBlock(
+            AgentMessageDTO message
+    ) {
+        AgentChatBlockVO block =
+                new AgentChatBlockVO();
+
+        block.setId(
+                !isBlank(message.getMessageId())
+                        ? message.getMessageId()
+                        : UUID.randomUUID().toString()
+        );
+
+        block.setAgent(
+                message.getAgentName()
+        );
+
+        block.setSourceEventIds(
+                new ArrayList<>(
+                        Collections.singletonList(
+                                resolveMessageId(message)
+                        )
+                )
+        );
+
+        block.setTimestamp(
+                resolveTimestamp(message)
+        );
+
+        block.setTaskId(
+                message.getTaskId()
+        );
+
+        block.setRunId(
+                message.getRunId()
+        );
+
+        block.setActionId(
+                message.getActionId()
+        );
+
         return block;
     }
 
-    private void appendSourceEvent(AgentChatBlockVO block, String eventId) {
+    private void appendSourceEvent(
+            AgentChatBlockVO block,
+            String eventId
+    ) {
         if (isBlank(eventId)) {
             return;
         }
 
         if (block.getSourceEventIds() == null) {
-            block.setSourceEventIds(new ArrayList<>());
+            block.setSourceEventIds(
+                    new ArrayList<>()
+            );
         }
 
         if (!block.getSourceEventIds().contains(eventId)) {
@@ -263,51 +462,95 @@ public class AgentChatStreamAssembler {
         }
     }
 
-    private Map<String, Object> safeOutput(AgentMessageDTO message) {
-        return message.getOutput() == null ? Collections.emptyMap() : message.getOutput();
+    private Map<String, Object> safeOutput(
+            AgentMessageDTO message
+    ) {
+        return message.getOutput() == null
+                ? Collections.emptyMap()
+                : message.getOutput();
     }
 
-    private String buildUnknownSummary(AgentMessageDTO message) {
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractArguments(
+            Map<String, Object> data
+    ) {
+        if (data == null) {
+            return Collections.emptyMap();
+        }
+
+        Object arguments = data.get("arguments");
+
+        if (arguments instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+
+        return Collections.emptyMap();
+    }
+
+    private String buildUnknownSummary(
+            AgentMessageDTO message
+    ) {
         if (!isBlank(message.getThought())) {
             return message.getThought();
         }
 
-        Map<String, Object> output = safeOutput(message);
+        Map<String, Object> output =
+                safeOutput(message);
 
-        return output.isEmpty() ? "Agent 执行中" : output.toString();
+        return output.isEmpty()
+                ? "Agent 执行中"
+                : output.toString();
     }
 
-    private String buildErrorContent(AgentMessageDTO message) {
+    private String buildErrorContent(
+            AgentMessageDTO message
+    ) {
         if (!isBlank(message.getThought())) {
             return message.getThought();
         }
 
-        Map<String, Object> output = safeOutput(message);
+        Map<String, Object> output =
+                safeOutput(message);
 
-        return output.isEmpty() ? "Agent 执行失败" : output.toString();
+        return output.isEmpty()
+                ? "Agent 执行失败"
+                : output.toString();
     }
 
     private String toStringValue(Object value) {
-        return value == null ? null : String.valueOf(value);
+        return value == null
+                ? null
+                : String.valueOf(value);
     }
 
     private String normalize(String value) {
-        return value == null ? "" : value.trim().toUpperCase();
+        return value == null
+                ? ""
+                : value.trim().toUpperCase();
     }
 
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
     }
 
-    private String resolveMessageId(AgentMessageDTO message) {
-        return !isBlank(message.getMessageId()) ? message.getMessageId() : UUID.randomUUID().toString();
+    private String resolveMessageId(
+            AgentMessageDTO message
+    ) {
+        return !isBlank(message.getMessageId())
+                ? message.getMessageId()
+                : UUID.randomUUID().toString();
     }
 
-    private Long resolveTimestamp(AgentMessageDTO message) {
+    private Long resolveTimestamp(
+            AgentMessageDTO message
+    ) {
         return message.getTimestamp();
     }
 
-    private AgentChatStreamVO buildAppend(AgentMessageDTO message, AgentChatBlockVO block) {
+    private AgentChatStreamVO buildAppend(
+            AgentMessageDTO message,
+            AgentChatBlockVO block
+    ) {
         return AgentChatStreamVO.builder()
                 .taskId(message.getTaskId())
                 .runId(message.getRunId())
@@ -320,7 +563,24 @@ public class AgentChatStreamAssembler {
                 .build();
     }
 
-    private AgentChatStreamVO buildUpdate(AgentMessageDTO message, AgentChatBlockVO block) {
+    /**
+     * TOOL_CALL 在正常情况下可能复用
+     * TOOL_WAITING 已创建的 Block。
+     *
+     * 因此这里仍然统一返回 BLOCK_APPEND，
+     * 让前端按照现有逻辑处理。
+     */
+    private AgentChatStreamVO buildAppendOrUpdate(
+            AgentMessageDTO message,
+            AgentChatBlockVO block
+    ) {
+        return buildAppend(message, block);
+    }
+
+    private AgentChatStreamVO buildUpdate(
+            AgentMessageDTO message,
+            AgentChatBlockVO block
+    ) {
         return AgentChatStreamVO.builder()
                 .taskId(message.getTaskId())
                 .runId(message.getRunId())

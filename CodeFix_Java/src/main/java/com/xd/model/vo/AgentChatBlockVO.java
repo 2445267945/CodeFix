@@ -4,6 +4,7 @@ package com.xd.model.vo;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -23,9 +24,11 @@ public class AgentChatBlockVO {
     /**
      * Block 类型
      *
+     * narration
      * action
      * file_change
      * review
+     * status
      */
     private String type;
 
@@ -178,4 +181,7 @@ public class AgentChatBlockVO {
      * 是否需要人工审批
      */
     private Boolean requiresApproval;
+
+    private String toolName;
+    private Map<String, Object> arguments;
 }

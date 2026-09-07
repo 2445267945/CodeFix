@@ -6,7 +6,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Component
 public class AgentPhaseAggregator {
@@ -22,6 +21,27 @@ public class AgentPhaseAggregator {
 
         for (AgentChatBlockVO activity : activities) {
             if (activity == null) {
+                continue;
+            }
+
+            /*
+             * Narration 是 Agent 面向用户的工作说明，
+             * 不负责决定 Phase。
+             *
+             * 它应该归属于当前 Phase。
+             */
+            if ("narration".equals(activity.getType())) {
+                if (currentPhase == null) {
+                    /*
+                     * 如果第一条就是 narration，
+                     * 暂时创建默认 Analysis Phase。
+                     */
+                    currentPhase = createPhase("ANALYSIS", activity);
+                    phases.add(currentPhase);
+                } else {
+                    addActivity(currentPhase, activity);
+                    updatePhaseStatus(currentPhase, activity);
+                }
                 continue;
             }
 
@@ -62,7 +82,11 @@ public class AgentPhaseAggregator {
     private String buildPhaseId(AgentChatBlockVO activity) {
         return "phase:" + activity.getId();
     }
-    private void addActivity(AgentChatPhaseVO phase, AgentChatBlockVO activity) {
+
+    private void addActivity(
+            AgentChatPhaseVO phase,
+            AgentChatBlockVO activity) {
+
         phase.getActivities().add(activity);
 
         if (activity.getTimestamp() != null) {
@@ -155,10 +179,14 @@ public class AgentPhaseAggregator {
         String action = activity.getAction();
 
         String status = activity.getStatus();
+
         if ("cancelled".equals(status)) {
             return "CANCELLED";
         }
-        if ("ERROR".equals(action) || "failed".equals(activity.getStatus()) && "ERROR".equals(activity.getAction())) {
+
+        if ("ERROR".equals(action)
+                || ("failed".equals(activity.getStatus())
+                && "ERROR".equals(activity.getAction()))) {
             return "ERROR";
         }
 
@@ -178,12 +206,6 @@ public class AgentPhaseAggregator {
     private String resolveWaitingPhase(AgentChatBlockVO activity) {
         String action = activity.getAction();
 
-        /*
-         * APPROVAL 不单独形成 Phase。
-         *
-         * waiting 的 WRITE / VERIFY 等操作，
-         * 仍属于当前工作阶段。
-         */
         return switch (action) {
             case "WRITE" -> "IMPLEMENTATION";
             case "VERIFY" -> "VERIFICATION";
@@ -192,7 +214,10 @@ public class AgentPhaseAggregator {
         };
     }
 
-    private void updatePhaseStatus(AgentChatPhaseVO phase, AgentChatBlockVO activity) {
+    private void updatePhaseStatus(
+            AgentChatPhaseVO phase,
+            AgentChatBlockVO activity) {
+
         if ("failed".equals(activity.getStatus())) {
             phase.setStatus("failed");
             return;
@@ -216,7 +241,10 @@ public class AgentPhaseAggregator {
         }
     }
 
-    private void updatePhaseEndTime(AgentChatPhaseVO phase, AgentChatBlockVO activity) {
+    private void updatePhaseEndTime(
+            AgentChatPhaseVO phase,
+            AgentChatBlockVO activity) {
+
         if (activity.getTimestamp() != null) {
             phase.setEndTime(activity.getTimestamp());
         }

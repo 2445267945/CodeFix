@@ -4,14 +4,13 @@ import httpx
 import logging
 from typing import Optional
 
-from transformers import AutoTokenizer
-
 from App.agents.agent_model.llm_message import LLMMessage
 from App.agents.agent_model.llm_response import LLMResponse
 from App.agents.agent_model.tool_call import ToolCall
 from App.agents.client.llm_client import LLMClient
 from App.config import config
 from App.services.llm_service.deepseek_extension.encoding_dsv4 import encode_messages
+from App.utils.hf_utils import load_tokenizer
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ class DeepSeekLLM(LLMClient):
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.thinking = thinking
-        self.tokenizer = AutoTokenizer.from_pretrained(self.get_tokenizer_model(), trust_remote_code=True)
+        self.tokenizer = None
 
         if not self.api_key:
             logger.warning("警告：未设置 LLM_API_KEY，AI 调用会失败")
@@ -45,6 +44,10 @@ class DeepSeekLLM(LLMClient):
             self.headers["Authorization"] = (
                 f"Bearer {self.api_key}"
             )
+        try:
+            self.tokenizer = load_tokenizer(self.get_tokenizer_model())
+        except Exception:
+            logger.warning("Tokenizer 加载失败，Token 统计功能暂时不可用")
 
         self.client = httpx.AsyncClient(timeout=self.timeout)
 
@@ -64,9 +67,6 @@ class DeepSeekLLM(LLMClient):
                 "type": self.thinking
             },
         }
-
-        for i, message in enumerate(messages):
-            print(f"[RESUME MESSAGE {i}] {message}")
 
         if tools:
             payload["tools"] = self.format_tools(tools=tools)
@@ -104,12 +104,13 @@ class DeepSeekLLM(LLMClient):
                         logger.error(
                             "Tool 参数 JSON 解析失败: "
                             "tool=%s, toolCallId=%s, error=%s, "
-                            "argumentsLength=%s, argumentsRaw=%r",
+                            "argumentsLength=%s, argumentsRaw=%r, message=%r",
                             tool_name,
                             tool_call_id,
                             e,
                             len(arguments_raw),
                             arguments_raw,
+                            message,
                         )
 
                         raise RuntimeError(f"Tool 参数 JSON 解析失败: "f"{item['function'].get('name')}") from e
@@ -171,7 +172,8 @@ class DeepSeekLLM(LLMClient):
         - 这是调用前的 Token 估算。
         - 最终真实 Token 以 API 返回的 usage.prompt_tokens 为准。
         """
-
+        if self.tokenizer is None:
+            return 0
         if not messages and not tools:
             return 0
         # =========================================================
@@ -239,7 +241,7 @@ class DeepSeekLLM(LLMClient):
 
 
     def count_text(self, text: str) -> int:
-        if not text:
+        if not text or self.tokenizer is None:
             return 0
         return len(self.tokenizer.encode(text, add_special_tokens=False))
 
