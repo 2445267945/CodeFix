@@ -5,31 +5,27 @@
     type="button"
     @click="$emit('open', block)"
   >
-    <div class="file-main">
-      <div class="file-icon">{}</div>
+    <span class="file-marker">
+      {{ marker }}
+    </span>
 
-      <div class="file-copy">
-        <div class="file-name">
-          {{ block.filePath || "文件变更" }}
-        </div>
+    <span class="file-copy">
+      <span class="file-name">
+        {{ block.summary || "文件变更" }}
+      </span>
 
-        <div class="file-meta">
-          <span>{{ operationLabel }}</span>
+      <span v-if="hasDiff" class="file-diff">
+        <span v-if="block.addedLines != null" class="add">
+          +{{ block.addedLines || 0 }}
+        </span>
 
-          <span v-if="statusLabel"> · {{ statusLabel }} </span>
+        <span v-if="block.removedLines != null" class="remove">
+          -{{ block.removedLines || 0 }}
+        </span>
+      </span>
+    </span>
 
-          <span v-if="block.changeSummary"> · {{ block.changeSummary }} </span>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="hasDiff" class="file-diff">
-      <span class="add"> +{{ block.addedLines || 0 }} </span>
-
-      <span class="remove"> -{{ block.removedLines || 0 }} </span>
-    </div>
-
-    <div class="arrow">›</div>
+    <span class="file-arrow"> › </span>
   </button>
 </template>
 
@@ -49,26 +45,20 @@ const status = computed(() => {
   return props.block?.status || "completed";
 });
 
-const operationLabel = computed(() => {
-  return (
-    {
-      created: "已创建",
-      modified: "已修改",
-      deleted: "已删除",
-      renamed: "已重命名",
-    }[props.block?.operation] || "文件变更"
-  );
-});
+const marker = computed(() => {
+  switch (status.value) {
+    case "waiting":
+      return "Ⅱ";
 
-const statusLabel = computed(() => {
-  return (
-    {
-      waiting: "等待确认",
-      running: "进行中",
-      completed: "",
-      failed: "失败",
-    }[status.value] || ""
-  );
+    case "running":
+      return "●";
+
+    case "failed":
+      return "×";
+
+    default:
+      return "";
+  }
 });
 
 const hasDiff = computed(() => {
@@ -80,137 +70,106 @@ const hasDiff = computed(() => {
 .file-change {
   width: 100%;
 
-  display: grid;
-
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto
-    16px;
-
-  gap: 10px;
-
+  display: flex;
   align-items: center;
 
-  padding: 10px 0;
+  min-width: 0;
+
+  padding: 2px 0;
 
   border: 0;
-
-  border-bottom: 1px solid var(--border-subtle);
-
   background: transparent;
 
-  color: var(--text);
+  color: var(--el-text-color-secondary);
 
   text-align: left;
 
   cursor: pointer;
+
+  font: inherit;
+
+  line-height: 20px;
 }
 
 .file-change:hover {
-  background: var(--surface-hover);
+  color: var(--el-text-color-primary);
 }
 
-/* ============================================================
-   Status
-============================================================ */
-
-.is-failed .file-icon {
-  color: var(--danger);
-
-  background: var(--danger-soft);
+.file-change:focus-visible {
+  outline: none;
 }
 
-.is-running .file-icon {
-  color: var(--accent);
+/* ==================== Marker ==================== */
 
-  background: var(--accent-soft);
-}
-
-.is-waiting .file-icon {
-  color: var(--warning);
-
-  background: var(--warning-soft);
-}
-
-.is-completed .file-icon {
-  color: var(--accent);
-
-  background: var(--surface-soft);
-}
-
-/* ============================================================
-   Main
-============================================================ */
-
-.file-main {
-  min-width: 0;
-
-  display: flex;
-
-  align-items: center;
-
-  gap: 10px;
-}
-
-.file-icon {
-  width: 24px;
-  height: 24px;
-
-  display: grid;
-
-  place-items: center;
-
+.file-marker {
   flex: 0 0 auto;
 
-  border-radius: 6px;
+  width: 16px;
 
-  background: var(--surface-soft);
+  margin-right: 4px;
 
-  color: var(--accent);
+  color: var(--el-text-color-placeholder);
 
-  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 20px;
 
-  font-size: 11px;
+  text-align: center;
 }
+
+.is-running .file-marker {
+  color: var(--el-color-primary);
+}
+
+.is-waiting .file-marker {
+  color: var(--el-color-warning);
+}
+
+.is-failed .file-marker {
+  color: var(--el-color-danger);
+}
+
+.is-completed .file-marker {
+  color: var(--el-text-color-placeholder);
+}
+
+/* ==================== Content ==================== */
 
 .file-copy {
   min-width: 0;
+
+  flex: 1;
+
+  display: flex;
+  align-items: baseline;
+
+  gap: 6px;
+
+  overflow: hidden;
 }
 
 .file-name {
+  min-width: 0;
+
   overflow: hidden;
 
   text-overflow: ellipsis;
 
   white-space: nowrap;
 
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: inherit;
 
   font-size: 12px;
+  line-height: 20px;
 }
 
-.file-meta {
-  margin-top: 3px;
-
-  overflow: hidden;
-
-  text-overflow: ellipsis;
-
-  white-space: nowrap;
-
-  color: var(--muted);
-
-  font-size: 11px;
-}
-
-/* ============================================================
-   Diff
-============================================================ */
+/* ==================== Diff ==================== */
 
 .file-diff {
-  display: flex;
+  display: inline-flex;
 
-  gap: 6px;
+  flex: 0 0 auto;
+
+  gap: 4px;
 
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -218,20 +177,26 @@ const hasDiff = computed(() => {
 }
 
 .add {
-  color: var(--success);
+  color: var(--el-color-success);
 }
 
 .remove {
-  color: var(--danger);
+  color: var(--el-color-danger);
 }
 
-/* ============================================================
-   Arrow
-============================================================ */
+/* ==================== Arrow ==================== */
 
-.arrow {
-  color: var(--muted);
+.file-arrow {
+  flex: 0 0 auto;
 
-  font-size: 18px;
+  margin-left: 6px;
+
+  color: var(--el-text-color-placeholder);
+
+  font-size: 13px;
+}
+
+.file-change:hover .file-arrow {
+  color: var(--el-text-color-secondary);
 }
 </style>

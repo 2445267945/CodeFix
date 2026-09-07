@@ -16,140 +16,146 @@
         >
           <!-- ==================== User ==================== -->
           <section v-if="turn.user?.content" class="user-turn">
-            <div class="user-text">{{ turn.user.content }}</div>
+            <div class="user-text">
+              {{ turn.user.content }}
+            </div>
           </section>
 
           <!-- ==================== Agent ==================== -->
           <section v-if="turn.agent" class="agent-turn">
             <div class="agent-heading">
               <span class="agent-mark">✦</span>
-              <span>{{ turn.agent.agentName || "Agent" }}</span>
+              <span>
+                {{ turn.agent.agentName || "Agent" }}
+              </span>
             </div>
 
             <!-- ==================== Task Activity ==================== -->
             <div v-if="turn.phases?.length" class="task-activity">
-              <section
-                v-for="phase in turn.phases"
-                :key="phase.id"
-                class="phase-item"
-              >
-                <!-- Phase Header -->
-                <button
-                  type="button"
-                  class="phase-header"
-                  @click="togglePhase(phase.id)"
+              <!--
+               * Phase 仅作为后端聚合容器。
+               *
+               * 前端不展示：
+               * - Phase Header
+               * - Phase Title
+               * - Phase Status
+               * - Phase Toggle
+               *
+               * 直接按 activities 原始顺序展示。
+               -->
+              <template v-for="phase in turn.phases" :key="phase.id">
+                <template
+                  v-for="activity in phase.activities || []"
+                  :key="`${phase.id}:${activity.id}`"
                 >
-                  <span
-                    class="phase-status"
-                    :class="phaseStatusClass(phase.status)"
+                  <!-- ==================== Agent Narration ==================== -->
+                  <div
+                    v-if="activity.type === 'narration'"
+                    class="agent-narration"
                   >
-                    <span v-if="phase.status === 'completed'">✓</span>
-                    <span v-else-if="phase.status === 'failed'">×</span>
-                    <span v-else-if="phase.status === 'waiting'">Ⅱ</span>
-                    <span v-else class="running-dot">●</span>
-                  </span>
+                    <VueMarkdown
+                      :source="activity.content || activity.summary || ''"
+                      :options="markdownOptions"
+                    />
+                  </div>
 
-                  <span class="phase-title">
-                    {{ phase.title || "Agent 工作" }}
-                  </span>
+                  <!-- ==================== Activity ==================== -->
+                  <div v-else class="phase-activity">
+                    <span class="activity-marker">↳</span>
 
-                  <span v-if="phase.activities?.length" class="phase-toggle">
-                    {{ isPhaseExpanded(phase.id) ? "⌃" : "⌄" }}
-                  </span>
-                </button>
+                    <div class="activity-content">
+                      <AgentActionBlock
+                        v-if="activity.type === 'action'"
+                        :block="activity"
+                      />
 
-                <!-- Phase Activities -->
-                <div v-if="isPhaseExpanded(phase.id)" class="phase-activities">
-                  <template
-                    v-for="activity in phase.activities || []"
-                    :key="`${phase.id}:${activity.id}`"
-                  >
-                    <div class="phase-activity">
-                      <span class="activity-marker">↳</span>
+                      <FileChangeBlock
+                        v-else-if="activity.type === 'file_change'"
+                        :block="activity"
+                        @open="emit('open-file-change', $event)"
+                      />
 
-                      <div class="activity-content">
-                        <AgentActionBlock
-                          v-if="activity.type === 'action'"
-                          :block="activity"
-                        />
+                      <ReviewBlock
+                        v-else-if="activity.type === 'review'"
+                        :block="activity"
+                      />
 
-                        <FileChangeBlock
-                          v-else-if="activity.type === 'file_change'"
-                          :block="activity"
-                          @open="emit('open-file-change', $event)"
-                        />
+                      <div
+                        v-else-if="activity.type === 'status'"
+                        class="status-activity"
+                      >
+                        <span class="status-marker">■</span>
 
-                        <ReviewBlock
-                          v-else-if="activity.type === 'review'"
-                          :block="activity"
-                        />
-
-                        <div
-                          v-else-if="activity.type === 'status'"
-                          class="status-activity"
-                        >
-                          <span class="status-marker">■</span>
-                          <span class="status-text">
-                            {{
-                              activity.content ||
-                              activity.summary ||
-                              activity.title
-                            }}
-                          </span>
-                        </div>
+                        <span class="status-text">
+                          {{
+                            activity.content ||
+                            activity.summary ||
+                            activity.title
+                          }}
+                        </span>
                       </div>
                     </div>
-                  </template>
-                </div>
-              </section>
+                  </div>
+                </template>
+              </template>
             </div>
 
             <!--
              * 临时兼容 realtime。
              *
-             * 当前 realtime Phase 还没有实现时，
-             * 继续使用原来的 blocks 展示实时 Agent Activity。
+             * 当 realtime Phase 尚未返回时，
+             * 直接使用 turn.agent.blocks。
              *
-             * 等 Java realtime Phase 完成后，
-             * 这一段可以删除。
+             * BLOCK_APPEND / BLOCK_UPDATE
+             * 最终仍会被 Java Phase 快照替代。
              -->
             <div v-else-if="turn.agent.blocks?.length" class="activity-list">
               <template
                 v-for="block in turn.agent.blocks || []"
                 :key="block.id"
               >
-                <AgentActionBlock
-                  v-if="block.type === 'action'"
-                  :block="block"
-                />
+                <!-- Agent Narration -->
+                <div v-if="block.type === 'narration'" class="agent-narration">
+                  <VueMarkdown
+                    :source="block.content || block.summary || ''"
+                    :options="markdownOptions"
+                  />
+                </div>
+                <!-- Action -->
+                <div v-else class="phase-activity">
+                  <span class="activity-marker">↳</span>
 
-                <FileChangeBlock
-                  v-else-if="block.type === 'file_change'"
-                  :block="block"
-                  @open="emit('open-file-change', $event)"
-                />
+                  <div class="activity-content">
+                    <AgentActionBlock
+                      v-if="block.type === 'action'"
+                      :block="block"
+                    />
 
-                <ReviewBlock
-                  v-else-if="block.type === 'review'"
-                  :block="block"
-                />
+                    <FileChangeBlock
+                      v-else-if="block.type === 'file_change'"
+                      :block="block"
+                      @open="emit('open-file-change', $event)"
+                    />
 
-                <div
-                  v-else-if="block.type === 'status'"
-                  class="status-activity"
-                >
-                  <span class="status-marker">■</span>
-                  <span class="status-text">
-                    {{ block.content || block.summary || block.title }}
-                  </span>
+                    <ReviewBlock
+                      v-else-if="block.type === 'review'"
+                      :block="block"
+                    />
+
+                    <div
+                      v-else-if="block.type === 'status'"
+                      class="status-activity"
+                    >
+                      <span class="status-marker">■</span>
+
+                      <span class="status-text">
+                        {{ block.content || block.summary || block.title }}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </template>
             </div>
-            <!-- ==================== Final Answer ==================== -->
-            <FinalAnswerBlock
-              v-if="turn.agent.finalAnswer"
-              :answer="turn.agent.finalAnswer"
-            />
 
             <!-- ==================== Running ==================== -->
             <div v-if="running && turn.runId === activeRunId" class="live-line">
@@ -161,6 +167,7 @@
       </div>
     </div>
 
+    <!-- ==================== Composer ==================== -->
     <div class="composer-wrap">
       <form class="composer" @submit.prevent="emit('send')">
         <textarea
@@ -173,7 +180,7 @@
 
         <div class="composer-footer">
           <div class="composer-options">
-            <span class="composer-hint">Ctrl + Enter 发送</span>
+            <span class="composer-hint"> Ctrl + Enter 发送 </span>
 
             <select
               v-model="permissionProfile"
@@ -216,19 +223,47 @@
 
 <script setup>
 import { computed, nextTick, ref, watch } from "vue";
+
 import AgentActionBlock from "./AgentActionBlock.vue";
 import FileChangeBlock from "./FileChangeBlock.vue";
 import ReviewBlock from "./ReviewBlock.vue";
-import FinalAnswerBlock from "./FinalAnswerBlock.vue";
-
+import VueMarkdown from "vue-markdown-render";
+import hljs from "highlight.js";
 const props = defineProps({
-  chat: { type: Object, default: null },
-  running: { type: Boolean, default: false },
-  activeRunId: { type: String, default: "" },
-  message: { type: String, default: "" },
-  sending: { type: Boolean, default: false },
-  stopping: { type: Boolean, default: false },
-  permissionProfile: { type: String, default: "WORKSPACE" },
+  chat: {
+    type: Object,
+    default: null,
+  },
+
+  running: {
+    type: Boolean,
+    default: false,
+  },
+
+  activeRunId: {
+    type: String,
+    default: "",
+  },
+
+  message: {
+    type: String,
+    default: "",
+  },
+
+  sending: {
+    type: Boolean,
+    default: false,
+  },
+
+  stopping: {
+    type: Boolean,
+    default: false,
+  },
+
+  permissionProfile: {
+    type: String,
+    default: "WORKSPACE",
+  },
 });
 
 const emit = defineEmits([
@@ -241,15 +276,11 @@ const emit = defineEmits([
 
 const scrollEl = ref(null);
 
-/**
- * 当前展开的 Phase。
- */
-const expandedPhases = ref(new Set());
-
 const permissionProfile = computed({
   get() {
     return props.permissionProfile;
   },
+
   set(value) {
     emit("update:permission-profile", value);
   },
@@ -259,97 +290,38 @@ function handleStop() {
   emit("stop");
 }
 
-function isPhaseExpanded(phaseId) {
-  return expandedPhases.value.has(phaseId);
-}
+const markdownOptions = {
+  html: false,
+  breaks: true,
+  linkify: true,
 
-function togglePhase(phaseId) {
-  const next = new Set(expandedPhases.value);
+  highlight(code, lang) {
+    if (lang && hljs.getLanguage(lang)) {
+      try {
+        return hljs.highlight(code, {
+          language: lang,
+        }).value;
+      } catch (e) {
+        console.warn("Markdown code highlight failed:", e);
+      }
+    }
 
-  if (next.has(phaseId)) {
-    next.delete(phaseId);
-  } else {
-    next.add(phaseId);
-  }
-
-  expandedPhases.value = next;
-}
-
-function phaseStatusClass(status) {
-  return {
-    "is-completed": status === "completed",
-    "is-running": status === "running",
-    "is-waiting": status === "waiting",
-    "is-failed": status === "failed",
-  };
-}
+    return hljs.highlightAuto(code).value;
+  },
+};
 
 /**
- * 同步 Phase 展开状态。
+ * AgentChat 内容变化时自动滚动到底部。
  *
- * 默认：
- * - running / waiting 自动展开
- * - 没有运行中 Phase 时，展开最后一个 Phase
+ * 这里保留原来的逻辑：
+ * - 用户发送消息
+ * - SSE 新增 narration
+ * - SSE 新增/更新 action
+ * - Phase 快照更新
+ * - 最终结果刷新
+ *
+ * 都会自动保持在最新位置。
  */
-function syncExpandedPhases(phases) {
-  if (!Array.isArray(phases) || !phases.length) {
-    expandedPhases.value = new Set();
-    return;
-  }
-
-  const validIds = new Set(phases.map((phase) => phase?.id).filter(Boolean));
-
-  const next = new Set(
-    [...expandedPhases.value].filter((id) => validIds.has(id))
-  );
-
-  // waiting Phase 始终自动展开
-  for (const phase of phases) {
-    if (phase?.id && phase.status === "waiting") {
-      next.add(phase.id);
-    }
-  }
-
-  if (next.size === 0) {
-    // 没有 waiting 时，保持原来的默认展开逻辑
-    for (const phase of phases) {
-      if (phase?.id && phase.status === "running") {
-        next.add(phase.id);
-      }
-    }
-
-    if (next.size === 0) {
-      const latestPhase = phases[phases.length - 1];
-
-      if (latestPhase?.id) {
-        next.add(latestPhase.id);
-      }
-    }
-  }
-
-  expandedPhases.value = next;
-}
-
-watch(
-  () => props.chat?.turns,
-  (turns) => {
-    if (!Array.isArray(turns)) {
-      expandedPhases.value = new Set();
-      return;
-    }
-
-    const phases = turns.flatMap((turn) =>
-      Array.isArray(turn?.phases) ? turn.phases : []
-    );
-
-    syncExpandedPhases(phases);
-  },
-  {
-    immediate: true,
-    deep: true,
-  }
-);
-
 watch(
   () => props.chat,
   async () => {
@@ -438,103 +410,191 @@ watch(
   width: 100%;
 }
 
+/*
+ * Phase 现在只是数据容器，
+ * 不再承担 UI 层级。
+ */
 .phase-item {
-  position: relative;
-}
-
-/* ==================== Phase ==================== */
-
-.phase-header {
   width: 100%;
-  min-height: 34px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 4px 5px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
 }
 
-.phase-header:hover {
-  background: var(--el-fill-color-light);
-}
+/* ==================== Narration ==================== */
 
-.phase-status {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
-}
+.agent-narration {
+  margin: 0 0 12px;
+  padding: 0 0 0 0;
 
-.phase-status.is-completed {
-  color: var(--el-color-success);
-}
-
-.phase-status.is-running {
-  color: var(--el-color-primary);
-}
-
-.phase-status.is-waiting {
-  color: var(--el-color-warning);
-}
-
-.phase-status.is-failed {
-  color: var(--el-color-danger);
-}
-
-.running-dot {
-  font-size: 8px;
-}
-
-.phase-title {
-  flex: 1;
-  min-width: 0;
   color: var(--el-text-color-primary);
   font-size: 14px;
-  line-height: 20px;
+  line-height: 1.75;
+
+  word-break: break-word;
+}
+
+/* 普通段落 */
+.agent-narration :deep(p) {
+  margin: 0 0 8px;
+}
+
+.agent-narration :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+/* 标题 */
+.agent-narration :deep(h1),
+.agent-narration :deep(h2),
+.agent-narration :deep(h3),
+.agent-narration :deep(h4) {
+  margin: 12px 0 6px;
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.agent-narration :deep(h1:first-child),
+.agent-narration :deep(h2:first-child),
+.agent-narration :deep(h3:first-child),
+.agent-narration :deep(h4:first-child) {
+  margin-top: 0;
+}
+
+.agent-narration :deep(h1) {
+  font-size: 16px;
+}
+
+.agent-narration :deep(h2) {
+  font-size: 15px;
+}
+
+.agent-narration :deep(h3),
+.agent-narration :deep(h4) {
+  font-size: 14px;
+}
+
+/* 列表 */
+.agent-narration :deep(ul),
+.agent-narration :deep(ol) {
+  margin: 5px 0 8px;
+  padding-left: 21px;
+}
+
+.agent-narration :deep(li) {
+  margin: 2px 0;
+}
+
+/* 行内代码 */
+.agent-narration :deep(code) {
+  padding: 1px 4px;
+  border-radius: 4px;
+
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9em;
+}
+
+/* 代码块 */
+.agent-narration :deep(pre) {
+  margin: 8px 0 10px;
+  padding: 11px 13px;
+
+  overflow-x: auto;
+
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 7px;
+
+  background: var(--el-fill-color-light);
+
+  line-height: 1.55;
+}
+
+.agent-narration :deep(pre code) {
+  padding: 0;
+  background: transparent;
+
+  font-size: 12.5px;
+}
+
+/* 引用 */
+.agent-narration :deep(blockquote) {
+  margin: 7px 0;
+  padding: 2px 12px;
+
+  border-left: 3px solid var(--el-border-color);
+  color: var(--el-text-color-secondary);
+}
+
+/* 分割线 */
+.agent-narration :deep(hr) {
+  margin: 10px 0;
+  border: 0;
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+/* 链接 */
+.agent-narration :deep(a) {
+  color: var(--el-color-primary);
+  text-decoration: none;
+}
+
+.agent-narration :deep(a:hover) {
+  text-decoration: underline;
+}
+
+/* 加粗 */
+.agent-narration :deep(strong) {
+  color: var(--el-text-color-primary);
   font-weight: 600;
 }
 
-.phase-toggle {
-  flex: 0 0 auto;
-  color: var(--el-text-color-placeholder);
-  font-size: 12px;
+/* 表格 */
+.agent-narration :deep(table) {
+  width: 100%;
+  margin: 8px 0 10px;
+
+  border-collapse: collapse;
+
+  font-size: 13px;
+}
+
+.agent-narration :deep(th),
+.agent-narration :deep(td) {
+  padding: 6px 9px;
+  border: 1px solid var(--el-border-color-lighter);
+  text-align: left;
+}
+
+.agent-narration :deep(th) {
+  background: var(--el-fill-color-light);
+  font-weight: 600;
 }
 
 /* ==================== Activity ==================== */
-
-.phase-activities {
-  margin-left: 14px;
-  padding: 3px 0 5px 16px;
-  border-left: 1px solid var(--el-border-color-lighter);
-}
 
 .phase-activity {
   display: flex;
   align-items: flex-start;
   gap: 6px;
   min-width: 0;
-  min-height: 30px;
+  padding: 1px 0 1px 18px;
+  color: var(--el-text-color-secondary);
 }
 
 .activity-marker {
   flex: 0 0 auto;
-  padding-top: 5px;
+  margin-top: 1px;
   color: var(--el-text-color-placeholder);
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 20px;
 }
 
 .activity-content {
   min-width: 0;
   flex: 1;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 20px;
 }
 
 .status-activity {
@@ -557,17 +617,20 @@ watch(
 }
 
 /*
- * 兼容 realtime 的旧 Activity 展示。
+ * Realtime fallback。
+ *
+ * 等 Java realtime Phase 快照稳定以后，
+ * 这一块可以继续保留作为兼容，
+ * 也可以后续删除。
  */
 .activity-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 2px;
   padding-top: 4px;
-  border-top: 1px solid var(--el-border-color-lighter);
 }
 
-/* ==================== Final Answer ==================== */
+/* ==================== Running ==================== */
 
 .live-line {
   display: flex;
@@ -605,13 +668,18 @@ watch(
   width: 100%;
   min-height: 72px;
   padding: 14px 16px 8px;
+
   resize: vertical;
+
   border: 0;
   outline: none;
+
   background: transparent;
   color: var(--el-text-color-primary);
+
   font: inherit;
   line-height: 1.6;
+
   box-sizing: border-box;
 }
 
@@ -641,23 +709,30 @@ watch(
 .permission-select {
   height: 28px;
   padding: 0 8px;
+
   border: 1px solid var(--el-border-color);
   border-radius: 7px;
+
   background: var(--el-bg-color);
   color: var(--el-text-color-secondary);
+
   font-size: 12px;
 }
 
 .composer-footer button {
   width: 32px;
   height: 32px;
+
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
   border: 0;
   border-radius: 9px;
+
   background: var(--el-color-primary);
   color: #fff;
+
   cursor: pointer;
 }
 
@@ -675,10 +750,12 @@ watch(
 
 .chat-empty {
   height: 100%;
+
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
+
   text-align: center;
 }
 

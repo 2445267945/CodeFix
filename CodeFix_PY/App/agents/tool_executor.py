@@ -102,6 +102,7 @@ class ToolExecutor(ReActAgent):
         # 4. 如果模型产生 Tool Calls
         self.msg_sender.agent_report(agent=self, event=AgentEvent.THINK,
             output={
+                "content": response.content or "",
                 "reasoning": response.reasoning_content,
                 "toolCalls": [
                     {

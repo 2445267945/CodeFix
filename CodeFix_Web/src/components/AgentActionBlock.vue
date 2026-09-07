@@ -2,29 +2,23 @@
   <div class="action-block" :class="[`is-${status}`]">
     <!-- Action 主行 -->
     <button class="action-row" type="button" @click="toggle">
-      <span class="chevron" :class="{ expanded }">›</span>
-
-      <span class="action-icon">
-        {{ icon }}
+      <span class="action-marker">
+        {{ marker }}
       </span>
 
       <span class="action-summary">
-        {{ block.summary || fallbackSummary }}
+        {{ block.summary || "" }}
       </span>
 
-      <span class="agent-name">
-        {{ block.agent || "Agent" }}
-      </span>
-
-      <span class="action-status">
-        {{ statusLabel }}
+      <span v-if="status !== 'completed'" class="action-status">
+        {{ statusText }}
       </span>
     </button>
 
     <!-- Human Approval -->
     <div v-if="requiresApproval" class="approval-row">
       <span class="approval-text">
-        {{ approvalSummary }}
+        {{ block.summary || "等待用户确认此操作" }}
       </span>
 
       <div class="approval-actions">
@@ -52,7 +46,9 @@
     <transition name="collapse">
       <div v-if="expanded" class="action-detail">
         <div class="detail-head">
-          <span>{{ actionLabel }}</span>
+          <span>
+            {{ block.action || "操作" }}
+          </span>
 
           <span v-if="block.timestamp" class="detail-time">
             {{ formatTime(block.timestamp) }}
@@ -87,7 +83,7 @@ const taskStore = useTaskStore();
 const expanded = ref(false);
 const approvalLoading = ref(false);
 
-/*
+/**
  * Product Activity Status
  *
  * waiting
@@ -99,11 +95,9 @@ const status = computed(() => {
   return props.block?.status || "completed";
 });
 
-/*
+/**
  * 只有真正等待人工确认时，
  * 才显示 Yes / No。
- *
- * requiresApproval 不能单独决定 UI。
  */
 const requiresApproval = computed(() => {
   return (
@@ -113,80 +107,42 @@ const requiresApproval = computed(() => {
   );
 });
 
-const approvalSummary = computed(() => {
-  const summary = props.block?.summary || "Agent 请求执行此操作";
-
-  if (summary.startsWith("等待确认")) {
-    return summary.replace(/^等待确认\s*/, "");
-  }
-
-  return summary;
-});
-
-/*
- * 当前 Product Activity 支持的 Action。
+/**
+ * 状态文字仅用于状态展示，
+ * 不参与生成主要业务 summary。
  *
- * THINK / FINISH 不在这里。
- *
- * THINK 不生成 Product Activity。
- * FINISH 由 RESULT_REFRESH 处理。
+ * 主要业务文案统一由后端 block.summary 提供。
  */
-const iconMap = {
-  READ: "↗",
-  SEARCH: "⌕",
-  WRITE: "↙",
-  EXECUTE: "▶",
-  VERIFY: "✓",
-  DELEGATE: "→",
-  ERROR: "×",
-};
-
-const labelMap = {
-  READ: "读取",
-  SEARCH: "搜索",
-  WRITE: "修改",
-  EXECUTE: "执行",
-  VERIFY: "验证",
-  DELEGATE: "委派",
-  ERROR: "错误",
-};
-
-const icon = computed(() => {
-  return iconMap[props.block?.action] || "•";
-});
-
-const actionLabel = computed(() => {
-  return labelMap[props.block?.action] || props.block?.action || "执行";
-});
-
-const fallbackSummary = computed(() => {
-  switch (status.value) {
-    case "waiting":
-      return `等待确认${actionLabel.value}`;
-
-    case "running":
-      return `Agent 正在${actionLabel.value}`;
-
-    case "failed":
-      return `${actionLabel.value}失败`;
-
-    case "completed":
-      return `${actionLabel.value}完成`;
-
-    default:
-      return actionLabel.value;
-  }
-});
-
-const statusLabel = computed(() => {
+const statusText = computed(() => {
   return (
     {
       waiting: "等待确认",
       running: "进行中",
-      completed: "完成",
       failed: "失败",
     }[status.value] || ""
   );
+});
+
+/**
+ * Activity marker。
+ *
+ * 不再显示具体 Action 图标，
+ * 只保留非常轻量的状态标记。
+ */
+const marker = computed(() => {
+  switch (status.value) {
+    case "waiting":
+      return "Ⅱ";
+
+    case "running":
+      return "●";
+
+    case "failed":
+      return "×";
+
+    default:
+      return "";
+  }
 });
 
 function toggle() {
@@ -204,9 +160,7 @@ async function approve() {
   approvalLoading.value = true;
 
   try {
-    await taskStore.approveAction(
-      props.block.runId,
-    );
+    await taskStore.approveAction(props.block.runId);
   } catch (error) {
     console.error("[AgentActionBlock] 批准失败:", error);
   } finally {
@@ -225,9 +179,7 @@ async function reject() {
   approvalLoading.value = true;
 
   try {
-    await taskStore.rejectAction(
-      props.block.runId,
-    );
+    await taskStore.rejectAction(props.block.runId);
   } catch (error) {
     console.error("[AgentActionBlock] 拒绝失败:", error);
   } finally {
@@ -249,7 +201,7 @@ function formatTime(value) {
 
 <style scoped>
 .action-block {
-  border-bottom: 1px solid var(--border-subtle);
+  width: 100%;
 }
 
 /* ============================================================
@@ -259,90 +211,64 @@ function formatTime(value) {
 .action-row {
   width: 100%;
 
-  display: grid;
-
-  grid-template-columns:
-    16px
-    22px
-    minmax(0, 1fr)
-    auto
-    auto;
-
-  gap: 9px;
-
+  display: flex;
   align-items: center;
 
-  padding: 10px 2px;
+  min-width: 0;
+
+  padding: 2px 0;
 
   border: 0;
-
   background: transparent;
 
-  color: var(--text);
+  color: var(--el-text-color-secondary);
 
   text-align: left;
 
   cursor: pointer;
+
+  font: inherit;
+
+  line-height: 20px;
 }
 
 .action-row:hover {
-  background: var(--surface-hover);
+  color: var(--el-text-color-primary);
 }
 
 /* ============================================================
-   Chevron
+   Marker
 ============================================================ */
 
-.chevron {
-  color: var(--muted);
+.action-marker {
+  flex: 0 0 auto;
 
-  font-size: 16px;
+  width: 16px;
 
-  transition: transform 0.16s ease;
+  margin-right: 4px;
+
+  color: var(--el-text-color-placeholder);
+
+  font-size: 10px;
+  line-height: 20px;
+
+  text-align: center;
 }
 
-.chevron.expanded {
-  transform: rotate(90deg);
+.is-running .action-marker {
+  color: var(--el-color-primary);
 }
 
-/* ============================================================
-   Icon
-============================================================ */
-
-.action-icon {
-  width: 20px;
-  height: 20px;
-
-  display: grid;
-  place-items: center;
-
-  border-radius: 6px;
-
-  color: var(--muted-strong);
-
-  background: var(--surface-soft);
-
-  font-size: 12px;
+.is-waiting .action-marker {
+  color: var(--el-color-warning);
 }
 
-.is-running .action-icon {
-  color: var(--accent);
-  background: var(--accent-soft);
+.is-failed .action-marker {
+  color: var(--el-color-danger);
 }
 
-.is-waiting .action-icon {
-  color: var(--warning);
-  background: var(--warning-soft);
-}
-
-.is-completed .action-icon {
-  color: var(--success);
-  background: var(--success-soft);
-}
-
-.is-failed .action-icon {
-  color: var(--danger);
-  background: var(--danger-soft);
+.is-completed .action-marker {
+  color: var(--el-text-color-placeholder);
 }
 
 /* ============================================================
@@ -350,20 +276,33 @@ function formatTime(value) {
 ============================================================ */
 
 .action-summary {
+  min-width: 0;
+
+  flex: 1;
+
   overflow: hidden;
 
   text-overflow: ellipsis;
 
   white-space: nowrap;
 
-  font-size: 13px;
+  color: inherit;
+
+  font-size: 12px;
 
   line-height: 20px;
 }
 
-.agent-name,
+/* ============================================================
+   Status
+============================================================ */
+
 .action-status {
-  color: var(--muted);
+  flex: 0 0 auto;
+
+  margin-left: 8px;
+
+  color: var(--el-text-color-placeholder);
 
   font-size: 11px;
 
@@ -379,14 +318,13 @@ function formatTime(value) {
   align-items: center;
   justify-content: space-between;
 
-  gap: 16px;
+  gap: 12px;
 
-  margin: 0 0 6px 47px;
-  padding: 4px 2px 8px 0;
+  margin: 2px 0 4px 20px;
 
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 3px 0;
 
-  color: var(--text-soft);
+  color: var(--el-text-color-secondary);
 }
 
 .approval-text {
@@ -398,9 +336,8 @@ function formatTime(value) {
 
   white-space: nowrap;
 
-  font-size: 12px;
-
-  line-height: 20px;
+  font-size: 11px;
+  line-height: 18px;
 }
 
 .approval-actions {
@@ -413,42 +350,39 @@ function formatTime(value) {
 }
 
 .approval-button {
-  min-width: 36px;
+  min-width: 34px;
 
-  padding: 3px 8px;
+  padding: 2px 7px;
 
   border: 0;
-
   border-radius: 5px;
 
   background: transparent;
 
-  color: var(--muted-strong);
+  color: var(--el-text-color-secondary);
 
   font-size: 11px;
-
-  line-height: 18px;
+  line-height: 17px;
 
   cursor: pointer;
 }
 
 .approval-button:hover:not(:disabled) {
-  background: var(--surface-hover);
+  background: var(--el-fill-color-light);
 
-  color: var(--text);
+  color: var(--el-text-color-primary);
 }
 
 .approval-button.approve:hover:not(:disabled) {
-  color: var(--success);
+  color: var(--el-color-success);
 }
 
 .approval-button.reject:hover:not(:disabled) {
-  color: var(--danger);
+  color: var(--el-color-danger);
 }
 
 .approval-button:disabled {
   opacity: 0.45;
-
   cursor: default;
 }
 
@@ -457,51 +391,50 @@ function formatTime(value) {
 ============================================================ */
 
 .action-detail {
-  margin: 0 0 10px 47px;
+  margin: 2px 0 6px 20px;
 
-  padding: 10px 12px;
+  padding: 7px 10px;
 
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--el-border-color-lighter);
 
-  background: var(--surface-soft);
+  background: transparent;
 
-  color: var(--muted-strong);
+  color: var(--el-text-color-secondary);
 }
 
 .detail-head {
   display: flex;
-
   justify-content: space-between;
 
-  font-size: 11px;
+  color: var(--el-text-color-secondary);
 
+  font-size: 10px;
   font-weight: 600;
-
-  color: var(--text-soft);
 }
 
 .detail-time {
-  color: var(--muted);
+  color: var(--el-text-color-placeholder);
 
   font-weight: 400;
 }
 
 .detail-body {
-  margin-top: 8px;
+  margin-top: 5px;
+
+  color: var(--el-text-color-secondary);
 
   white-space: pre-wrap;
 
-  font-size: 12px;
-
-  line-height: 1.65;
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .source-events {
-  margin-top: 8px;
+  margin-top: 5px;
 
-  font-size: 10px;
+  color: var(--el-text-color-placeholder);
 
-  color: var(--muted);
+  font-size: 9px;
 }
 
 /* ============================================================
@@ -510,17 +443,16 @@ function formatTime(value) {
 
 .collapse-enter-active,
 .collapse-leave-active {
-  transition: all 0.15s ease;
-
   max-height: 220px;
 
   overflow: hidden;
+
+  transition: max-height 0.15s ease, opacity 0.15s ease;
 }
 
 .collapse-enter-from,
 .collapse-leave-to {
   max-height: 0;
-
   opacity: 0;
 }
 </style>

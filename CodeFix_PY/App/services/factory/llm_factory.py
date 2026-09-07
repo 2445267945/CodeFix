@@ -28,14 +28,14 @@ class LLMFactory:
         "mid": {
             "provider": "deepseek",
             "model": "deepseek-v4-flash",
-            "max_tokens": 4096,
+            "max_tokens": 8192,
             "temperature": 0.1,
             "thinking": "enabled",
         },
         "high": {
             "provider": "deepseek",
             "model": "deepseek-v4-pro",
-            "max_tokens": 4096,
+            "max_tokens": 8192,
             "temperature": 0.1,
             "thinking": "enabled",
         },
