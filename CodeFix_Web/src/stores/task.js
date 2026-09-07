@@ -1142,20 +1142,11 @@ export const useTaskStore = defineStore('task', {
 
             source.onopen = () => {
                 this.sseConnected = true
-
-                console.log(
-                    '[SSE] 连接成功:',
-                    taskId
-                )
             }
 
             source.addEventListener(
                 'CONNECTED',
                 event => {
-                    console.log(
-                        '[SSE] 服务端确认连接:',
-                        event.data
-                    )
                 }
             )
 

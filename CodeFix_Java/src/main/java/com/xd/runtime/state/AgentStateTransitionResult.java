@@ -20,4 +20,5 @@ public class AgentStateTransitionResult {
 
     private String reason;
     private String actionId;
+    private String sessionId;
 }

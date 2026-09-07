@@ -262,6 +262,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             );
 
             return AgentStateTransitionResult.builder()
+                    .sessionId(task.getSessionId())
                     .changed(currentState != nextState)
                     .fromStatus(currentState)
                     .toStatus(nextState)
@@ -273,15 +274,16 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         });
 
         if (result == null) {
-            throw new IllegalStateException(
-                    "Agent Resume 状态迁移失败: taskId=" + taskId
-            );
+            throw new IllegalStateException("Agent Resume 状态迁移失败: taskId=" + taskId);
         }
 
         // 8. Java 事务提交成功后，再通知 Python Runtime
+        // 得到workspaceId
+        AgentSessionDO agentSessionDO = agentSessionMapper.selectBySessionId(result.getSessionId());
         AgentTaskMessage agentTaskMessage = new AgentTaskMessage();
         agentTaskMessage.setSessionId(sessionIdHolder[0]);
         agentTaskMessage.setRunId(runId);
+        agentTaskMessage.setWorkspaceId(agentSessionDO.getWorkspaceId());
         agentTaskMessage.setType("AGENT_TASK");
         agentTaskMessage.setCommand(AgentRunCommandEnum.RESUME.commandDesc_EN);
         agentTaskMessage.setVersion("1.0");

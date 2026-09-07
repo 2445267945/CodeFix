@@ -190,18 +190,35 @@ async def run_fixer(code: str, report: dict, caller=None) -> str:
     need_caller=True
 )
 async def list_files(path: str = "", caller=None) -> list:
+    print(f"[LIST_FILES 1] path={path}")
+
     _, _, directory = resolve_workspace_path(caller, path)
+
+    print(f"[LIST_FILES 2] directory={directory}")
+
     if not directory.exists():
+        print("[LIST_FILES 3] exists=false")
         raise FileNotFoundError(f"路径不存在: {path}")
+
+    print("[LIST_FILES 3] exists=true")
+
     if not directory.is_dir():
+        print("[LIST_FILES 4] is_dir=false")
         raise ValueError(f"不是目录: {path}")
+
+    print("[LIST_FILES 4] is_dir=true")
+
+    entries = list(directory.iterdir())
+
+    print(f"[LIST_FILES 5] entries={len(entries)}")
+
     return [
         {
             "name": p.name,
             "type": "directory" if p.is_dir() else "file"
         }
         for p in sorted(
-            directory.iterdir(),
+            entries,
             key=lambda p: (not p.is_dir(), p.name.lower())
         )
     ]
@@ -269,7 +286,6 @@ async def glob(pattern: str, path: str = "", caller=None,):
             "--files",
             "--hidden",
         ]
-        print(f"[GLOB START] args={args}")
 
         for ignore in DEFAULT_SEARCH_IGNORES:
             args.extend(["--glob", f"!{ignore}"])

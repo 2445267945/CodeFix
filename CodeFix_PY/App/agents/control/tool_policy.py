@@ -1,5 +1,3 @@
-# App/agents/control/tool_policy.py
-
 from enum import Enum
 
 
@@ -9,17 +7,26 @@ class ToolPermission(str, Enum):
 
 
 TOOL_PERMISSION = {
-    "read_file": ToolPermission.CONFIRM,
+    # 只读工具
     "list_files": ToolPermission.CONFIRM,
-    "search_file": ToolPermission.CONFIRM,
+    "read_file": ToolPermission.CONFIRM,
+    "glob": ToolPermission.CONFIRM,
+    "grep": ToolPermission.CONFIRM,
+    "search_manual": ToolPermission.CONFIRM,
+    "parse_java_code": ToolPermission.CONFIRM,
+    "verify_java_syntax": ToolPermission.CONFIRM,
+
+    # 修改工具
     "write_file": ToolPermission.CONFIRM,
     "apply_patch": ToolPermission.CONFIRM,
-
     "delete_file": ToolPermission.CONFIRM,
+
+    # 子 Agent
     "run_explorer": ToolPermission.CONFIRM,
     "run_fixer": ToolPermission.CONFIRM,
-    "search_manual": ToolPermission.CONFIRM,
-    "verify_java_syntax": ToolPermission.CONFIRM,
+
+    # 普通执行
+    "get_length": ToolPermission.CONFIRM,
 }
 
 

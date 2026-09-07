@@ -41,11 +41,11 @@ class ToolExecutor(ReActAgent):
             tool_definitions = self.tools_schemas.get_tool_definitions(self.allowed_tools)
             # 2. 调用 LLM
             messages = self.context_manager.get_messages(self.context_state)
-            print(
-                f"\n[SUPERVISOR THINK] "
-                f"step={self.step} "
-                f"agent={self.name} "
-                f"messages={len(messages)}"
+            logger.debug(
+                "[SUPERVISOR THINK] step=%s agent=%s messages=%s",
+                self.step,
+                self.name,
+                len(messages),
             )
 
             response = await self.timeout_manager.execute(
@@ -57,8 +57,12 @@ class ToolExecutor(ReActAgent):
             completion_tokens = getattr(response.usage, "completion_tokens", 0)
             total_tokens = getattr(response.usage, "total_tokens", 0)
 
-            print(
-                f"[LLM USAGE] prompt={prompt_tokens} completion={completion_tokens} total={total_tokens} messages={len(messages)}"
+            logger.debug(
+                "[LLM USAGE] prompt=%s completion=%s total=%s messages=%s",
+                prompt_tokens,
+                completion_tokens,
+                total_tokens,
+                len(messages),
             )
             estimated_tokens = self.context_manager.estimate_tokens(
                 state=self.context_state,
@@ -67,25 +71,23 @@ class ToolExecutor(ReActAgent):
             )
             decision = "TOOL_CALL" if response.tool_calls else "FINISH"
 
-            print(
-                f"[SUPERVISOR DECISION] "
-                f"step={self.step} "
-                f"decision={decision} "
-                f"tools={[tool.name for tool in response.tool_calls]} "
-                f"context={estimated_tokens} "
-                f"prompt={prompt_tokens} "
-                f"completion={completion_tokens} "
-                f"total={total_tokens}"
+            logger.debug(
+                "[SUPERVISOR DECISION] step=%s decision=%s tools=%s context=%s prompt=%s completion=%s total=%s",
+                self.step,
+                decision,
+                [tool.name for tool in response.tool_calls],
+                estimated_tokens,
+                prompt_tokens,
+                completion_tokens,
+                total_tokens,
             )
-
-            print(
-                f"[LLM RESPONSE] "
-                f"content={response.content!r}"
+            logger.debug(
+                "[LLM RESPONSE] content=%r",
+                response.content,
             )
-
-            print(
-                f"[LLM REASONING] "
-                f"{response.reasoning_content}"
+            logger.debug(
+                "[LLM REASONING] %s",
+                response.reasoning_content,
             )
         except asyncio.TimeoutError:
             self.status = AgentState.ERROR
@@ -134,7 +136,6 @@ class ToolExecutor(ReActAgent):
 
 
     async def act(self):
-        print("=== ACT START ===")
         if not self.cur_tool_calls:
             self.status = AgentState.ERROR
             result = {"success": False, "error_type": "NO_TOOL_CALL", "message": "当前没有可执行的 Tool Call"}
@@ -146,12 +147,12 @@ class ToolExecutor(ReActAgent):
             tool_name = tool_call.name
             tool_args = tool_call.arguments
 
-            print(
-                f"[TOOL CALL] "
-                f"step={self.step} "
-                f"tool={tool_name} "
-                f"toolCallId={tool_id} "
-                f"arguments={tool_args}"
+            logger.debug(
+                "[TOOL CALL] step=%s tool=%s toolCallId=%s arguments=%s",
+                self.step,
+                tool_name,
+                tool_id,
+                tool_args,
             )
             # 1. 死循环检测
             if self.manager.checkLoop(tool_name, tool_args, self.action_history):
@@ -193,18 +194,15 @@ class ToolExecutor(ReActAgent):
                          },
                          runId=self.base_message.run_id
                     )
-                    print(f"[DEBUG] before timeout execute tool={tool_name}")
                     tool_res = await self.timeout_manager.execute(
                         self.tools_schemas.execute( tool_name=tool_name, args=validated_args, caller=self),
                         phase=TimeoutManager.TOOL,
                     )
-                    print(f"[DEBUG] after timeout execute tool={tool_name}")
-                    print(f"[DEBUG] before timeout_manager.execute tool={tool_name}")
-                    print(
-                        f"[TOOL RESULT] "
-                        f"tool={tool_name} "
-                        f"toolCallId={tool_id} "
-                        f"success={tool_res.get('success') if isinstance(tool_res, dict) else None}"
+                    logger.debug(
+                        "[TOOL RESULT] tool=%s toolCallId=%s success=%s",
+                        tool_name,
+                        tool_id,
+                        tool_res.get("success") if isinstance(tool_res, dict) else None,
                     )
                     # 5. 看门狗
                 except json.JSONDecodeError as e:
@@ -233,7 +231,6 @@ class ToolExecutor(ReActAgent):
             results.append(tool_res)
         # 本轮执行完毕，下一次 run loop 再进入 think()
         self.cur_tool_calls = []
-        print("=== ACT END ===")
         return results
 
     def cleanup(self):

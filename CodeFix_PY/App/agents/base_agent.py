@@ -17,11 +17,12 @@ from ..agent_boost.tools.tool_registry import registry
 from ..models.agent_result import AgentResult
 from ..models.enum.agent_event import AgentEvent
 from ..models.session_context import SessionContext
+import logging
 
+logger = logging.getLogger(__name__)
 
 class BaseAgent(ABC):
-    def __init__(self, context: AgentContext, run_context: AgentRunContext, base_message=None,
-                 parent_agent: str | None = None):
+    def __init__(self, context: AgentContext, run_context: AgentRunContext, base_message=None, parent_agent: str | None = None):
         self.name = "Default"
         self.parent_agent = parent_agent  # 父agent名字
         self.allowed_tools: tuple[str, ...] = ()  # 当前agent允许使用的工具
@@ -33,7 +34,7 @@ class BaseAgent(ABC):
         self.working_memory_store = context.working_memory_store  # 工作内容记忆snapshot
         self.base_message = base_message  # 消息基类
         self.window_size = 50  # 窗口大小
-        self.max_iterations = 30  # 防止死循环
+        self.max_iterations = 100  # 防止死循环
         self.current_step = 0  # 当前步数
         self.systemPrompt = None  # 系统提示词
         self.tools = registry.tools  # 工具
@@ -106,7 +107,9 @@ class BaseAgent(ABC):
                 if compression_result.compressed:
                     self.metrics.record_compression(before_tokens=compression_result.before_tokens, after_tokens=compression_result.after_tokens)
                 await self.step()
+                print(f"[CHECKPOINT START] step={self.current_step}")
                 await self.checkpoint_working_memory()
+                print(f"[CHECKPOINT END] step={self.current_step}")
                 if self.run_context.cancel_event.is_set():
                     self.status = AgentState.CANCELLED
                     await self.checkpoint_working_memory()
@@ -115,10 +118,11 @@ class BaseAgent(ABC):
                 if self.current_step >= self.max_iterations:
                     self.status = AgentState.ERROR
                     self.final_answer = {"error": f"Error: 超过最大推理步数 {self.max_iterations}"}
+                    print(self.final_answer)
                     break
                 if self.status is AgentState.FINISHED:
                     self.metrics.finish()
-                    print("[RUNTIME METRICS]", self.metrics.to_dict())
+                    logger.info("Runtime metrics: agent=%s %s", self.name, self.metrics.to_dict())
                     await self.clear_working_memory()
                     self.cleanup()
                     self.status = AgentState.IDLE
@@ -130,7 +134,7 @@ class BaseAgent(ABC):
             self.status = AgentState.ERROR
             if self.final_answer is None:
                 self.final_answer = {"error": f"{self.name} 执行失败", "status": self.status.value}
-            print(f"出现错误：{e}")
+            logger.exception("Agent 执行出错: agent=%s", self.name)
             return AgentResult.fail(agent_name=self.name, result=self.final_answer, iterations=self.current_step)
 
     # 恢复记忆
@@ -149,6 +153,24 @@ class BaseAgent(ABC):
         self.context_state.history_summary = (memory.history_summary)
         self.context_state.messages = (memory.recent_messages)
         self.status = AgentState.THINKING
+        if memory.workspace_id != self.run_context.workspace.workspace_id:
+            raise RuntimeError(
+                f"任务 {self.base_message.task_id} 恢复失败："
+                f"workspace_id 不一致，"
+                f"checkpoint={memory.workspace_id}, "
+                f"runtime={self.run_context.workspace.workspace_id}"
+            )
+        self.context_state.messages.append(
+            LLMMessage(
+                role="system",
+                content=(
+                    f"当前 Workspace ID 为 {self.run_context.workspace.workspace_id}。\n"
+                    f"当前 Workspace 根目录为：{self.run_context.workspace.root_path}\n"
+                    "后续所有文件路径都必须使用相对于当前 Workspace 根目录的路径。"
+                    "不要再次在路径前添加 Workspace ID。"
+                ),
+            )
+        )
         return True
 
     # 构建初始化记忆
@@ -164,12 +186,14 @@ class BaseAgent(ABC):
 
     # 存储当前步骤的工作快照
     async def checkpoint_working_memory(self) -> None:
+        print("[CHECKPOINT 1] build memory")
         if self.base_message is None:
             return
         memory = WorkingMemory(
             run_id=self.base_message.run_id,
             task_id=self.base_message.task_id,
             session_id=self.base_message.session_id,
+            workspace_id=self.run_context.workspace.workspace_id,
             agent_name=self.name,
             step=self.current_step,
             status=self.status.value,
@@ -177,7 +201,9 @@ class BaseAgent(ABC):
             history_summary=self.context_state.history_summary,
             recent_messages=self.context_state.messages,
         )
+        print("[CHECKPOINT 2] before save")
         await self.working_memory_store.save(memory)
+        print("[CHECKPOINT 3] after save")
 
     async def clear_working_memory(self) -> None:
         if self.base_message is None:

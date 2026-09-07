@@ -7,6 +7,7 @@ class WorkingMemory(BaseModel):
     run_id: str
     task_id: str
     session_id: str
+    workspace_id: str
     agent_name: str
     step: int
     status: str
