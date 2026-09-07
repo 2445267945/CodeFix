@@ -138,7 +138,7 @@ class ContextManager:
             new_summary = (summary_response.content or state.history_summary)
 
         except Exception as e:
-            print(f"摘要生成失败，保留原历史摘要并继续使用裁剪后的 Context: {e}")
+            logger.warning("摘要生成失败，保留原历史摘要并继续使用裁剪后的 Context: %s", e)
             new_summary = state.history_summary
 
         # 6. 更新 ContextState
@@ -148,12 +148,12 @@ class ContextManager:
         # 7. 计算压缩后 Token
         after_tokens = self.estimate_tokens(state=state, llm=main_llm, tools=tools)
 
-        print(
-            "[COMPRESS RESULT]",
-            f"before={estimated_tokens}",
-            f"after={after_tokens}",
-            f"summary_length={len(state.history_summary or '')}",
-            f"message_count={len(state.messages)}",
+        logger.debug(
+            "[COMPRESS RESULT] before=%s after=%s summary_length=%s message_count=%s",
+            estimated_tokens,
+            after_tokens,
+            len(state.history_summary or ''),
+            len(state.messages),
         )
 
         return CompressionResult(compressed=True, before_tokens=estimated_tokens, after_tokens=after_tokens)

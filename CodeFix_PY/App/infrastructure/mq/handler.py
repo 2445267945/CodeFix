@@ -40,4 +40,4 @@ class Handler:
         try:
             handler.handle(message)
         except Exception as e:
-            print("错误：" + str(e))
+            logger.exception("消息处理异常: type=%s", message.type)

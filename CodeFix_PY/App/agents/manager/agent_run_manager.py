@@ -64,15 +64,14 @@ class AgentRunManager:
                 raise
             except Exception as e:
                 print("Agent执行异常 taskId={}", e)
-                logger.info("Agent执行异常 taskId={}", e)
+                logger.exception("Agent 执行异常: taskId=%s runId=%s", msg.task_id, msg.run_id)
                 raise
             finally:
                 await self.heartbeat_service.stop(task_id=msg.task_id, run_id=msg.run_id)
                 with self.running_lock:
                     self.running.pop(msg.run_id, None)
         except Exception as e:
-            print("run manager启动异常：{}", e)
-            logger.info("run manager启动异常：{}", e)
+            logger.exception("Run manager 启动异常: taskId=%s", getattr(msg, "task_id", None))
 
     async def handle_cancelled(self, run: AgentRunning):
         agent = run.agent

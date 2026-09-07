@@ -1,75 +1,15 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import Optional, List
 from App.bootstrap.mq_bootstrap import MQBootstrap
 from contextlib import asynccontextmanager
 import uvicorn
 
+from App.utils.logger import setup_logging
 
-
-# ---------- 定义请求/响应模型（与 Java 端对齐） ----------
-class CodeSmell(BaseModel):
-    lineNumber: int
-    type: str
-    severity: str
-    description: Optional[str] = None
-    codeSnippet: Optional[str] = None
-
-class AnalyzeRequest(BaseModel):
-    code: str                     # 完整 Java 源码
-    fileName: Optional[str] = None
-    smells: Optional[List[CodeSmell]] = None   # Java 端预扫描的嫌疑点
-
-class CodeIssue(BaseModel):
-    lineNumber: int
-    type: str
-    severity: str
-    description: str
-    codeSnippet: str
-    suggestion: str
-    fixedSnippet: Optional[str] = None
-
-class AuditReport(BaseModel):
-    status: str
-    healthScore: int
-    issues: List[CodeIssue]
-    fixedCode: str
-    summary: str
-    metadata: dict
-
-
-# # ---------- 核心分析接口 ----------
-# @app.post("/analyze", response_model=AuditReport)
-# async def analyze(request: AnalyzeRequest):
-#     print(f"收到请求，文件名: {request.fileName}, 代码长度: {len(request.code)}")
-#     print(f"Java 端预扫描到的嫌疑点: {request.smells}")
-#
-#     # 1. 构造完整的问题描述，包含代码和预扫描线索
-#     question = f"""
-#     请分析以下 Java 代码，是否有什么语法问题或编码隐患，
-#     代码：
-#     ```java
-#     {request.code}
-#     ```
-#     以下是预扫描的嫌疑点（仅供参考）：
-#     {request.smells if request.smells else "暂无"}
-#     """
-#
-#     result = await agent.run(question)
-#     print(f"结果: {result}")
-#     # 必须返回符合 AuditReport 的结构
-#     return {
-#         "status": "success",
-#         "healthScore": 85,
-#         "issues": [],  # 这里可以先为空，后续根据实际审计结果填充
-#         "fixedCode": request.code,
-#         "summary": str(result) if result else "审计完成，无问题",
-#         "metadata": {"agent_result": str(result)}
-#     }
 mq_bootstrap = MQBootstrap()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
     mq_bootstrap.start()
     try:
         yield

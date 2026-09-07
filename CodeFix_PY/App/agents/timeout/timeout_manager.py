@@ -1,8 +1,10 @@
 import asyncio
 import time
 from typing import Awaitable, TypeVar
-
+import logging
 T = TypeVar("T")
+
+logger = logging.getLogger(__name__)
 
 class TimeoutManager:
     """
@@ -117,7 +119,7 @@ class TimeoutManager:
             phase="TOOL"
             -> self.tool_timeout
         """
-        print(f"[TIMEOUT ENTER] phase={phase} timeout={timeout}")
+        logger.debug("Enter phase=%s timeout=%s", phase, timeout)
         self.start_phase(phase)
 
         if timeout is None:
@@ -125,23 +127,23 @@ class TimeoutManager:
                 timeout = self.llm_timeout
             elif phase == self.TOOL:
                 timeout = self.tool_timeout
-        print(f"[TIMEOUT CONFIG] phase={phase} timeout={timeout}")
+        logger.debug("Configured phase=%s timeout=%s", phase, timeout)
         try:
             if timeout is None:
-                print(f"[TIMEOUT AWAIT DIRECT] phase={phase}")
+                logger.debug("Awaiting directly phase=%s", phase)
                 result = await awaitable
-                print(f"[TIMEOUT AWAIT DIRECT DONE] phase={phase}")
+                logger.debug("Awaiting done phase=%s", phase)
             else:
-                print(f"[TIMEOUT START] phase={phase}")
+                logger.debug("Waiting with timeout phase=%s timeout=%s", phase, timeout)
                 result = await asyncio.wait_for(awaitable, timeout=timeout)
-                print(f"[TIMEOUT END] phase={phase}")
+                logger.debug("Wait finished phase=%s", phase)
             self.mark_activity()
             return result
         except asyncio.TimeoutError:
-            print(
-                f"[TIMEOUT EXPIRED] "
-                f"phase={phase} "
-                f"timeout={timeout}"
+            logger.warning(
+                "Phase timed out: phase=%s timeout=%s",
+                phase,
+                timeout,
             )
             raise
         finally:

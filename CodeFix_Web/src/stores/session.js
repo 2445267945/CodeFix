@@ -62,15 +62,7 @@ export const useSessionStore = defineStore(
             },
 
             async openSession(sessionId) {
-                console.log(
-                    "[SessionStore] openSession 进入:",
-                    sessionId
-                );
-
                 if (!sessionId) {
-                    console.log(
-                        "[SessionStore] sessionId 为空"
-                    );
                     return null;
                 }
 
@@ -78,37 +70,12 @@ export const useSessionStore = defineStore(
                 this.error = null;
 
                 try {
-                    console.log(
-                        "[SessionStore] 准备请求 getSessionChat"
-                    );
-
-                    const response =
-                        await getSessionChat(sessionId);
-
-                    console.log(
-                        "[SessionStore] getSessionChat 返回:",
-                        response
-                    );
-
-                    const data =
-                        response?.data ?? response;
-
-                    console.log(
-                        "[SessionStore] chat data:",
-                        data
-                    );
-
+                    const response = await getSessionChat(sessionId);
+                    const data = response?.data ?? response;
                     this.currentSessionId = sessionId;
                     this.chat = data;
-
                     return data;
-
                 } catch (error) {
-                    console.error(
-                        "[SessionStore] openSession 失败:",
-                        error
-                    );
-
                     this.error =
                         this.getErrorMessage(
                             error,

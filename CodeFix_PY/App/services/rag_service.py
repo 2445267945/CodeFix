@@ -5,6 +5,9 @@ from chromadb.config import Settings
 from chromadb.utils.embedding_functions.ollama_embedding_function import OllamaEmbeddingFunction
 from pypdf import PdfReader
 from App.config import config
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ===================== 1. 从配置读取参数 =====================
 embedding_fn = OllamaEmbeddingFunction(
@@ -26,7 +29,7 @@ collection = chroma_client.get_or_create_collection(
 # ===================== 2. 加载 PDF 入库 =====================
 def load_manual_to_vector_db(pdf_path: str):
     if not os.path.exists(pdf_path):
-        print(f"文件不存在: {pdf_path}")
+        logger.warning("文件不存在: %s", pdf_path)
         return
 
     reader = PdfReader(pdf_path)
@@ -53,11 +56,11 @@ def load_manual_to_vector_db(pdf_path: str):
             })
 
     if not documents:
-        print("未能提取到任何有效文本，请检查PDF是否可读。")
+        logger.warning("未能提取到任何有效文本，请检查PDF是否可读。")
         return
 
     collection.add(ids=ids, documents=documents, metadatas=metadatas)
-    print(f"成功将 {len(documents)} 个知识片段存入向量库！")
+    logger.info("成功将 %d 个知识片段存入向量库！", len(documents))
 
 
 # ===================== 3. 查询函数 =====================
