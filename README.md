@@ -15,7 +15,7 @@ Tool Calling、Human Approval、Workspace 文件操作、Event 持久化、
 
 **运行结果展示：**
 
-![CodeFix](C:\Users\86151\Desktop\CodeFix.gif)
+![图片说明](images/codeFix.png)
 
 ---
 
