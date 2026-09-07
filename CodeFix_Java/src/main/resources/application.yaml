@@ -4,19 +4,19 @@ server:
 spring:
   data:
     redis:
-      port: 6379
-      host: localhost
-      password: 123456
+      port: ...
+      host: ...
+      password: ...
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/code_fix?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
-    username: root
-    password: 123456
+    url: jdbc:mysql://[ip]:[port]/code_fix?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
+    username: ...
+    password: ...
 
 
 mq:
   rocketmq:
-    name-server: 192.168.88.130:9876
+    name-server: [ip]:[port]
     consumer:
       groupName: cid_status_group_test
       topics: agent_status_topic
@@ -33,4 +33,4 @@ mq:
       heartbeatQueueNum: 8
 
 py:
-  url: http://localhost:8000/analyze
+  url: #py端api地址
