@@ -368,7 +368,7 @@ DENY ─────────> Java 自动下发 REJECT，Agent 被拒绝
 - 需要人工时，Python 的 `ExecutionGate` 以 `actionId` 为 key 阻塞当前 Agent 协程；
 - 用户在前端 APPROVE / REJECT → Java `AgentCommandService` → MQ `AGENT_COMMAND` → Python 唤醒对应 Future。
 
-> 说明：当前权限控制是"产品层的工具/路径审批"机制，仓库中并未实现 OS 级沙箱 / 容器隔离，不应声称具备沙箱能力。
+> 说明：当前权限控制是"产品层的工具/路径审批"机制，仓库中并未实现 OS 级沙箱 / 容器隔离。
 
 ---
 
