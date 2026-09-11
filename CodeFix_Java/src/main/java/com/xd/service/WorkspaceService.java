@@ -1,5 +1,6 @@
 package com.xd.service;
 
+import com.xd.model.dto.WorkspaceFileUpdateDTO;
 import com.xd.model.entity.WorkspaceDO;
 import com.xd.model.vo.WorkspaceVO;
 
@@ -10,17 +11,12 @@ public interface WorkspaceService {
     /**
      * 创建 Workspace
      */
-    WorkspaceDO createWorkspace(String name);
+    WorkspaceDO createWorkspace(WorkspaceFileUpdateDTO request);
 
     /**
      * 查询 Workspace
      */
     WorkspaceDO getWorkspace(String workspaceId);
-
-    /**
-     * 查询 Session 对应的 Workspace
-     */
-    WorkspaceDO getBySessionId(String sessionId);
 
     /**
      * 获取 / 创建 Session 对应的 Workspace
@@ -37,4 +33,6 @@ public interface WorkspaceService {
     void initializeFile(String workspaceId, String fileName, String code);
 
     WorkspaceVO getWorkspaceBySessionId(String sessionId);
+
+    WorkspaceDO getWorkspaceByRootPath(String workspacePath);
 }

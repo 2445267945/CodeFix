@@ -12,6 +12,7 @@ import com.xd.service.WorkspaceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -122,6 +123,58 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
         } catch (IOException e) {
             log.error("Workspace文件写入失败: workspaceId={}, path={}", workspaceId, request.getPath(), e);
             throw new BusinessException("文件保存失败", e);
+        }
+    }
+
+    @Override
+    public WorkspaceTreeVO getTreeByPath(String workspacePath) {
+        if (!StringUtils.hasText(workspacePath)) {
+            throw new BusinessException("Workspace路径不能为空");
+        }
+        Path rootPath = Paths.get(workspacePath).toAbsolutePath().normalize();
+        if (!Files.exists(rootPath)) {
+            throw new BusinessException("Workspace目录不存在: " + rootPath);
+        }
+        if (!Files.isDirectory(rootPath)) {
+            throw new BusinessException("Workspace路径不是目录: " + rootPath);
+        }
+
+        WorkspaceTreeVO tree = new WorkspaceTreeVO();
+        /*
+         * 临时 Workspace：
+         * 尚未正式持久化，所以 workspaceId 为空。
+         */
+        tree.setWorkspaceId(null);
+        tree.setName(rootPath.getFileName() == null ? "Default" : rootPath.getFileName().toString());
+        List<WorkspaceTreeNodeVO> treeNodes = buildTree(rootPath, rootPath);
+        tree.setChildren(treeNodes);
+        return tree;
+    }
+
+    @Override
+    public WorkspaceFileVO getFileByPath(String workspacePath, String filePath) {
+        if (!StringUtils.hasText(workspacePath)) {
+            throw new BusinessException("Workspace路径不能为空");
+        }
+        if (!StringUtils.hasText(filePath)) {
+            throw new BusinessException("文件路径不能为空");
+        }
+        Path root = Paths.get(workspacePath).toAbsolutePath().normalize();
+        Path target = root.resolve(filePath).normalize();
+        if (!target.startsWith(root)) {
+            throw new SecurityException("非法文件路径: " + filePath);
+        }
+        if (!Files.exists(target) || !Files.isRegularFile(target)) {
+            throw new BusinessException("文件不存在: " + filePath);
+        }
+        try {
+            String content = Files.readString(target, StandardCharsets.UTF_8);
+            return WorkspaceFileVO.builder()
+                    .filePath(filePath)
+                    .content(content)
+                    .build();
+        } catch (IOException e) {
+            throw new BusinessException("读取文件失败: " + filePath, e);
         }
     }
 

@@ -7,7 +7,7 @@ from App.agents.tool_executor import ToolExecutor
 class SupervisorAgent(ToolExecutor):
     def __init__(self, context: AgentContext, run_context: AgentRunContext, base_message=None, parent_agent=None):
         super().__init__(context, run_context, base_message)
-        self.name = "Supervisor"
+        self.name = "Cando"
         self.run_context = run_context
         self.parent_agent = parent_agent
         self.context = context

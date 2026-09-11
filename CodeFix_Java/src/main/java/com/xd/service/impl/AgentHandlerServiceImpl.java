@@ -46,9 +46,7 @@ public class AgentHandlerServiceImpl implements MessageHandler {
      */
     @Override
     public void handleMsg(String agentMessageJSON) {
-
         AgentMessageDTO messageDTO;
-
         // 1. JSON解析
         try {
             messageDTO = JSON.parseObject(agentMessageJSON, AgentMessageDTO.class);

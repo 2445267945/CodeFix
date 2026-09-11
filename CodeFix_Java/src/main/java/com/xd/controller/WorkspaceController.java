@@ -35,6 +35,19 @@ public class WorkspaceController {
         return Result.success(tree);
     }
 
+    @GetMapping("/tree")
+    public Result<WorkspaceTreeVO> getTreeByPath(@RequestParam("path") String workspacePath) {
+        WorkspaceTreeVO tree = workspaceFileService.getTreeByPath(workspacePath);
+        return Result.success(tree);
+    }
+
+    @GetMapping("/file")
+    public Result<WorkspaceFileVO> getFileByPath(@RequestParam("workspacePath") String workspacePath, @RequestParam("path") String filePath) {
+        WorkspaceFileVO file = workspaceFileService.getFileByPath(workspacePath, filePath);
+
+        return Result.success(file);
+    }
+
     @PutMapping("/{workspaceId}/file")
     public Result<Boolean> updateFile(@PathVariable String workspaceId, @RequestBody WorkspaceFileUpdateDTO request) {
         workspaceFileService.updateFile(workspaceId, request);

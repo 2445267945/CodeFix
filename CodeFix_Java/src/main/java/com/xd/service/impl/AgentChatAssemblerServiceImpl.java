@@ -9,11 +9,7 @@ import com.xd.mapper.AgentTaskMapper;
 import com.xd.mapper.ChatMessageMapper;
 import com.xd.model.dto.AgentMessageDTO;
 import com.xd.model.entity.*;
-import com.xd.model.vo.AgentChatBlockVO;
-import com.xd.model.vo.AgentChatPhaseVO;
-import com.xd.model.vo.AgentChatStreamVO;
-import com.xd.model.vo.AgentChatTurnVO;
-import com.xd.model.vo.AgentChatViewVO;
+import com.xd.model.vo.*;
 import com.xd.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -71,7 +67,7 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
          *
          * Session 是 Chat View 的根上下文。
          */
-        AgentSessionDO session = agentSessionService.getSessionById(sessionId);
+        AgentSessionVO session = agentSessionService.getSessionById(sessionId);
         if (session == null) {
             return null;
         }
@@ -127,7 +123,7 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
          */
         AgentChatViewVO chat = new AgentChatViewVO();
         chat.setSessionId(session.getSessionId());
-
+        chat.setRootPath(session.getRootPath());
         /*
          * 8. Session → Workspace
          *
@@ -439,7 +435,7 @@ public class AgentChatAssemblerServiceImpl implements AgentChatAssemblerService 
                 .filter(Objects::nonNull)
                 .map(AgentEventDO::getAgentName)
                 .filter(this::isNotBlank)
-                .filter(name -> "Supervisor".equalsIgnoreCase(name))
+                .filter(name -> "Cando".equalsIgnoreCase(name))
                 .findFirst()
                 .orElse(null);
 

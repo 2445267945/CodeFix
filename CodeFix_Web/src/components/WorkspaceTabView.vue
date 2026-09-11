@@ -48,7 +48,7 @@
             v-model:message="message"
             v-model:permission-profile="permissionProfile"
             :sending="sending"
-            @send="emit('send')"
+            @send="handleSend"
             @stop="emit('stop')"
             @open-file-change="emit('open-file-change', $event)"
           />
@@ -58,7 +58,7 @@
              Project Toolbar
         ====================================================== -->
         <div class="project-toolbar">
-          <!-- 已有关联 / 当前临时项目 -->
+          <!-- 已有关联 / 当前临时选择的本地项目 -->
           <div v-if="currentWorkspaceName" class="project-context">
             <span class="project-icon">📁</span>
 
@@ -66,7 +66,12 @@
               {{ currentWorkspaceName }}
             </span>
 
-            <span v-if="!workspaceId" class="project-pending"> 待提交 </span>
+            <!--
+              workspaceId 为空：
+              说明用户已经选择本地目录，
+              但还没有真正发送消息，
+              Workspace 尚未持久化。
+            -->
           </div>
 
           <!-- 没有项目 -->
@@ -77,12 +82,12 @@
             @click="openProjectMenu"
           >
             <span class="add-project-icon">＋</span>
-            <span>添加项目</span>
+            <span>选择项目</span>
           </button>
 
           <!-- 项目操作 -->
           <button
-            v-if="currentWorkspaceName"
+            v-if="currentWorkspaceName && !workspaceId"
             class="project-change-btn"
             type="button"
             @click="openProjectMenu"
@@ -100,26 +105,26 @@
           @click.self="projectMenuVisible = false"
         >
           <div class="project-menu">
-            <div class="project-menu-title">添加项目</div>
+            <div class="project-menu-title">选择项目</div>
 
             <button
               class="project-menu-item"
               type="button"
-              @click="handleCreateProject"
+              @click="handleSelectLocalProject"
             >
-              <span class="project-menu-icon"> ＋ </span>
+              <span class="project-menu-icon">📁</span>
 
               <span class="project-menu-copy">
-                <span class="project-menu-item-title"> 新建项目 </span>
+                <span class="project-menu-item-title"> 本地项目 </span>
 
                 <span class="project-menu-item-description">
-                  创建一个新的项目名称
+                  选择一个本地目录作为 Workspace
                 </span>
               </span>
             </button>
 
             <button class="project-menu-item disabled" type="button" disabled>
-              <span class="project-menu-icon"> ⇧ </span>
+              <span class="project-menu-icon">⇧</span>
 
               <span class="project-menu-copy">
                 <span class="project-menu-item-title"> 本地上传 </span>
@@ -135,65 +140,6 @@
             >
               取消
             </button>
-          </div>
-        </div>
-
-        <!-- =====================================================
-             Create Project Dialog
-        ====================================================== -->
-        <div
-          v-if="createProjectVisible"
-          class="project-dialog-overlay"
-          @click.self="closeCreateProject"
-        >
-          <div class="project-dialog">
-            <div class="project-dialog-header">
-              <div class="project-dialog-title">新建项目</div>
-
-              <button
-                class="project-dialog-close"
-                type="button"
-                @click="closeCreateProject"
-              >
-                ×
-              </button>
-            </div>
-
-            <div class="project-dialog-body">
-              <label class="project-dialog-label"> 项目名称 </label>
-
-              <input
-                v-model.trim="projectNameInput"
-                class="project-dialog-input"
-                type="text"
-                maxlength="100"
-                placeholder="例如：电商后台"
-                @keyup.enter="confirmCreateProject"
-              />
-
-              <div class="project-dialog-hint">
-                项目会先绑定到当前对话，真正发送消息时才创建 Workspace。
-              </div>
-            </div>
-
-            <div class="project-dialog-footer">
-              <button
-                class="dialog-btn secondary"
-                type="button"
-                @click="closeCreateProject"
-              >
-                取消
-              </button>
-
-              <button
-                class="dialog-btn primary"
-                type="button"
-                :disabled="!projectNameInput"
-                @click="confirmCreateProject"
-              >
-                确定
-              </button>
-            </div>
           </div>
         </div>
       </div>
@@ -225,7 +171,11 @@ import { ElMessage } from "element-plus";
 import AgentChat from "./AgentChat.vue";
 import Editor from "./Editor.vue";
 
-import { getWorkspaceFile, updateWorkspaceFile } from "../api/workspace";
+import {
+  getWorkspaceFile,
+  getWorkspaceFileByPath,
+  updateWorkspaceFile,
+} from "../api/workspace";
 
 const props = defineProps({
   chat: {
@@ -259,7 +209,7 @@ const props = defineProps({
   },
 
   /**
-   * 已经正式存在的 Workspace ID
+   * 已经正式绑定到 Session 的 Workspace ID。
    */
   workspaceId: {
     type: String,
@@ -267,16 +217,30 @@ const props = defineProps({
   },
 
   /**
-   * 当前 Workspace 名称。
+   * Workspace 名称。
    *
-   * 可以来自：
-   * 1. 已经存在的 Workspace
-   * 2. 当前对话临时选择的新项目
+   * 正式 Workspace：
+   *   来自后端。
+   *
+   * 临时选择：
+   *   可以由父组件根据 workspacePath 提供。
    */
   workspaceName: {
     type: String,
     default: "",
   },
+
+  /**
+   * 当前 Workspace 实际路径。
+   *
+   * 用户选择目录后，即使 Workspace 尚未落库，
+   * 这里也可以暂时保存路径。
+   */
+  workspacePath: {
+    type: String,
+    default: "",
+  },
+
   permissionProfile: {
     type: String,
     default: "WORKSPACE",
@@ -289,7 +253,12 @@ const emit = defineEmits([
   "send",
   "stop",
   "open-file-change",
-  "workspace-name-change",
+
+  /**
+   * 用户选择 / 更换本地项目后，
+   * 将目录路径交给父组件保存。
+   */
+  "workspace-path-change",
 ]);
 
 /* ============================================================
@@ -340,69 +309,89 @@ const activeTab = computed(() => {
 ============================================================ */
 
 /**
- * 当前对话临时选择的项目名称。
+ * 用户已经选择，但尚未真正发起对话的本地项目路径。
  *
  * 注意：
- * workspaceId 为空时，
- * 这个名称只是前端状态，
- * 不代表后端已经创建 Workspace。
+ * 这里只是前端状态，不代表数据库已经创建 Workspace。
  */
-const pendingWorkspaceName = ref("");
+const pendingWorkspacePath = ref("");
 
 const projectMenuVisible = ref(false);
 
-const createProjectVisible = ref(false);
-
-const projectNameInput = ref("");
-
 /**
- * 当前页面显示的项目名称。
+ * 当前真正用于发送消息的 Workspace Path。
  *
- * 已经存在 Workspace：
- *   props.workspaceName
- *
- * 新建但尚未发送：
- *   pendingWorkspaceName
+ * 优先使用临时选择，
+ * 没有临时选择时使用父组件已有值。
  */
-const currentWorkspaceName = computed(() => {
-  return pendingWorkspaceName.value || props.workspaceName || "";
+const currentWorkspacePath = computed(() => {
+  if (props.workspaceId) {
+    return props.workspacePath || "";
+  }
+
+  return pendingWorkspacePath.value || props.workspacePath || "";
 });
 
 /**
- * 已经有正式 Workspace 时，
- * 从后端返回的数据同步项目名称。
+ * 当前显示的 Workspace 名称。
+ *
+ * 正式 Workspace：
+ *   优先使用后端返回的 workspaceName。
+ *
+ * 临时 Workspace：
+ *   根据路径最后一段自动解析。
  */
-watch(
-  () => props.workspaceName,
-  (value) => {
-    if (props.workspaceId) {
-      pendingWorkspaceName.value = "";
-      return;
-    }
-
-    /*
-     * 没有 Workspace 时，
-     * 保留前端当前临时选择。
-     */
-    if (!pendingWorkspaceName.value && value) {
-      pendingWorkspaceName.value = value;
-    }
-  },
-  {
-    immediate: true,
+const currentWorkspaceName = computed(() => {
+  if (props.workspaceName) {
+    return props.workspaceName
+      .replace(/[\\/]+$/, "")
+      .split(/[\\/]/)
+      .pop();
   }
-);
+
+  const path = currentWorkspacePath.value;
+
+  if (!path) {
+    return "";
+  }
+
+  const normalizedPath = path.replace(/[\\/]+$/, "");
+
+  return normalizedPath.split(/[\\/]/).filter(Boolean).pop() || normalizedPath;
+});
 
 /**
- * Workspace 已正式创建后，
- * 清除临时项目状态。
+ * 已经正式存在 Workspace 时，
+ * 清除临时路径状态。
  */
 watch(
   () => props.workspaceId,
   (value) => {
     if (value) {
-      pendingWorkspaceName.value = "";
+      pendingWorkspacePath.value = "";
     }
+  }
+);
+
+/**
+ * 父组件传入新的 Workspace Path 时，
+ * 如果当前还没有正式 Workspace，
+ * 则同步到临时状态。
+ */
+watch(
+  () => props.workspacePath,
+  (value) => {
+    if (props.workspaceId) {
+      pendingWorkspacePath.value = "";
+      return;
+    }
+
+    if (value) {
+      pendingWorkspacePath.value = value;
+    }
+  },
+  {
+    immediate: true,
   }
 );
 
@@ -414,43 +403,85 @@ function openProjectMenu() {
   projectMenuVisible.value = true;
 }
 
-function handleCreateProject() {
+/**
+ * 选择本地项目。
+ *
+ * 这里不直接调用后端。
+ * 也不创建 Workspace。
+ *
+ * 仅通知父组件：
+ * “请打开本地目录选择能力”。
+ */
+async function handleSelectLocalProject() {
   projectMenuVisible.value = false;
 
-  projectNameInput.value =
-    pendingWorkspaceName.value || props.workspaceName || "";
+  try {
+    const path = await window.electronAPI.selectDirectory();
 
-  createProjectVisible.value = true;
+    if (!path) {
+      return;
+    }
+
+    handleLocalProjectSelected(path);
+  } catch (error) {
+    console.error("[WorkspaceTabView] 本地项目选择失败:", error);
+
+    ElMessage.error("选择本地项目失败");
+  }
 }
 
-function closeCreateProject() {
-  createProjectVisible.value = false;
-  projectNameInput.value = "";
+/**
+ * 父组件完成目录选择后，可以直接使用此方法
+ * 更新当前临时 Workspace Path。
+ */
+function handleLocalProjectSelected(path) {
+  if (props.workspaceId) {
+    ElMessage.warning("当前对话已经绑定 Workspace，无法更换项目");
+    return;
+  }
+
+  if (!path) {
+    return;
+  }
+
+  const normalizedPath = String(path).trim();
+
+  if (!normalizedPath) {
+    return;
+  }
+
+  pendingWorkspacePath.value = normalizedPath;
+
+  emit("workspace-path-change", normalizedPath);
+
+  ElMessage.success(`已选择项目：${getWorkspaceName(normalizedPath)}`);
 }
 
-function confirmCreateProject() {
-  const name = projectNameInput.value?.trim();
+function getWorkspaceName(path) {
+  if (!path) {
+    return "";
+  }
 
-  if (!name) {
-    ElMessage.warning("请输入项目名称");
+  return path.split(/[\\/]/).filter(Boolean).pop() || path;
+}
+
+/**
+ * 发送消息前必须有本地 Workspace。
+ */
+function handleSend() {
+  const workspacePath = currentWorkspacePath.value;
+
+  if (!workspacePath) {
+    ElMessage.warning("请先选择一个本地项目目录");
+
+    openProjectMenu();
 
     return;
   }
 
-  /*
-   * 这里只修改前端状态。
-   *
-   * 不调用后端。
-   * 不创建 Workspace。
-   */
-  pendingWorkspaceName.value = name;
-
-  emit("workspace-name-change", name);
-
-  createProjectVisible.value = false;
-  projectNameInput.value = "";
-
-  ElMessage.success(`已选择项目：${name}`);
+  emit("send", {
+    workspacePath,
+  });
 }
 
 /* ============================================================
@@ -472,9 +503,8 @@ async function openFile(path, name) {
     return;
   }
 
-  if (!props.workspaceId) {
-    ElMessage.warning("当前项目尚未建立 Workspace，暂时无法打开文件");
-
+  if (!props.workspaceId && !props.workspacePath) {
+    ElMessage.warning("当前没有可用的 Workspace");
     return;
   }
 
@@ -484,7 +514,6 @@ async function openFile(path, name) {
 
   if (existingTab) {
     activeTabId.value = existingTab.id;
-
     return;
   }
 
@@ -503,11 +532,16 @@ async function openFile(path, name) {
   };
 
   tabs.value.push(tab);
-
   activeTabId.value = tab.id;
 
   try {
-    const response = await getWorkspaceFile(props.workspaceId, path);
+    let response;
+
+    if (props.workspaceId) {
+      response = await getWorkspaceFile(props.workspaceId, path);
+    } else {
+      response = await getWorkspaceFileByPath(props.workspacePath, path);
+    }
 
     const data = response?.data ?? response;
 
@@ -554,6 +588,7 @@ async function saveActiveFile() {
 
   if (!props.workspaceId) {
     ElMessage.warning("当前没有可用的 Workspace");
+
     return;
   }
 
@@ -660,6 +695,14 @@ defineExpose({
   closeAllFiles,
   openChat,
   saveActiveFile,
+
+  /**
+   * 父组件拿到系统目录选择结果后，
+   * 可以调用：
+   *
+   * workspaceTabViewRef.handleLocalProjectSelected(path)
+   */
+  handleLocalProjectSelected,
 });
 </script>
 
@@ -884,8 +927,7 @@ defineExpose({
    Project Menu
 ========================================================= */
 
-.project-menu-overlay,
-.project-dialog-overlay {
+.project-menu-overlay {
   position: fixed;
 
   inset: 0;
@@ -999,149 +1041,6 @@ defineExpose({
 }
 
 /* =========================================================
-   Create Dialog
-========================================================= */
-
-.project-dialog {
-  width: 420px;
-
-  border-radius: 12px;
-
-  background: var(--surface, #ffffff);
-
-  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
-}
-
-.project-dialog-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  padding: 16px 18px;
-
-  border-bottom: 1px solid var(--border, #e5e7eb);
-}
-
-.project-dialog-title {
-  color: var(--text, #111827);
-
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.project-dialog-close {
-  width: 28px;
-  height: 28px;
-
-  border: 0;
-  border-radius: 5px;
-
-  background: transparent;
-
-  color: var(--muted, #9ca3af);
-
-  font-size: 18px;
-
-  cursor: pointer;
-}
-
-.project-dialog-close:hover {
-  background: var(--surface-hover, #f3f4f6);
-}
-
-.project-dialog-body {
-  padding: 18px;
-}
-
-.project-dialog-label {
-  display: block;
-
-  margin-bottom: 8px;
-
-  color: var(--text, #111827);
-
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.project-dialog-input {
-  width: 100%;
-
-  box-sizing: border-box;
-
-  padding: 9px 10px;
-
-  border: 1px solid var(--border, #d1d5db);
-
-  border-radius: 7px;
-
-  outline: none;
-
-  background: var(--surface, #ffffff);
-
-  color: var(--text, #111827);
-
-  font-size: 13px;
-}
-
-.project-dialog-input:focus {
-  border-color: var(--accent, #7c3aed);
-
-  box-shadow: 0 0 0 2px var(--accent-soft, #ede9fe);
-}
-
-.project-dialog-hint {
-  margin-top: 8px;
-
-  color: var(--muted, #9ca3af);
-
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.project-dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-
-  gap: 8px;
-
-  padding: 12px 18px 16px;
-
-  border-top: 1px solid var(--border, #e5e7eb);
-}
-
-.dialog-btn {
-  padding: 7px 14px;
-
-  border-radius: 6px;
-
-  font-size: 12px;
-
-  cursor: pointer;
-}
-
-.dialog-btn.secondary {
-  border: 1px solid var(--border, #d1d5db);
-
-  background: var(--surface, #ffffff);
-
-  color: var(--text-soft, #6b7280);
-}
-
-.dialog-btn.primary {
-  border: 0;
-
-  background: var(--text, #111827);
-
-  color: #ffffff;
-}
-
-.dialog-btn.primary:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* =========================================================
    Empty
 ========================================================= */
 
@@ -1160,7 +1059,9 @@ defineExpose({
 
 .tab-dirty {
   margin-right: 4px;
+
   color: #c2410c;
+
   font-size: 8px;
 }
 </style>

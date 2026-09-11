@@ -23,6 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 
@@ -70,27 +71,40 @@ public class AgentTaskServiceImpl implements AgentTaskService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TaskRunContext createTaskWithRun(ChatMessageCreateDTO request) {
-
         String runId = UUID.randomUUID().toString();
         String taskId = UUID.randomUUID().toString();
         long now = System.currentTimeMillis();
         String sessionId = request.getSessionId();
         String question = request.getContent();
-        String workspaceName = request.getWorkspaceName();
+
         // 1. 获取 / 创建 Session
         AgentSessionDO session = agentSessionService.getOrCreateSession(sessionId, question);
 
         String actualSessionId = session.getSessionId();
         String workspaceId = session.getWorkspaceId();
+
         WorkspaceDO workspace;
-        if (workspaceId == null || workspaceId.isEmpty()) {
-            // 2. 获取 / 创建 Workspace
-            workspace = workspaceService.createWorkspace(workspaceName);
-            // 3. 确保 Session 绑定 Workspace
-            agentSessionService.bindWorkspace(actualSessionId, workspace.getWorkspaceId());
-            session.setWorkspaceId(workspace.getWorkspaceId());
-        } else {
+        if (StringUtils.hasText(workspaceId)) {
+            // Session 已经绑定 Workspace
             workspace = workspaceService.getWorkspace(workspaceId);
+        } else {
+            // 第一次真正发起对话
+            String workspacePath = request.getWorkspacePath();
+            if (!StringUtils.hasText(workspacePath)) {
+                throw new IllegalStateException("第一次对话需要选择工作空间");
+            }
+            // 先按照路径查 Workspace
+            workspace = workspaceService.getWorkspaceByRootPath(workspacePath);
+            // 不存在则创建
+            if (workspace == null) {
+                WorkspaceFileUpdateDTO workspaceRequest = new WorkspaceFileUpdateDTO();
+                workspaceRequest.setPath(workspacePath);
+                workspace = workspaceService.createWorkspace(workspaceRequest);
+            }
+            // Session 绑定 Workspace
+            session.setWorkspaceId(workspace.getWorkspaceId());
+            session.setUpdatedAt(now);
+            agentSessionService.bindWorkspace(actualSessionId, workspace.getWorkspaceId());
         }
 
         // 4. 创建 Task
@@ -303,6 +317,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         if (task == null) {
             throw new BusinessException("任务不存在: " + taskId);
         }
+        AgentSessionDO agentSessionDO = agentSessionMapper.selectBySessionId(task.getSessionId());
         // 2. 生成新的 Run
         String newRunId = UUID.randomUUID().toString();
         // 3. 查询当前任务已经执行到第几次
@@ -333,6 +348,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         msg.setTaskId(taskId);
         msg.setSessionId(task.getSessionId());
         msg.setRunId(newRunId);
+        msg.setWorkspaceId(agentSessionDO.getWorkspaceId());
         msg.setMessageId(UUID.randomUUID().toString());
         msg.setVersion("1.0");
         msg.setTimestamp(now);

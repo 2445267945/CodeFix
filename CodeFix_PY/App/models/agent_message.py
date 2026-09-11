@@ -12,9 +12,8 @@ class AgentMessage(BaseMessage):
 
     # ===== Java → Python =====
     question: str = ""
-    code: str = ""
-    smells: list = Field(default_factory=list)
     workspace_id: str = Field(default="", alias="workspaceId")
+    root_path: str = Field(default="", alias="rootPath")
     session_context: Optional[SessionContext] = Field(default=None, alias="sessionContext")
 
     # ===== Python → Java =====

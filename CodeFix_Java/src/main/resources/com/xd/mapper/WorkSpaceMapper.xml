@@ -39,10 +39,7 @@
         updated_at
     </sql>
 
-    <insert id="insertWorkspace"
-            parameterType="com.xd.model.entity.WorkspaceDO"
-            useGeneratedKeys="true"
-            keyProperty="id">
+    <insert id="insertWorkspace" parameterType="com.xd.model.entity.WorkspaceDO" useGeneratedKeys="true" keyProperty="id">
 
         INSERT INTO agent_workspace (
         workspace_id,
@@ -63,26 +60,11 @@
 
     </insert>
 
-    <select id="selectByWorkspaceId"
-            parameterType="java.lang.String"
-            resultMap="BaseResultMap">
-
+    <select id="selectByWorkspaceId" parameterType="java.lang.String" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
         FROM agent_workspace
         WHERE workspace_id = #{workspaceId}
-
-    </select>
-
-    <select id="selectBySessionId"
-            parameterType="java.lang.String"
-            resultMap="BaseResultMap">
-
-        SELECT
-        <include refid="Base_Column_List"/>
-        FROM agent_workspace
-        WHERE session_id = #{sessionId}
-
     </select>
 
     <update id="updateWorkspace" parameterType="com.xd.model.entity.WorkspaceDO">
@@ -107,8 +89,15 @@
     <select id="selectAllWorkspaces" resultType="com.xd.model.entity.WorkspaceDO">
         SELECT
         <include refid="Base_Column_List"/>
-        FROM workspace
+        FROM agent_workspace
         ORDER BY updated_at DESC
     </select>
 
+    <select id="selectWorkspaceByRootPath" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_workspace
+        WHERE root_path = #{rootPath}
+        LIMIT 1
+    </select>
 </mapper>

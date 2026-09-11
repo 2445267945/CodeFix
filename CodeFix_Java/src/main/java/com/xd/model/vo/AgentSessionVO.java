@@ -11,6 +11,10 @@ public class AgentSessionVO {
 
     private String workspaceId;
 
+    private String workspaceName;
+
+    private String rootPath;
+
     private Long createdAt;
 
     private Long updatedAt;

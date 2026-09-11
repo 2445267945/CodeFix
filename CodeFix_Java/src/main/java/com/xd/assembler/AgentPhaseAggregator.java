@@ -273,7 +273,7 @@ public class AgentPhaseAggregator {
             case "VERIFICATION" -> "验证修改";
             case "SUBTASK" -> "子任务";
             case "ERROR" -> "执行失败";
-            default -> "Agent 工作";
+            default -> "Cando 工作";
         };
     }
 }

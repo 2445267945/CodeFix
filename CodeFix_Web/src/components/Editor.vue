@@ -151,7 +151,8 @@ function getLanguage(path) {
 
     case "md":
       return "markdown";
-
+    case "vue":
+      return "html";
     case "html":
       return "html";
 
@@ -174,13 +175,11 @@ function createModel() {
     return;
   }
 
-  const uri = monaco.Uri.parse(`file:///${props.filePath}`);
+  const language = getLanguage(props.filePath);
 
-  model = monaco.editor.createModel(
-    props.content || "",
-    getLanguage(props.filePath),
-    uri
-  );
+  const uri = monaco.Uri.file(props.filePath);
+
+  model = monaco.editor.createModel(props.content || "", language, uri);
 
   return model;
 }
@@ -200,7 +199,7 @@ function createEditor() {
 
     automaticLayout: true,
 
-    theme: "vs",
+    theme: "vs-dark",
 
     fontSize: 13,
 

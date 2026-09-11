@@ -6,9 +6,8 @@ import lombok.Data;
 
 @Data
 public class ChatMessageCreateDTO {
-
     private String content;
     private String sessionId;
-    private String workspaceName;
+    private String workspacePath;
     private String permissionProfile;
 }

@@ -71,4 +71,27 @@
         </where>
         ORDER BY created_at ASC, id ASC
     </select>
+
+    <select id="selectByTaskIds" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_chat_message
+        WHERE task_id IN
+        <foreach collection="list" item="taskId" open="(" separator="," close=")">
+            #{taskId}
+        </foreach>
+        ORDER BY created_at ASC
+    </select>
+
+    <select id="selectRecentBySessionId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_chat_message
+        WHERE session_id IN
+        <foreach collection="list" item="sessionId" open="(" separator="," close=")">
+            #{sessionId}
+        </foreach>
+        ORDER BY created_at ASC
+        limit #{round}
+    </select>
 </mapper>

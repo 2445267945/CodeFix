@@ -2,8 +2,10 @@ package com.xd.service.impl;
 
 import com.xd.exception.BusinessException;
 import com.xd.mapper.WorkSpaceMapper;
+import com.xd.model.dto.WorkspaceFileUpdateDTO;
 import com.xd.model.entity.AgentSessionDO;
 import com.xd.model.entity.WorkspaceDO;
+import com.xd.model.vo.AgentSessionVO;
 import com.xd.model.vo.WorkspaceVO;
 import com.xd.service.AgentSessionService;
 import com.xd.service.WorkspaceService;
@@ -12,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -37,35 +40,30 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public WorkspaceDO createWorkspace(String name) {
-
+    public WorkspaceDO createWorkspace(WorkspaceFileUpdateDTO request) {
+        if (request == null || !StringUtils.hasText(request.getPath())) {
+            throw new BusinessException("Workspace路径不能为空");
+        }
+        String rootPath = request.getPath().trim();
+        Path path = Paths.get(rootPath).toAbsolutePath().normalize();
+        if (!Files.exists(path)) {
+            throw new BusinessException("Workspace目录不存在: " + rootPath);
+        }
+        if (!Files.isDirectory(path)) {
+            throw new BusinessException("Workspace路径不是目录: " + rootPath);
+        }
         long now = System.currentTimeMillis();
         String workspaceId = UUID.randomUUID().toString();
-        String rootPath = WORKSPACE_ROOT + File.separator + workspaceId;
-
+        String name = path.getFileName() == null ? path.toString() : path.getFileName().toString();
         WorkspaceDO workspace = new WorkspaceDO();
         workspace.setWorkspaceId(workspaceId);
-        workspace.setName((name == null || name.isBlank()) ? "Default" : name.trim());
-        workspace.setRootPath(rootPath);
-        workspace.setStatus("CREATING");
+        workspace.setName(name);
+        workspace.setRootPath(path.toString());
+        workspace.setStatus("READY");
         workspace.setCreatedAt(now);
         workspace.setUpdatedAt(now);
         workspaceMapper.insertWorkspace(workspace);
-
-        // 创建文件目录
-        try {
-            Files.createDirectories(Paths.get(rootPath));
-            workspace.setStatus("READY");
-            workspace.setUpdatedAt(System.currentTimeMillis());
-            workspaceMapper.updateWorkspace(workspace);
-            return workspace;
-        } catch (IOException e) {
-            log.error("Workspace初始化失败: workspaceId={}, rootPath={}", workspaceId, rootPath, e);
-            workspace.setStatus("ERROR");
-            workspace.setUpdatedAt(System.currentTimeMillis());
-            workspaceMapper.updateWorkspace(workspace);
-            throw new BusinessException("Workspace初始化失败", e);
-        }
+        return workspace;
     }
 
     @Override
@@ -78,12 +76,6 @@ public class WorkspaceServiceImpl implements WorkspaceService {
         }
 
         return workspace;
-    }
-
-    @Override
-    public WorkspaceDO getBySessionId(String sessionId) {
-
-        return workspaceMapper.selectBySessionId(sessionId);
     }
 
     @Override
@@ -163,7 +155,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override
     public WorkspaceVO getWorkspaceBySessionId(String sessionId) {
-        AgentSessionDO session = agentSessionService.getSessionById(sessionId);
+        AgentSessionVO session = agentSessionService.getSessionById(sessionId);
         if (session == null) {
             return null;
         }
@@ -182,5 +174,19 @@ public class WorkspaceServiceImpl implements WorkspaceService {
                 .createdAt(workspaceDO.getCreatedAt())
                 .updatedAt(workspaceDO.getUpdatedAt())
                 .build();
+    }
+
+    @Override
+    public WorkspaceDO getWorkspaceByRootPath(String workspacePath) {
+        if (!StringUtils.hasText(workspacePath)) {
+            return null;
+        }
+
+        String rootPath = Paths.get(workspacePath.trim())
+                .toAbsolutePath()
+                .normalize()
+                .toString();
+
+        return workspaceMapper.selectWorkspaceByRootPath(rootPath);
     }
 }

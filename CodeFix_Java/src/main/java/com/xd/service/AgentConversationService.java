@@ -19,5 +19,5 @@ public interface AgentConversationService {
 
     void saveAssistantMessage(AgentMessageDTO messageDTO);
 
-    SessionContext buildSessionContext(String sessionId);
+    SessionContext buildSessionContext(String sessionId, String question);
 }

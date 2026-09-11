@@ -10,4 +10,8 @@ public interface WorkspaceFileService {
     WorkspaceTreeVO getTree(String workspaceId);
 
     void updateFile(String workspaceId, WorkspaceFileUpdateDTO request);
+
+    WorkspaceTreeVO getTreeByPath(String workspacePath);
+
+    WorkspaceFileVO getFileByPath(String workspacePath, String filePath);
 }

@@ -60,7 +60,6 @@ class AgentMsgService(BaseMsgHandler):
         # 此时 message 已经是 AgentMessage 类型（codec解析过了）
         msg: AgentMessage = message
 
-        logger.info("开始处理任务: %s", msg.task_id)
         try:
             handler = self.command_handlers.get(msg.command)
             if handler is None:

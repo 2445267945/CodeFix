@@ -1,6 +1,7 @@
 package com.xd.service;
 
 import com.xd.model.entity.AgentSessionDO;
+import com.xd.model.vo.AgentSessionVO;
 
 import java.util.List;
 
@@ -14,7 +15,7 @@ public interface AgentSessionService {
     /**
      * 根据 sessionId 查询
      */
-    AgentSessionDO getSessionById(String sessionId);
+    AgentSessionVO getSessionById(String sessionId);
 
 
     List<AgentSessionDO> getSessions();

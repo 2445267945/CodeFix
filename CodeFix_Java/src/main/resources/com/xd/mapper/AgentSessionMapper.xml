@@ -51,6 +51,7 @@
         SELECT
         <include refid="Base_Column_List"/>
         FROM agent_session
+        ORDER BY created_at DESC
     </select>
 
     <select id="selectByTaskId" resultType="com.xd.model.entity.ChatMessageDO">

@@ -34,14 +34,8 @@ public class AgentSessionController {
      */
     @GetMapping("/{sessionId}")
     public Result<AgentSessionVO> getSession(@PathVariable String sessionId) {
-        AgentSessionDO session = agentSessionService.getSessionById(sessionId);
-        AgentSessionVO sessionVO = AgentSessionVO.builder()
-                .sessionId(session.getSessionId())
-                .workspaceId(session.getWorkspaceId())
-                .createdAt(session.getCreatedAt())
-                .updatedAt(session.getUpdatedAt())
-                .build();
-        return Result.success(sessionVO);
+        AgentSessionVO session = agentSessionService.getSessionById(sessionId);
+        return Result.success(session);
     }
 
     /**

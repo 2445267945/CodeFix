@@ -33,6 +33,7 @@ public class AgentTaskMessage extends BaseMessage {
     private String runId;
 
     private String workspaceId;
+    private String rootPath;
 
     private SessionContext sessionContext;
 

@@ -142,6 +142,8 @@ export const useTaskStore = defineStore('task', {
             ].includes(status)
         },
 
+        workspacePath: (state) => state.result?.rootPath || '',
+
         /**
          * 当前完整 Chat
          */
@@ -802,9 +804,8 @@ export const useTaskStore = defineStore('task', {
          * 发送新一轮对话
          * =====================================================
          */
-        async sendMessage(content, workspaceName = "", permissionProfile) {
+        async sendMessage(content, workspacePath = "", permissionProfile) {
             const text = content?.trim();
-
             if (!text) {
                 return null;
             }
@@ -819,8 +820,13 @@ export const useTaskStore = defineStore('task', {
             const sessionId =
                 this.sessionId || "";
 
-            const normalizedWorkspaceName =
-                workspaceName?.trim() || "";
+            const normalizedWorkspacePath = workspacePath?.trim() || this.result?.rootPath || "";
+
+            if (!normalizedWorkspacePath) {
+                throw new Error(
+                    "请先选择一个本地项目目录"
+                );
+            }
 
             this.sending = true;
             this.error = null;
@@ -830,7 +836,7 @@ export const useTaskStore = defineStore('task', {
                     await sendChatMessage({
                         content: text,
                         sessionId,
-                        workspaceName: normalizedWorkspaceName,
+                        workspacePath: normalizedWorkspacePath,
                         permissionProfile,
                     });
 
@@ -1161,11 +1167,6 @@ export const useTaskStore = defineStore('task', {
                     source.addEventListener(
                         eventName,
                         event => {
-                            console.log(
-                                `[SSE] 收到 ${eventName}:`,
-                                event.data
-                            )
-
                             this.handleSseEvent(
                                 event
                             )
@@ -1194,11 +1195,6 @@ export const useTaskStore = defineStore('task', {
                     JSON.parse(
                         event.data
                     )
-                console.log(
-                    '[SSE BLOCK]',
-                    message.type,
-                    JSON.stringify(message.block, null, 2)
-                )
                 if (!message.messageId) {
                     return
                 }

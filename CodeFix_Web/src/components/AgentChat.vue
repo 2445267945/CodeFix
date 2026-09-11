@@ -4,8 +4,8 @@
       <!-- 空状态 -->
       <div v-if="!chat || !chat.turns?.length" class="chat-empty">
         <div class="empty-mark">✦</div>
-        <div class="empty-title">开始与 Agent 工作</div>
-        <div class="empty-subtitle">提出需求，Agent 会在这里展示工作过程。</div>
+        <div class="empty-title">开始与 Cando 工作</div>
+        <div class="empty-subtitle">提出需求，Cando 会在这里展示工作过程。</div>
       </div>
 
       <div v-else class="chat-content">
@@ -26,7 +26,7 @@
             <div class="agent-heading">
               <span class="agent-mark">✦</span>
               <span>
-                {{ turn.agent.agentName || "Agent" }}
+                {{ turn.agent.agentName || "Cando" }}
               </span>
             </div>
 
@@ -173,7 +173,7 @@
         <textarea
           :value="message"
           rows="1"
-          placeholder="告诉 Agent 下一步做什么…"
+          placeholder="告诉 Cando 下一步做什么…"
           @input="emit('update:message', $event.target.value)"
           @keydown.ctrl.enter.prevent="emit('send')"
         />
@@ -186,7 +186,7 @@
               v-model="permissionProfile"
               class="permission-select"
               :disabled="running || sending"
-              title="Agent 权限"
+              title="Cando 权限"
             >
               <option value="READ_ONLY">只读</option>
               <option value="WORKSPACE">工作区</option>
@@ -199,7 +199,7 @@
             type="button"
             class="stop-button"
             :disabled="stopping"
-            title="暂停 Agent"
+            title="暂停 Cando"
             @click="handleStop"
           >
             <span v-if="stopping">…</span>

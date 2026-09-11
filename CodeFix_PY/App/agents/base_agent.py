@@ -186,7 +186,6 @@ class BaseAgent(ABC):
 
     # 存储当前步骤的工作快照
     async def checkpoint_working_memory(self) -> None:
-        print("[CHECKPOINT 1] build memory")
         if self.base_message is None:
             return
         memory = WorkingMemory(
@@ -201,9 +200,7 @@ class BaseAgent(ABC):
             history_summary=self.context_state.history_summary,
             recent_messages=self.context_state.messages,
         )
-        print("[CHECKPOINT 2] before save")
         await self.working_memory_store.save(memory)
-        print("[CHECKPOINT 3] after save")
 
     async def clear_working_memory(self) -> None:
         if self.base_message is None:

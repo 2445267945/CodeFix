@@ -3,11 +3,14 @@ package com.xd.service.impl;
 import com.xd.exception.BusinessException;
 import com.xd.mapper.AgentSessionMapper;
 import com.xd.mapper.AgentTaskMapper;
+import com.xd.mapper.WorkSpaceMapper;
 import com.xd.model.entity.AgentSessionDO;
 import com.xd.model.entity.AgentTaskDO;
+import com.xd.model.entity.WorkspaceDO;
 import com.xd.model.vo.AgentSessionVO;
 import com.xd.model.vo.TaskDetailVO;
 import com.xd.service.AgentSessionService;
+import com.xd.service.WorkspaceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,9 +24,9 @@ import java.util.UUID;
 public class AgentSessionServiceImpl implements AgentSessionService {
 
     @Autowired
-    private AgentSessionMapper agentSessionMapper;
+    private WorkSpaceMapper workSpaceMapper;
     @Autowired
-    private AgentTaskMapper agentTaskMapper;
+    private AgentSessionMapper agentSessionMapper;
 
     @Override
     public AgentSessionDO createSession(String question) {
@@ -43,19 +46,23 @@ public class AgentSessionServiceImpl implements AgentSessionService {
     }
 
     @Override
-    public AgentSessionDO getSessionById(String sessionId) {
-
+    public AgentSessionVO getSessionById(String sessionId) {
         if (sessionId == null || sessionId.isBlank()) {
             throw new IllegalArgumentException("sessionId不能为空");
         }
-
-        AgentSessionDO session = agentSessionMapper.selectBySessionId(sessionId);
-
-        if (session == null) {
+        AgentSessionDO sessionDO = agentSessionMapper.selectBySessionId(sessionId);
+        if (sessionDO == null) {
             throw new BusinessException("Session不存在: " + sessionId);
         }
+        WorkspaceDO workspaceDO = workSpaceMapper.selectByWorkspaceId(sessionDO.getWorkspaceId());
 
-        return session;
+        return AgentSessionVO.builder()
+                .sessionId(sessionDO.getSessionId())
+                .workspaceId(sessionDO.getWorkspaceId())
+                .rootPath(workspaceDO.getRootPath())
+                .createdAt(sessionDO.getCreatedAt())
+                .updatedAt(sessionDO.getUpdatedAt())
+                .build();
     }
 
     @Override

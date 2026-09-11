@@ -21,7 +21,7 @@ class AgentContext:
     def create_run_context(self, msg: AgentMessage, cancel_event: asyncio.Event):
         workspace = WorkspaceInfo(
             workspace_id=msg.workspace_id,
-            root_path=Path(config.workspace.ROOT) / msg.workspace_id
+            root_path=Path(msg.root_path)
         )
         return AgentRunContext(
             task_id=msg.task_id,

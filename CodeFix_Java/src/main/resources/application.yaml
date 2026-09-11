@@ -5,8 +5,9 @@ spring:
   data:
     redis:
       port: 6379
-      host: localhost
+      host: 192.168.88.130
       password: 123456
+      database: 0
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://127.0.0.1:3306/code_fix?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
@@ -31,6 +32,18 @@ mq:
       statusQueueNum: 8
       heartbeat: agent_heartbeat_topic
       heartbeatQueueNum: 8
+
+agent:
+  embedding:
+    provider: ollama
+    model: nomic-embed-text:latest
+    dimension: 768
+    base-url: http://localhost:11434
+  memory:
+    vector:
+      distance-metric: COSINE
+      index-name: 'agent_task_memory_idx'
+      key-prefix: 'agent:task-memory:'
 
 py:
   url: http://localhost:8000/analyze
