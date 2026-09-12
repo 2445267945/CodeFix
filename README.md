@@ -13,9 +13,9 @@ Tool Calling、Human Approval、Workspace 文件操作、Event 持久化、
 
 ## Demo
 
-> Screenshot / GIF will be added here.
+**运行结果展示：**
 
-（仓库当前尚无可靠截图，待补充真实执行截图后再行替换。）
+![图片说明](Images/codeFix.gif)
 
 ---
 
@@ -36,11 +36,11 @@ Tool Calling、Human Approval、Workspace 文件操作、Event 持久化、
 
 系统由三个独立代码库组成：
 
-| 代码库          | 角色                                             |
-| ------------- | ---------------------------------------------- |
+| 代码库         | 角色                                                         |
+| -------------- | ------------------------------------------------------------ |
 | `CodeFix_Java` | 平台控制面 / 产品后端：Task、Run、状态、事件、审批、Workspace、聚合、SSE |
 | `CodeFix_PY`   | Agent Runtime：Supervisor、ReAct、LLM、Tools、Context、审批门控 |
-| `CodeFix_Web`  | 前端：任务、会话、聊天过程、文件变更、Diff、Workspace 可视化         |
+| `CodeFix_Web`  | 前端：任务、会话、聊天过程、文件变更、Diff、Workspace 可视化 |
 
 ---
 
@@ -96,22 +96,22 @@ Finish
 
 ## 核心能力
 
-| 能力                   | 说明                                             |
-| -------------------- | ---------------------------------------------- |
-| Long-running Task    | 通过 MQ 异步下发，Java 只做编排，不阻塞 HTTP，支持多轮持续执行         |
-| Task / Run Lifecycle | Task 与 Run 分离；一次 Task 可对应多次 Run（Retry / Resume）   |
+| 能力                 | 说明                                                         |
+| -------------------- | ------------------------------------------------------------ |
+| Long-running Task    | 通过 MQ 异步下发，Java 只做编排，不阻塞 HTTP，支持多轮持续执行 |
+| Task / Run Lifecycle | Task 与 Run 分离；一次 Task 可对应多次 Run（Retry / Resume） |
 | State Machine        | Java 侧状态机驱动 CREATED → QUEUED → THINKING → EXECUTING → WAITING_HUMAN → FINISHED / ERROR / CANCELLED |
-| Event Persistence    | Python 上报的每个 Agent Event 都落库并做幂等判重                 |
-| Run State History    | 记录每次状态迁移的 from → to、触发来源与原因                     |
-| Tool Calling         | 文件读写 / 搜索 / 语法校验 / 解析 / 子 Agent 委派等 13 个工具        |
+| Event Persistence    | Python 上报的每个 Agent Event 都落库并做幂等判重             |
+| Run State History    | 记录每次状态迁移的 from → to、触发来源与原因                 |
+| Tool Calling         | 文件读写 / 搜索 / 语法校验 / 解析 / 子 Agent 委派等 12 个工具 |
 | Human Approval       | 高风险操作进入 WAITING_HUMAN，Java APPROVE / REJECT 后放行或拒绝 |
-| Permission Profile   | READ_ONLY / WORKSPACE / FULL_AUTO 三档策略            |
-| Workspace            | Python 工具把文件路径限制在 Workspace 根内，变更被记录并生成 diffId    |
-| Realtime UI          | SSE 实时推送 BLOCK_APPEND / BLOCK_UPDATE / RESULT_REFRESH |
-| History Restore      | 页面刷新后从持久化 Event 按同一语义重新聚合展示                    |
+| Permission Profile   | READ_ONLY / WORKSPACE / FULL_AUTO 三档策略                   |
+| Workspace            | Python 工具把文件路径限制在 Workspace 根内，变更被记录并生成 diffId |
+| Realtime UI          | SSE 实时推送 BLOCK_APPEND / BLOCK_UPDATE / RESULT_REFRESH    |
+| History Restore      | 页面刷新后从持久化 Event 按同一语义重新聚合展示              |
 | Activity Aggregation | 底层 Event 被聚合为用户可理解的 Activity / Phase             |
-| Multi-Agent          | Supervisor + Explorer + Fixer                    |
-| RAG 规范查询           | 检索《阿里巴巴 Java 开发手册》条款，为修复建议提供权威依据             |
+| Multi-Agent          | Supervisor + Explorer + Fixer                                |
+| RAG 规范查询         | 检索《阿里巴巴 Java 开发手册》条款，为修复建议提供权威依据   |
 
 ---
 
@@ -208,7 +208,7 @@ Retry → 创建新的 Run
 Resume → 恢复当前 Run
 Cancel → 终止当前 Run
 Run     : Event  = 1 : N
-Session : Workspace = 关联关系     （Session 记录 workspaceId，首版允许为空）
+Session : Workspace = N : 1（目前暂时为1:1，后续将继续迭代）
 ```
 
 ### 实体说明（Java DO，MySQL `code_fix` 库）
@@ -314,21 +314,20 @@ Task
 
 工具注册在 Python `ToolRegistry`（`App/agent_boost/tools/tool_registry.py`），当前共 13 个工具：
 
-| Tool               | Purpose                                             |
-| ------------------ | --------------------------------------------------- |
-| `list_files`       | 列出 Workspace 中的文件和目录                               |
-| `read_file`        | 读取文件                                               |
-| `glob`             | 按文件匹配模式查找文件                                      |
-| `grep`             | 在 Workspace 中搜索文本 / 类名 / 方法名 / 配置项                |
-| `write_file`       | 创建新文件                                              |
-| `delete_file`      | 删除文件                                               |
-| `apply_patch`      | 精确修改已有文件（生成 Unified Diff）                        |
-| `verify_java_syntax` | 调用 Java `/api/validate` 校验 Java 语法                  |
-| `parse_java_code`    | 调用 Java `/api/parse`（JavaParser）解析 Java 结构         |
-| `search_manual`      | 检索《阿里巴巴 Java 开发手册》编码规范条款                        |
-| `run_explorer`       | 委派 Explorer 子 Agent 做代码结构分析                        |
-| `run_fixer`          | 委派 Fixer 子 Agent 修复代码                              |
-| `get_length`         | 测量字符串长度                                           |
+| Tool                 | Purpose                                            |
+| -------------------- | -------------------------------------------------- |
+| `list_files`         | 列出 Workspace 中的文件和目录                      |
+| `read_file`          | 读取文件                                           |
+| `glob`               | 按文件匹配模式查找文件                             |
+| `grep`               | 在 Workspace 中搜索文本 / 类名 / 方法名 / 配置项   |
+| `write_file`         | 创建新文件                                         |
+| `delete_file`        | 删除文件                                           |
+| `apply_patch`        | 精确修改已有文件（生成 Unified Diff）              |
+| `verify_java_syntax` | 调用 Java `/api/validate` 校验 Java 语法           |
+| `parse_java_code`    | 调用 Java `/api/parse`（JavaParser）解析 Java 结构 |
+| `search_manual`      | 检索《阿里巴巴 Java 开发手册》编码规范条款         |
+| `run_explorer`       | 委派 Explorer 子 Agent 做代码结构分析              |
+| `run_fixer`          | 委派 Fixer 子 Agent 修复代                         |
 
 不同 Agent 拥有不同的工具集合（`AgentToolSet`）：
 
@@ -369,7 +368,7 @@ DENY ─────────> Java 自动下发 REJECT，Agent 被拒绝
 - 需要人工时，Python 的 `ExecutionGate` 以 `actionId` 为 key 阻塞当前 Agent 协程；
 - 用户在前端 APPROVE / REJECT → Java `AgentCommandService` → MQ `AGENT_COMMAND` → Python 唤醒对应 Future。
 
-> 说明：当前权限控制是"产品层的工具/路径审批"机制，仓库中并未实现 OS 级沙箱 / 容器隔离，不应声称具备沙箱能力。
+> 说明：当前权限控制是"产品层的工具/路径审批"机制，仓库中并未实现 OS 级沙箱 / 容器隔离。
 
 ---
 
@@ -459,10 +458,10 @@ Activity / Diff 展示
 
 - Python 侧每个 Run 通过 `run_context.workspace` 绑定工作区；
 - Java 侧暴露 Workspace API：
-  - `GET /api/agent/workspace`（列出 Workspace）
-  - `GET /api/agent/workspace/{workspaceId}/tree`
-  - `GET /api/agent/workspace/{workspaceId}/file?path=...`
-  - `PUT /api/agent/workspace/{workspaceId}/file`
+	- `GET /api/agent/workspace`（列出 Workspace）
+	- `GET /api/agent/workspace/{workspaceId}/tree`
+	- `GET /api/agent/workspace/{workspaceId}/file?path=...`
+	- `PUT /api/agent/workspace/{workspaceId}/file`
 - 文件变更可通过 `GET /api/agent/diffs/{diffId}` 查看 Diff。
 
 > 当前实现不包含容器 / 沙箱隔离，仅做应用层的路径隔离与变更记录。
@@ -473,15 +472,15 @@ Activity / Diff 展示
 
 ### Requirements
 
-| 依赖       | 版本 / 说明                                              |
-| -------- | ---------------------------------------------------- |
-| Java     | 17（`pom.xml` `java.version=17`）                       |
-| Maven    | 用于构建 `CodeFix_Java`                                  |
-| Python   | 3.x（依赖见 `CodeFix_PY/requirements.txt`）               |
-| Node.js  | 用于构建 / 运行 `CodeFix_Web`（Vite）                      |
-| MySQL    | 数据库名 `code_fix`（见 `application.yaml`）                |
-| Redis    | Java / Python 均使用（session、缓存、Working Memory）        |
-| RocketMQ | Namesrv + Broker（Java 与 Python 通过它通信）               |
+| 依赖     | 版本 / 说明                                           |
+| -------- | ----------------------------------------------------- |
+| Java     | 17（`pom.xml` `java.version=17`）                     |
+| Maven    | 用于构建 `CodeFix_Java`                               |
+| Python   | 3.x（依赖见 `CodeFix_PY/requirements.txt`）           |
+| Node.js  | 用于构建 / 运行 `CodeFix_Web`（Vite）                 |
+| MySQL    | 数据库名 `code_fix`（见 `application.yaml`）          |
+| Redis    | Java / Python 均使用（session、缓存、Working Memory） |
+| RocketMQ | Namesrv + Broker（Java 与 Python 通过它通信）         |
 
 ### 目录结构
 
@@ -497,7 +496,7 @@ project/
 
 1. 准备 MySQL（建库 `code_fix`）、Redis、RocketMQ；
 2. 修改 `CodeFix_Java/src/main/resources/application.yaml` 中的连接配置
-   （MySQL 地址 / 账号、Redis、`mq.rocketmq.name-server`、consumer / producer group 与 topic）；
+	（MySQL 地址 / 账号、Redis、`mq.rocketmq.name-server`、consumer / producer group 与 topic）；
 3. 启动：
 
 ```bash
@@ -553,17 +552,17 @@ npm run dev
 
 核心配置项（**敏感信息请使用环境变量或本地配置，不要提交到仓库**）：
 
-| 配置域            | 位置 / 示例                                        | 说明                       |
-| --------------- | ---------------------------------------------- | ------------------------ |
-| Java 端口         | `server.port`（默认 8080）                         | 后端服务端口                  |
-| MySQL           | `spring.datasource`（库 `code_fix`）               | 持久化                     |
-| Redis           | `spring.data.redis` / `REDIS_URL`                | 缓存 / Working Memory      |
-| RocketMQ        | `mq.rocketmq.name-server`、group、topic           | 任务 / 状态 / 心跳消息           |
-| LLM Provider    | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_TIMEOUT`    | DeepSeek 等 OpenAI 兼容接口    |
-| Ollama          | `OLLAMA_BASE_URL`                                | 本地推理 / Embedding          |
-| Embedding       | `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL`          | chromadb 向量库 Embedding    |
-| Workspace 根目录   | `WORKSPACE_ROOT`（默认 `/data/workspaces`）         | Python 工具访问的工作区根目录       |
-| Java Backend URL | `BACKEND_BASE_URL`（默认 `http://localhost:8080`）   | Python 调用 Java 辅助接口       |
+| 配置域           | 位置 / 示例                                        | 说明                          |
+| ---------------- | -------------------------------------------------- | ----------------------------- |
+| Java 端口        | `server.port`（默认 8080）                         | 后端服务端口                  |
+| MySQL            | `spring.datasource`（库 `code_fix`）               | 持久化                        |
+| Redis            | `spring.data.redis` / `REDIS_URL`                  | 缓存 / Working Memory         |
+| RocketMQ         | `mq.rocketmq.name-server`、group、topic            | 任务 / 状态 / 心跳消息        |
+| LLM Provider     | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_TIMEOUT`     | DeepSeek 等 OpenAI 兼容接口   |
+| Ollama           | `OLLAMA_BASE_URL`                                  | 本地推理 / Embedding          |
+| Embedding        | `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL`           | chromadb 向量库 Embedding     |
+| Workspace 根目录 | `WORKSPACE_ROOT`（默认 `/data/workspaces`）        | Python 工具访问的工作区根目录 |
+| Java Backend URL | `BACKEND_BASE_URL`（默认 `http://localhost:8080`） | Python 调用 Java 辅助接口     |
 
 > `CodeFix_PY/.env.example` 已存在模板文件，具体取值请按本地环境填写。
 > README 不包含任何真实 API Key / Password / Token / 私网地址。
@@ -671,39 +670,41 @@ src/
 
 ### Next / 规划
 
-- [ ] 心跳超时后的自动兜底（`handleHeartbeatTimeout` 目前为注释保留，扫描框架已就位）
 - [ ] Workspace 创建 / 关联的产品级完整流程（前端已预留创建入口，后端 CRUD 完善中）
+- [ ] sandbox等隔离机制的实现
+- [ ] agent 流式输出
+- [ ] agent 操作回滚
+- [ ] 有效信息的展示（token消耗、耗时等）
 - [ ] 用户 / 登录 / 账号级权限体系
 - [ ] 更完整的 Docker / docker-compose 一键编排（当前为占位文件）
 - [ ] 单元 / 集成测试覆盖（当前 `CodeFix_Java` 仅包含启动冒烟测试）
 - [ ] 会话级长任务历史归档与检索
 - [ ] 更多 LLM Provider 适配与上下文压缩策略调优
 
-> 说明：以上 "Next" 均为仓库当前**尚未完成**的内容，避免把规划当作已完成能力。
+> 说明：以上 "Next" 均为仓库当前**尚未完成**的内容。
 
 ---
 
 ## Tech Stack
 
-| Layer                   | Technology                                   |
-| ----------------------- | -------------------------------------------- |
-| Frontend                | Vue 3 / Pinia / Vue Router / Element Plus / Axios |
-| Editor / Diff           | Monaco Editor / highlight.js / vue-markdown-render |
-| Backend                 | Java 17 / Spring Boot 3.5                    |
-| ORM                     | MyBatis（mybatis-spring-boot-starter 3.0.3）   |
-| Messaging               | RocketMQ（client 5.3.3，FIFO status topic）     |
-| Database                | MySQL（库 `code_fix`）                          |
-| Cache / Working Memory  | Redis                                      |
-| Agent Runtime           | Python / FastAPI / Uvicorn                    |
-| Agent Models / Validation | Pydantic                                   |
-| Code Analysis           | JavaParser（core 3.28.0）/ JavaSyntaxValidator  |
-| Realtime                | SSE（SseEmitter + EventSource）                 |
-| RAG / Embedding         | ChromaDB / Ollama Embedding / pypdf            |
-| JSON 处理               | fastjson2 / Jackson                            |
+| Layer                     | Technology                                         |
+| ------------------------- | -------------------------------------------------- |
+| Frontend                  | Vue 3 / Pinia / Vue Router / Element Plus / Axios  |
+| Editor / Diff             | Monaco Editor / highlight.js / vue-markdown-render |
+| Backend                   | Java 17 / Spring Boot 3.5                          |
+| ORM                       | MyBatis（mybatis-spring-boot-starter 3.0.3）       |
+| Messaging                 | RocketMQ（client 5.3.3，FIFO status topic）        |
+| Database                  | MySQL（库 `code_fix`）                             |
+| Cache / Working Memory    | Redis                                              |
+| Agent Runtime             | Python / FastAPI / Uvicorn                         |
+| Agent Models / Validation | Pydantic                                           |
+| Code Analysis             | JavaParser（core 3.28.0）/ JavaSyntaxValidator     |
+| Realtime                  | SSE（SseEmitter + EventSource）                    |
+| RAG / Embedding           | ChromaDB / Ollama Embedding / pypdf                |
+| JSON 处理                 | fastjson2 / Jackson                                |
 
 ---
 
 ## License
 
-License information will be added before public release.
-
+This project is licensed under the MIT License.
