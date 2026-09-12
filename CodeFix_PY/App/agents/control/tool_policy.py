@@ -20,7 +20,7 @@ TOOL_PERMISSION = {
     "write_file": ToolPermission.CONFIRM,
     "apply_patch": ToolPermission.CONFIRM,
     "delete_file": ToolPermission.CONFIRM,
-
+    "run_command": ToolPermission.CONFIRM,
     # 子 Agent
     "run_explorer": ToolPermission.CONFIRM,
     "run_fixer": ToolPermission.CONFIRM,

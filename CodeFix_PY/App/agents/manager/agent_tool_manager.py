@@ -9,6 +9,7 @@ class AgentToolSet:
         "delete_file",
         "run_explorer",
         "run_fixer",
+        "run_command",
     )
 
     EXPLORER = (

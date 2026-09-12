@@ -32,7 +32,7 @@ class ToolExecutor(ReActAgent):
         self.status = AgentState.THINKING
         print("=== THINK START ===")
         if self.main_llm is None:
-            self.final_answer = (f"{self.name} 的 LLM 未实例化")
+            self.final_answer = f"{self.name} 的 LLM 未实例化"
             self.status = AgentState.ERROR
             self.msg_sender.agent_report(agent=self, event=AgentEvent.ERROR, output={"error": self.final_answer}, runId=self.base_message.run_id)
             return False
@@ -81,14 +81,8 @@ class ToolExecutor(ReActAgent):
                 completion_tokens,
                 total_tokens,
             )
-            logger.debug(
-                "[LLM RESPONSE] content=%r",
-                response.content,
-            )
-            logger.debug(
-                "[LLM REASONING] %s",
-                response.reasoning_content,
-            )
+            logger.debug("[LLM RESPONSE] content=%r",response.content)
+            logger.debug("[LLM REASONING] %s",response.reasoning_content)
         except asyncio.TimeoutError:
             self.status = AgentState.ERROR
             self.final_answer = {"success": False, "error_type": "LLM_TIMEOUT", "message": f"AI 推理超时({self.timeout_manager.llm_timeout}s)，已终止。"}
@@ -102,7 +96,9 @@ class ToolExecutor(ReActAgent):
             return False
         self.add_assistant_message(response)
         # 4. 如果模型产生 Tool Calls
-        self.msg_sender.agent_report(agent=self, event=AgentEvent.THINK,
+        self.msg_sender.agent_report(
+            agent=self,
+            event=AgentEvent.THINK,
             output={
                 "content": response.content or "",
                 "reasoning": response.reasoning_content,
@@ -122,13 +118,13 @@ class ToolExecutor(ReActAgent):
             return True
         # 5. 没有 Tool Call
         self.status = AgentState.FINISHED
-        self.final_answer = (response.content or "")
-        self.msg_sender.agent_report(agent=self, event=AgentEvent.FINISH,
-             output={
+        self.final_answer = response.content or ""
+        self.msg_sender.agent_report(
+            agent=self,
+            event=AgentEvent.FINISH,
+            output={
                 "content": response.content or "",
-                "reasoning": (
-                    response.reasoning_content
-                )
+                "reasoning": response.reasoning_content
             },
             runId=self.base_message.run_id
         )
