@@ -3,6 +3,7 @@ package com.xd.controller;
 import com.xd.model.Result;
 import com.xd.model.dto.WorkspaceFileUpdateDTO;
 import com.xd.model.vo.WorkspaceFileVO;
+import com.xd.model.vo.WorkspaceSessionsVO;
 import com.xd.model.vo.WorkspaceTreeVO;
 import com.xd.model.vo.WorkspaceVO;
 import com.xd.service.WorkspaceFileService;
@@ -58,6 +59,15 @@ public class WorkspaceController {
     public Result<List<WorkspaceVO>> listWorkspaces() {
         List<WorkspaceVO> workspaceVOS = workspaceService.listWorkspaces();
         return Result.success(workspaceVOS);
+    }
+
+    /**
+     * 查询所有 Workspace 及其关联的 Session（用于按项目维度展示会话）
+     */
+    @GetMapping("/sessions")
+    public Result<List<WorkspaceSessionsVO>> listWorkspacesWithSessions() {
+        List<WorkspaceSessionsVO> result = workspaceService.listWorkspacesWithSessions();
+        return Result.success(result);
     }
 
 }

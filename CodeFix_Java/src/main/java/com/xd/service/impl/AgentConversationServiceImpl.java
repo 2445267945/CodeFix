@@ -50,7 +50,7 @@ public class AgentConversationServiceImpl implements AgentConversationService {
     @Autowired
     private MQProducer mqProducer;
 
-    private static final int RECENT_TURN_COUNT = 0;
+    private static final int RECENT_TURN_COUNT = 3;
     private static final int MEMORY_TOP_K = 10;
     private static final double MEMORY_MIN_SCORE = 0.60;
     private static final double MEMORY_RELATIVE_RATIO = 0.85;

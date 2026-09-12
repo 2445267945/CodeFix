@@ -86,6 +86,29 @@
         WHERE workspace_id = #{workspaceId}
     </update>
 
+    <resultMap id="WorkspaceSessionRowMap"
+               type="com.xd.model.dto.WorkspaceSessionRowDTO">
+        <result property="workspaceId" column="ws_workspace_id"/>
+        <result property="workspaceName" column="ws_name"/>
+        <result property="sessionId" column="se_session_id"/>
+        <result property="title" column="se_title"/>
+        <result property="sessionCreatedAt" column="se_created_at"/>
+        <result property="sessionUpdatedAt" column="se_updated_at"/>
+    </resultMap>
+
+    <select id="selectWorkspaceSessions" resultMap="WorkspaceSessionRowMap">
+        SELECT
+        w.workspace_id AS ws_workspace_id,
+        w.name         AS ws_name,
+        s.session_id   AS se_session_id,
+        s.title        AS se_title,
+        s.created_at   AS se_created_at,
+        s.updated_at   AS se_updated_at
+        FROM agent_workspace w
+        LEFT JOIN agent_session s ON s.workspace_id = w.workspace_id
+        ORDER BY w.updated_at DESC, s.created_at DESC
+    </select>
+
     <select id="selectAllWorkspaces" resultType="com.xd.model.entity.WorkspaceDO">
         SELECT
         <include refid="Base_Column_List"/>

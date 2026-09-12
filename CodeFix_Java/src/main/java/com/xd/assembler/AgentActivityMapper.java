@@ -39,8 +39,8 @@ public class AgentActivityMapper {
             // 文件修改
             case "write_file", "delete_file", "apply_patch" -> "WRITE";
 
-            // 验证
-            case "verify_java_syntax" -> "VERIFY";
+            // 验证 / 命令执行
+            case "verify_java_syntax", "run_command" -> "VERIFY";
 
             // 子 Agent
             case "run_explorer", "run_fixer" -> "DELEGATE";
@@ -104,8 +104,17 @@ public class AgentActivityMapper {
                 };
             }
 
-            case "VERIFY" ->
-                    "等待确认执行验证";
+            case "VERIFY" -> {
+                if ("run_command".equals(toolName)) {
+                    String command = firstString(arguments, "command", "cmd");
+
+                    yield isBlank(command)
+                            ? "等待确认执行验证命令"
+                            : "等待确认执行验证命令 " + command;
+                }
+
+                yield "等待确认执行验证";
+            }
 
             case "DELEGATE" ->
                     "等待确认委派子 Agent";
@@ -174,8 +183,17 @@ public class AgentActivityMapper {
                 };
             }
 
-            case "VERIFY" ->
-                    "正在验证修改";
+            case "VERIFY" -> {
+                if ("run_command".equals(toolName)) {
+                    String command = firstString(arguments, "command", "cmd");
+
+                    yield isBlank(command)
+                            ? "正在执行验证命令"
+                            : "正在执行验证命令 " + command;
+                }
+
+                yield "正在验证修改";
+            }
 
             case "DELEGATE" ->
                     "正在委派子 Agent";
@@ -205,17 +223,21 @@ public class AgentActivityMapper {
     /**
      * 工具执行完成后的产品文案。
      *
-     * 注意：
-     * TOOL_RESULT 本身通常不再包含 arguments，
-     * 调用方需要传入该 Tool Call 对应的 arguments。
+     * arguments 来自 TOOL_CALL。
+     * result 来自 TOOL_RESULT。
      */
     public String buildCompletedSummary(
             String action,
             String toolName,
-            Map<String, Object> arguments
+            Map<String, Object> arguments,
+            Map<String, Object> result
     ) {
         if (arguments == null) {
             arguments = Collections.emptyMap();
+        }
+
+        if (result == null) {
+            result = Collections.emptyMap();
         }
 
         return switch (action) {
@@ -273,7 +295,11 @@ public class AgentActivityMapper {
             }
 
             case "VERIFY" ->
-                    "验证完成";
+                    buildVerificationSummary(
+                            toolName,
+                            arguments,
+                            result
+                    );
 
             case "DELEGATE" ->
                     "子 Agent 执行完成";
@@ -281,6 +307,141 @@ public class AgentActivityMapper {
             default ->
                     "操作完成";
         };
+    }
+
+    /**
+     * run_command 的验证结果展示。
+     */
+    private String buildVerificationSummary(
+            String toolName,
+            Map<String, Object> arguments,
+            Map<String, Object> result
+    ) {
+        if (!"run_command".equals(toolName)) {
+            return "验证完成";
+        }
+
+        String command = firstString(arguments, "command", "cmd");
+
+        boolean success = Boolean.TRUE.equals(
+                result.get("success")
+        );
+
+        Object exitCodeValue = result.get("exit_code");
+        String exitCode = exitCodeValue == null
+                ? null
+                : String.valueOf(exitCodeValue);
+
+        String detail = extractVerificationDetail(result);
+
+        String prefix = success
+                ? "已执行验证命令"
+                : "验证命令执行失败";
+
+        String commandText = isBlank(command)
+                ? ""
+                : " " + command;
+
+        String statusText = success
+                ? "，通过"
+                : "，失败";
+
+        String exitText = isBlank(exitCode)
+                ? ""
+                : "（exit code " + exitCode + "）";
+
+        if (isBlank(detail)) {
+            return prefix
+                    + commandText
+                    + statusText
+                    + exitText;
+        }
+
+        return prefix
+                + commandText
+                + statusText
+                + exitText
+                + " · "
+                + detail;
+    }
+
+    /**
+     * 从 stdout / stderr 中提取对用户有意义的验证摘要。
+     */
+    private String extractVerificationDetail(
+            Map<String, Object> result
+    ) {
+        String stdout = toStringValue(
+                result.get("stdout")
+        );
+
+        String stderr = toStringValue(
+                result.get("stderr")
+        );
+
+        String detail = extractImportantOutput(stdout);
+
+        if (isBlank(detail)) {
+            detail = extractImportantOutput(stderr);
+        }
+
+        return detail;
+    }
+
+    /**
+     * 提取测试结果、构建结果或最后一条有效输出。
+     */
+    private String extractImportantOutput(String output) {
+        if (isBlank(output)) {
+            return null;
+        }
+
+        String normalized = output
+                .replace("\r", "")
+                .trim();
+
+        String[] lines = normalized.split("\n");
+
+        // 优先提取测试结果
+        for (String line : lines) {
+            String text = line.trim();
+
+            if (text.matches(".*Tests run:.*")) {
+                return limit(text, 160);
+            }
+        }
+
+        // Maven / Gradle 等构建结果
+        for (String line : lines) {
+            String text = line.trim();
+
+            if (text.contains("BUILD SUCCESS")
+                    || text.contains("BUILD FAILURE")) {
+                return limit(text, 160);
+            }
+        }
+
+        // 没有标准测试结果时，取最后一条有效输出
+        for (int i = lines.length - 1; i >= 0; i--) {
+            String text = lines[i].trim();
+
+            if (!text.isBlank()) {
+                return limit(text, 160);
+            }
+        }
+
+        return null;
+    }
+
+    private String limit(
+            String text,
+            int maxLength
+    ) {
+        if (text == null || text.length() <= maxLength) {
+            return text;
+        }
+
+        return text.substring(0, maxLength) + "...";
     }
 
     /**
@@ -305,7 +466,9 @@ public class AgentActivityMapper {
         if (result instanceof Map<?, ?> resultMap) {
             Object errorType = resultMap.get("error_type");
 
-            if ("USER_REJECTED".equalsIgnoreCase(String.valueOf(errorType))) {
+            if ("USER_REJECTED".equalsIgnoreCase(
+                    String.valueOf(errorType)
+            )) {
                 return "failed";
             }
 
@@ -392,7 +555,9 @@ public class AgentActivityMapper {
         block.setSummary(buildFileChangeSummary(change));
     }
 
-    private String buildFileChangeSummary(AgentFileChangeDO change) {
+    private String buildFileChangeSummary(
+            AgentFileChangeDO change
+    ) {
         String path = isBlank(change.getFilePath())
                 ? "文件"
                 : change.getFilePath();
@@ -410,7 +575,9 @@ public class AgentActivityMapper {
         };
     }
 
-    private String buildFileChangeSummary(FileChangeVO change) {
+    private String buildFileChangeSummary(
+            FileChangeVO change
+    ) {
         String path = isBlank(change.getFilePath())
                 ? "文件"
                 : change.getFilePath();
@@ -442,7 +609,8 @@ public class AgentActivityMapper {
             return (Map<String, Object>) map;
         }
 
-        if (arguments instanceof String text && !text.isBlank()) {
+        if (arguments instanceof String text
+                && !text.isBlank()) {
             try {
                 return objectMapper.readValue(
                         text,

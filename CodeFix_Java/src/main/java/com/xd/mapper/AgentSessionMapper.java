@@ -15,6 +15,8 @@ public interface AgentSessionMapper {
 
     List<AgentSessionDO> selectSessions();
 
+    List<AgentSessionDO> selectByWorkspaceId(String workspaceId);
+
     List<ChatMessageDO> selectByTaskId(String taskId);
 
     int updateSession(AgentSessionDO session);

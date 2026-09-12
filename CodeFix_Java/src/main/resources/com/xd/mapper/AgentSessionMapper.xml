@@ -54,6 +54,14 @@
         ORDER BY created_at DESC
     </select>
 
+    <select id="selectByWorkspaceId" parameterType="java.lang.String" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM agent_session
+        WHERE workspace_id = #{workspaceId}
+        ORDER BY created_at DESC
+    </select>
+
     <select id="selectByTaskId" resultType="com.xd.model.entity.ChatMessageDO">
         SELECT
             id,

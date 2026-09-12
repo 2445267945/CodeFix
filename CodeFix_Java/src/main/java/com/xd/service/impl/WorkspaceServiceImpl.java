@@ -3,9 +3,12 @@ package com.xd.service.impl;
 import com.xd.exception.BusinessException;
 import com.xd.mapper.WorkSpaceMapper;
 import com.xd.model.dto.WorkspaceFileUpdateDTO;
+import com.xd.model.dto.WorkspaceSessionRowDTO;
 import com.xd.model.entity.AgentSessionDO;
 import com.xd.model.entity.WorkspaceDO;
 import com.xd.model.vo.AgentSessionVO;
+import com.xd.model.vo.SessionVO;
+import com.xd.model.vo.WorkspaceSessionsVO;
 import com.xd.model.vo.WorkspaceVO;
 import com.xd.service.AgentSessionService;
 import com.xd.service.WorkspaceService;
@@ -24,7 +27,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Slf4j
@@ -68,13 +73,10 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override
     public WorkspaceDO getWorkspace(String workspaceId) {
-
         WorkspaceDO workspace = workspaceMapper.selectByWorkspaceId(workspaceId);
-
         if (workspace == null) {
             throw new IllegalArgumentException("Workspace不存在: " + workspaceId);
         }
-
         return workspace;
     }
 
@@ -93,6 +95,40 @@ public class WorkspaceServiceImpl implements WorkspaceService {
             result.add(vo);
         }
         return result;
+    }
+
+    @Override
+    public List<WorkspaceSessionsVO> listWorkspacesWithSessions() {
+        /*
+         * 一次 JOIN 查询取出「所有 Workspace + 其下 Session」的扁平结果，
+         * 再在内存中按 workspaceId 分组，避免按 workspace 逐个查询 session 造成的 N+1。
+         */
+        List<WorkspaceSessionRowDTO> rows = workspaceMapper.selectWorkspaceSessions();
+
+        Map<String, WorkspaceSessionsVO> grouped = new LinkedHashMap<>();
+        for (WorkspaceSessionRowDTO row : rows) {
+            if (row.getWorkspaceId() == null) {
+                continue;
+            }
+            WorkspaceSessionsVO vo = grouped.computeIfAbsent(row.getWorkspaceId(), workspaceId ->
+                    WorkspaceSessionsVO.builder()
+                            .workspaceId(workspaceId)
+                            .workspaceName(row.getWorkspaceName())
+                            .sessions(new ArrayList<>())
+                            .build());
+
+            // 没有 session 的 workspace 只有一行且 sessionId 为 null
+            if (row.getSessionId() != null) {
+                vo.getSessions().add(SessionVO.builder()
+                        .sessionId(row.getSessionId())
+                        .title(row.getTitle())
+                        .workspaceId(row.getWorkspaceId())
+                        .createdAt(row.getSessionCreatedAt())
+                        .updatedAt(row.getSessionUpdatedAt())
+                        .build());
+            }
+        }
+        return new ArrayList<>(grouped.values());
     }
 
 //    @Override

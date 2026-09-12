@@ -300,11 +300,13 @@ public class AgentChatBlockAssembler {
          * 使用真正的 Tool Call arguments
          * 生成最终完成文案。
          */
+        Map<String, Object> result = extractResult(data);
         block.setSummary(
                 activityMapper.buildCompletedSummary(
                         action,
                         toolName,
-                        arguments
+                        arguments,
+                        result
                 )
         );
 
@@ -335,6 +337,23 @@ public class AgentChatBlockAssembler {
         pendingRemove(toolBlocks, toolCallId);
     }
 
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractResult(
+            Map<String, Object> data
+    ) {
+        if (data == null) {
+            return Collections.emptyMap();
+        }
+
+        Object result = data.get("result");
+
+        if (result instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+
+        return Collections.emptyMap();
+    }
     private void pendingRemove(
             Map<String, AgentChatBlockVO> toolBlocks,
             String toolCallId

@@ -550,6 +550,74 @@ async def apply_patch(file_name: str, old_text: str, new_text: str, caller=None)
     except Exception as e:
         raise RuntimeError(f"apply_patch 执行失败: {file_name}") from e
 
+COMMAND_TIMEOUT = 120
+MAX_COMMAND_OUTPUT = 10000
+@registry.register(
+    name="run_command",
+    description=(
+        "在当前 Workspace 中执行项目相关命令。"
+        "用于运行构建、测试、代码检查、脚本等操作。"
+        "不要用于查看文件结构、读取文件或搜索代码。"
+        "输入参数: {'command':'需要执行的命令'}"
+    ),
+    need_caller=True,
+)
+async def run_command(command: str, caller=None) -> dict:
+    import asyncio
+    if caller is None:
+        raise RuntimeError("run_command 执行失败：缺少 caller Agent")
+    workspace = caller.run_context.workspace
+    cwd = workspace.root_path
+    try:
+        process = await asyncio.create_subprocess_shell(
+            command,
+            cwd=str(cwd),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout, stderr = await asyncio.wait_for(
+            process.communicate(),
+            timeout=COMMAND_TIMEOUT
+        )
+
+        stdout_text = decode_output(stdout)
+        stderr_text = decode_output(stderr)
+        return {
+            "success": process.returncode == 0,
+            "command": command,
+            "exit_code": process.returncode,
+            "stdout": stdout_text[:MAX_COMMAND_OUTPUT],
+            "stderr": stderr_text[:MAX_COMMAND_OUTPUT],
+            "truncated": (
+                len(stdout_text) > MAX_COMMAND_OUTPUT
+                or len(stderr_text) > MAX_COMMAND_OUTPUT
+            )
+        }
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.wait()
+        return {
+            "success": False,
+            "command": command,
+            "error_type": "TIMEOUT",
+            "message": f"命令执行超过 {COMMAND_TIMEOUT} 秒"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "command": command,
+            "error_type": "COMMAND_EXECUTION_ERROR",
+            "message": str(e),
+        }
+
+def decode_output(data: bytes) -> str:
+    for encoding in ("utf-8", "gbk", "gb18030", "cp936"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return data.decode("utf-8", errors="replace")
 
 def resolve_workspace_path(caller, path: str = ""):
     if caller is None:

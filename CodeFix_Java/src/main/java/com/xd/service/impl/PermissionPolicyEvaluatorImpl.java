@@ -90,7 +90,7 @@ public class PermissionPolicyEvaluatorImpl implements PermissionPolicyEvaluator 
     private PermissionDecisionEnum evaluateReadOnly(String toolName) {
         return switch (toolName) {
             case "list_files", "glob", "grep", "read_file", "search_manual", "parse_java_code" -> PermissionDecisionEnum.ALLOW;
-            case "write_file", "delete_file", "apply_patch" -> PermissionDecisionEnum.DENY;
+            case "write_file", "delete_file", "apply_patch", "run_command" -> PermissionDecisionEnum.DENY;
             case "verify_java_syntax" -> PermissionDecisionEnum.ALLOW;
             default -> PermissionDecisionEnum.ASK;
         };
@@ -99,7 +99,7 @@ public class PermissionPolicyEvaluatorImpl implements PermissionPolicyEvaluator 
     private PermissionDecisionEnum evaluateWorkspace(String toolName) {
         return switch (toolName) {
             case "list_files", "glob", "grep", "read_file", "search_manual", "parse_java_code", "verify_java_syntax" -> PermissionDecisionEnum.ALLOW;
-            case "write_file", "delete_file", "apply_patch" -> PermissionDecisionEnum.ASK;
+            case "write_file", "delete_file", "apply_patch", "run_command"-> PermissionDecisionEnum.ASK;
             default -> PermissionDecisionEnum.ASK;
         };
     }

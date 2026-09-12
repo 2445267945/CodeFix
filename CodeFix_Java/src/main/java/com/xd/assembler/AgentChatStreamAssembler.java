@@ -177,7 +177,9 @@ public class AgentChatStreamAssembler {
                 )
         );
 
-        block.setActionId(message.getActionId());
+        if (!isBlank(message.getActionId())) {
+            block.setActionId(message.getActionId());
+        }
         block.setRequiresApproval(false);
 
         appendSourceEvent(
@@ -274,17 +276,22 @@ public class AgentChatStreamAssembler {
          * 使用真实 Tool Call arguments
          * 生成最终完成文案。
          */
+        Map<String, Object> result = extractResult(data);
+
         block.setSummary(
                 activityMapper.buildCompletedSummary(
                         action,
                         toolName,
-                        arguments
+                        arguments,
+                        result
                 )
         );
 
-        block.setActionId(
-                message.getActionId()
-        );
+        if (!isBlank(message.getActionId())) {
+            block.setActionId(
+                    message.getActionId()
+            );
+        }
 
         block.setRequiresApproval(false);
 
@@ -314,6 +321,23 @@ public class AgentChatStreamAssembler {
         pendingToolBlocks.remove(toolCallId);
 
         return buildUpdate(message, block);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractResult(
+            Map<String, Object> data
+    ) {
+        if (data == null) {
+            return Collections.emptyMap();
+        }
+
+        Object result = data.get("result");
+
+        if (result instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+
+        return Collections.emptyMap();
     }
 
     private AgentChatStreamVO assembleError(
@@ -564,17 +588,31 @@ public class AgentChatStreamAssembler {
     }
 
     /**
-     * TOOL_CALL 在正常情况下可能复用
-     * TOOL_WAITING 已创建的 Block。
+     * TOOL_CALL 正常情况下复用 TOOL_WAITING 创建的 Block。
      *
-     * 因此这里仍然统一返回 BLOCK_APPEND，
-     * 让前端按照现有逻辑处理。
+     * TOOL_WAITING:
+     *      BLOCK_APPEND
+     *
+     * TOOL_CALL:
+     *      BLOCK_UPDATE
+     *
+     * TOOL_RESULT:
+     *      BLOCK_UPDATE
      */
     private AgentChatStreamVO buildAppendOrUpdate(
             AgentMessageDTO message,
             AgentChatBlockVO block
     ) {
-        return buildAppend(message, block);
+        return AgentChatStreamVO.builder()
+                .taskId(message.getTaskId())
+                .runId(message.getRunId())
+                .sessionId(message.getSessionId())
+                .messageId(message.getMessageId())
+                .type("BLOCK_UPDATE")
+                .block(block)
+                .refreshResult(false)
+                .timestamp(resolveTimestamp(message))
+                .build();
     }
 
     private AgentChatStreamVO buildUpdate(

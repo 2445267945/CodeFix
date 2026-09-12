@@ -71,6 +71,11 @@ public class AgentSessionServiceImpl implements AgentSessionService {
     }
 
     @Override
+    public List<AgentSessionDO> getSessionsByWorkspaceId(String workspaceId) {
+        return agentSessionMapper.selectByWorkspaceId(workspaceId);
+    }
+
+    @Override
     public AgentSessionDO getOrCreateSession(String sessionId, String question) {
         if (sessionId == null || sessionId.isBlank()) {
             return createSession(question);

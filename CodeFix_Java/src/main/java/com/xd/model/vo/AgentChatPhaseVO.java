@@ -9,55 +9,25 @@ import java.util.List;
 public class AgentChatPhaseVO {
 
     /**
-     * Phase 唯一 ID
+     * Agent 一次工作说明
      *
-     * 每次进入一个新的工作阶段都创建新的 ID。
+     * 对应一次 narration + 后续 actions
      */
     private String id;
 
     /**
-     * Phase 类型
-     *
-     * ANALYSIS
-     * IMPLEMENTATION
-     * VERIFICATION
-     * SUBTASK
-     * ERROR
+     * Agent 面向用户的说明
      */
-    private String type;
+    private String summary;
 
     /**
-     * 面向用户展示的标题
-     *
-     * 例如：
-     * 分析问题
-     * 修改代码
-     * 验证修改
-     */
-    private String title;
-
-    /**
-     * Phase 状态
-     *
-     * running
-     * waiting
-     * completed
-     * failed
+     * 当前 Step 状态
      */
     private String status;
 
-    /**
-     * 当前 Phase 中的 Activity。
-     */
-    private List<AgentChatBlockVO> activities = new ArrayList<>();
-
-    /**
-     * Phase 开始时间。
-     */
     private Long startTime;
 
-    /**
-     * Phase 最后活动时间。
-     */
     private Long endTime;
+
+    private List<AgentChatBlockVO> activities = new ArrayList<>();
 }
