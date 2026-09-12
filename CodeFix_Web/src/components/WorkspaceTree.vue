@@ -7,6 +7,7 @@
       :selected-file="selectedFile"
       :depth="0"
       @select="$emit('select', $event)"
+      @toggle="$emit('toggle', $event)"
     />
   </div>
 </template>
@@ -19,7 +20,7 @@ defineProps({
   selectedFile: { type: String, default: '' }
 })
 
-defineEmits(['select'])
+defineEmits(['select', 'toggle'])
 </script>
 
 <style scoped>

@@ -17,6 +17,7 @@ import org.springframework.util.StringUtils;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -85,14 +86,21 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
         if (workspace == null) {
             throw new BusinessException("Workspace不存在: " + workspaceId);
         }
-        Path rootPath = Paths.get(workspace.getRootPath());
+        Path rootPath = Paths.get(workspace.getRootPath()).toAbsolutePath().normalize();
         if (!Files.exists(rootPath)) {
             throw new BusinessException("Workspace目录不存在: " + workspace.getRootPath());
+        }
+        if (!Files.isDirectory(rootPath)) {
+            throw new BusinessException("Workspace路径不是目录: " + workspace.getRootPath());
         }
         WorkspaceTreeVO tree = new WorkspaceTreeVO();
         tree.setWorkspaceId(workspace.getWorkspaceId());
         tree.setName(workspace.getName());
-        List<WorkspaceTreeNodeVO> treeNodes = buildTree(rootPath, rootPath);
+        /*
+         * 懒加载：
+         * 只返回根目录下的第一层节点，子目录在用户展开时再按需请求。
+         */
+        List<WorkspaceTreeNodeVO> treeNodes = listChildren(rootPath, rootPath);
         tree.setChildren(treeNodes);
         return tree;
     }
@@ -146,7 +154,11 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
          */
         tree.setWorkspaceId(null);
         tree.setName(rootPath.getFileName() == null ? "Default" : rootPath.getFileName().toString());
-        List<WorkspaceTreeNodeVO> treeNodes = buildTree(rootPath, rootPath);
+        /*
+         * 懒加载：
+         * 只返回根目录下的第一层节点，子目录在用户展开时再按需请求。
+         */
+        List<WorkspaceTreeNodeVO> treeNodes = listChildren(rootPath, rootPath);
         tree.setChildren(treeNodes);
         return tree;
     }
@@ -178,7 +190,55 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
         }
     }
 
-    private List<WorkspaceTreeNodeVO> buildTree(Path rootPath, Path currentPath) {
+    @Override
+    public List<WorkspaceTreeNodeVO> getChildren(String workspaceId, String dirPath) {
+        WorkspaceDO workspace = workSpaceMapper.selectByWorkspaceId(workspaceId);
+        if (workspace == null) {
+            throw new BusinessException("Workspace 不存在: " + workspaceId);
+        }
+        Path rootPath = Paths.get(workspace.getRootPath()).toAbsolutePath().normalize();
+        if (!Files.exists(rootPath) || !Files.isDirectory(rootPath)) {
+            throw new BusinessException("Workspace目录不存在: " + workspace.getRootPath());
+        }
+        return listChildren(rootPath, resolveDirectory(rootPath, dirPath));
+    }
+
+    @Override
+    public List<WorkspaceTreeNodeVO> getChildrenByPath(String workspacePath, String dirPath) {
+        if (!StringUtils.hasText(workspacePath)) {
+            throw new BusinessException("Workspace路径不能为空");
+        }
+        Path rootPath = Paths.get(workspacePath).toAbsolutePath().normalize();
+        if (!Files.exists(rootPath) || !Files.isDirectory(rootPath)) {
+            throw new BusinessException("Workspace目录不存在: " + rootPath);
+        }
+        return listChildren(rootPath, resolveDirectory(rootPath, dirPath));
+    }
+
+    /**
+     * 解析目标目录，并保证不会越出 Workspace 根目录。
+     */
+    private Path resolveDirectory(Path rootPath, String dirPath) {
+        Path target = (dirPath == null || dirPath.isBlank())
+                ? rootPath
+                : rootPath.resolve(dirPath).normalize();
+
+        if (!target.startsWith(rootPath)) {
+            throw new SecurityException("非法目录路径: " + dirPath);
+        }
+        if (!Files.exists(target) || !Files.isDirectory(target)) {
+            throw new BusinessException("目录不存在: " + dirPath);
+        }
+        return target;
+    }
+
+    /**
+     * 列出某个目录下的直接子节点（不递归）。
+     * <p>
+     * 只为目录设置 hasChildren 标记，前端据此决定是否展示可展开箭头，
+     * 真正展开时再调用本方法获取下一层。
+     */
+    private List<WorkspaceTreeNodeVO> listChildren(Path rootPath, Path currentPath) {
         List<WorkspaceTreeNodeVO> treeNodes = new ArrayList<>();
         try (Stream<Path> stream = Files.list(currentPath)) {
             stream.forEach(file -> {
@@ -187,9 +247,10 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
                 node.setPath(rootPath.relativize(file).toString().replace(File.separatorChar, '/'));
                 if (Files.isDirectory(file)) {
                     node.setType("DIRECTORY");
-                    node.setChildren(buildTree(rootPath, file));
+                    node.setHasChildren(hasChildren(file));
                 } else {
                     node.setType("FILE");
+                    node.setHasChildren(Boolean.FALSE);
                 }
                 treeNodes.add(node);
             });
@@ -201,5 +262,17 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
                 .thenComparing(WorkspaceTreeNodeVO::getName, String.CASE_INSENSITIVE_ORDER)
         );
         return treeNodes;
+    }
+
+    /**
+     * 判断目录下是否还存在条目（仅探测第一个条目即返回，避免完整列举）。
+     */
+    private boolean hasChildren(Path dirPath) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dirPath)) {
+            return stream.iterator().hasNext();
+        } catch (IOException e) {
+            log.warn("探测目录子节点失败: {}", dirPath, e);
+            return false;
+        }
     }
 }

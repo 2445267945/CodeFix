@@ -30,18 +30,17 @@ public class AgentSessionServiceImpl implements AgentSessionService {
 
     @Override
     public AgentSessionDO createSession(String question) {
-
+        int questionLen = question.length();
+        if (questionLen > 255) {
+            question = question.substring(0, 255);
+        }
         long now = System.currentTimeMillis();
-
         AgentSessionDO session = new AgentSessionDO();
-
         session.setSessionId(UUID.randomUUID().toString());
-
         session.setCreatedAt(now);
         session.setUpdatedAt(now);
         session.setTitle(question);
         agentSessionMapper.insertSession(session);
-
         return session;
     }
 
@@ -68,11 +67,6 @@ public class AgentSessionServiceImpl implements AgentSessionService {
     @Override
     public List<AgentSessionDO> getSessions() {
         return agentSessionMapper.selectSessions();
-    }
-
-    @Override
-    public List<AgentSessionDO> getSessionsByWorkspaceId(String workspaceId) {
-        return agentSessionMapper.selectByWorkspaceId(workspaceId);
     }
 
     @Override

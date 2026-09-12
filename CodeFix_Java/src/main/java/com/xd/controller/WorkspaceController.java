@@ -4,6 +4,7 @@ import com.xd.model.Result;
 import com.xd.model.dto.WorkspaceFileUpdateDTO;
 import com.xd.model.vo.WorkspaceFileVO;
 import com.xd.model.vo.WorkspaceSessionsVO;
+import com.xd.model.vo.WorkspaceTreeNodeVO;
 import com.xd.model.vo.WorkspaceTreeVO;
 import com.xd.model.vo.WorkspaceVO;
 import com.xd.service.WorkspaceFileService;
@@ -42,10 +43,31 @@ public class WorkspaceController {
         return Result.success(tree);
     }
 
+    /**
+     * 懒加载：查询某个目录下的直接子节点。
+     * path 为空时等价于查询根目录第一层。
+     */
+    @GetMapping("/{workspaceId}/children")
+    public Result<List<WorkspaceTreeNodeVO>> getChildren(@PathVariable String workspaceId,
+                                                         @RequestParam(value = "path", required = false) String dirPath) {
+        List<WorkspaceTreeNodeVO> children = workspaceFileService.getChildren(workspaceId, dirPath);
+        return Result.success(children);
+    }
+
+    /**
+     * 懒加载：按 Workspace 绝对路径查询某个目录下的直接子节点。
+     * path 为空时等价于查询根目录第一层。
+     */
+    @GetMapping("/children")
+    public Result<List<WorkspaceTreeNodeVO>> getChildrenByPath(@RequestParam("workspacePath") String workspacePath,
+                                                               @RequestParam(value = "path", required = false) String dirPath) {
+        List<WorkspaceTreeNodeVO> children = workspaceFileService.getChildrenByPath(workspacePath, dirPath);
+        return Result.success(children);
+    }
+
     @GetMapping("/file")
     public Result<WorkspaceFileVO> getFileByPath(@RequestParam("workspacePath") String workspacePath, @RequestParam("path") String filePath) {
         WorkspaceFileVO file = workspaceFileService.getFileByPath(workspacePath, filePath);
-
         return Result.success(file);
     }
 

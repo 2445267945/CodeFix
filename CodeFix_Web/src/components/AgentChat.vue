@@ -13,10 +13,14 @@
           v-for="turn in chat.turns"
           :key="turn.taskId"
           class="chat-turn"
+          :class="{ collapsed: isTurnCollapsed(turn) }"
         >
           <!-- ==================== User ==================== -->
           <section v-if="turn.user?.content" class="user-turn">
-            <div class="user-text">
+            <div
+              class="user-text"
+              :class="{ 'is-collapsed': isTurnCollapsed(turn) }"
+            >
               {{ turn.user.content }}
             </div>
           </section>
@@ -25,11 +29,43 @@
           <section v-if="turn.agent" class="agent-turn">
             <div class="agent-heading">
               <span class="agent-mark">✦</span>
-              <span>
+              <span class="agent-name">
                 {{ turn.agent.agentName || "Cando" }}
+              </span>
+
+              <!-- 收起 / 展开（收起后仅展示必要信息，不关闭本轮对话） -->
+              <button
+                v-if="canToggleTurn(turn)"
+                class="turn-toggle"
+                type="button"
+                :title="
+                  isTurnCollapsed(turn) ? '展开本轮对话' : '收起本轮对话'
+                "
+                @click="toggleTurn(turn)"
+              >
+                <span
+                  class="turn-chevron"
+                  :class="{ expanded: !isTurnCollapsed(turn) }"
+                >
+                  ›
+                </span>
+
+                <span>
+                  {{ isTurnCollapsed(turn) ? "展开" : "收起" }}
+                </span>
+              </button>
+            </div>
+
+            <!-- ==================== 收起态：必要信息 ==================== -->
+            <div v-if="isTurnCollapsed(turn)" class="turn-summary">
+              <span class="turn-summary-dot"></span>
+
+              <span class="turn-summary-text">
+                {{ collapsedSummary(turn) }}
               </span>
             </div>
 
+            <template v-else>
             <!-- ==================== Task Activity ==================== -->
             <div v-if="turn.phases?.length" class="task-activity">
               <!--
@@ -162,6 +198,7 @@
               <span class="live-dot"></span>
               <span>正在工作</span>
             </div>
+            </template>
           </section>
         </section>
       </div>
@@ -276,6 +313,147 @@ const emit = defineEmits([
 
 const scrollEl = ref(null);
 
+/**
+ * ============================================================
+ * 历史对话轮次的「收起 / 展开」
+ * ============================================================
+ *
+ * 收起 != 关闭。
+ *
+ * 收起后本轮对话依然存在，
+ * 只是隐藏 Agent 的完整工作过程，
+ * 仅保留用户提问 + 一行结果摘要（必要信息）。
+ *
+ * 正在进行的轮次强制保持展开，
+ * 避免用户在 Agent 工作时看不到实时进展。
+ */
+const collapsedTurns = ref(new Set());
+
+/**
+ * 当前轮次是否处于（或应当处于）收起状态。
+ *
+ * @param {Object} turn
+ * @returns {boolean}
+ */
+function isTurnCollapsed(turn) {
+  if (!turn) {
+    return false;
+  }
+
+  // 正在运行中的轮次不允许收起。
+  if (props.running && turn.runId === props.activeRunId) {
+    return false;
+  }
+
+  return collapsedTurns.value.has(turn.taskId);
+}
+
+/**
+ * 是否展示收起 / 展开按钮。
+ *
+ * 没有可折叠内容的轮次不展示按钮。
+ *
+ * @param {Object} turn
+ * @returns {boolean}
+ */
+function canToggleTurn(turn) {
+  if (!turn) {
+    return false;
+  }
+
+  if (props.running && turn.runId === props.activeRunId) {
+    return false;
+  }
+
+  const hasPhases = Boolean(turn.phases && turn.phases.length);
+  const hasBlocks = Boolean(
+    turn.agent && turn.agent.blocks && turn.agent.blocks.length
+  );
+
+  return hasPhases || hasBlocks;
+}
+
+/**
+ * 切换某一轮的收起 / 展开状态。
+ *
+ * @param {Object} turn
+ */
+function toggleTurn(turn) {
+  if (!turn) {
+    return;
+  }
+
+  const next = new Set(collapsedTurns.value);
+
+  if (next.has(turn.taskId)) {
+    next.delete(turn.taskId);
+  } else {
+    next.add(turn.taskId);
+  }
+
+  // 替换成新的 Set，触发响应式更新。
+  collapsedTurns.value = next;
+}
+
+/**
+ * 文本裁剪。
+ *
+ * @param {string} text
+ * @param {number} max
+ * @returns {string}
+ */
+function truncateText(text, max = 120) {
+  if (!text) {
+    return "";
+  }
+
+  const normalized = String(text).replace(/\s+/g, " ").trim();
+
+  if (normalized.length <= max) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, max)}…`;
+}
+
+/**
+ * 收起态展示的「必要信息」摘要。
+ *
+ * 优先级：
+ * 1. 最终回答
+ * 2. 最后一条工作活动
+ * 3. 兜底文案
+ *
+ * @param {Object} turn
+ * @returns {string}
+ */
+function collapsedSummary(turn) {
+  if (!turn || !turn.agent) {
+    return "点击展开查看完整过程";
+  }
+
+  const agent = turn.agent;
+
+  if (agent.finalAnswer && agent.finalAnswer.content) {
+    return truncateText(agent.finalAnswer.content);
+  }
+
+  const phases = turn.phases || [];
+  const activities = phases.flatMap((phase) => phase.activities || []);
+  const source = activities.length ? activities : agent.blocks || [];
+
+  for (let i = source.length - 1; i >= 0; i -= 1) {
+    const item = source[i] || {};
+    const text = item.content || item.summary || item.title;
+
+    if (text) {
+      return truncateText(text);
+    }
+  }
+
+  return "已完成，点击展开查看完整过程";
+}
+
 const permissionProfile = computed({
   get() {
     return props.permissionProfile;
@@ -365,6 +543,11 @@ watch(
   padding-bottom: 42px;
 }
 
+/* 收起态：轮次间距收紧 */
+.chat-turn.collapsed {
+  padding-bottom: 24px;
+}
+
 /* ==================== User ==================== */
 
 .user-turn {
@@ -382,6 +565,14 @@ watch(
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* 收起态：用户提问最多展示 2 行，保留必要上下文 */
+.user-text.is-collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* ==================== Agent ==================== */
@@ -402,6 +593,99 @@ watch(
 
 .agent-mark {
   color: var(--el-text-color-secondary);
+}
+
+.agent-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==================== Turn Toggle (收起 / 展开) ==================== */
+
+.turn-toggle {
+  flex: 0 0 auto;
+
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+
+  height: 22px;
+
+  padding: 0 9px;
+
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 999px;
+
+  background: transparent;
+  color: var(--el-text-color-secondary);
+
+  font-size: 11px;
+  font-weight: 500;
+
+  cursor: pointer;
+
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+
+.turn-toggle:hover {
+  color: var(--el-text-color-primary);
+  border-color: var(--el-border-color);
+  background: var(--el-fill-color-light);
+}
+
+.turn-chevron {
+  display: inline-block;
+
+  transform: rotate(0deg);
+
+  transition: transform 0.15s ease;
+}
+
+.turn-chevron.expanded {
+  transform: rotate(90deg);
+}
+
+/* 收起态：仅展示必要信息 */
+.turn-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 9px 12px;
+
+  border: 1px dashed var(--el-border-color-lighter);
+  border-radius: 8px;
+
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-secondary);
+
+  font-size: 12.5px;
+  line-height: 20px;
+}
+
+.turn-summary-dot {
+  flex: 0 0 auto;
+
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: var(--el-color-primary);
+}
+
+.turn-summary-text {
+  min-width: 0;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ==================== Task Activity ==================== */

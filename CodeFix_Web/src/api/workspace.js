@@ -17,6 +17,37 @@ export function getWorkspaceTreeByPath(workspacePath) {
   );
 }
 
+/**
+ * 懒加载：查询某个目录下的直接子节点。
+ *
+ * dirPath 为空时表示查询根目录第一层。
+ */
+export function getWorkspaceChildren(workspaceId, dirPath = "") {
+  return http.get(
+    `/api/agent/workspace/${workspaceId}/children`,
+    {
+      params: {
+        path: dirPath,
+      },
+    }
+  );
+}
+
+/**
+ * 懒加载：按 Workspace 绝对路径查询某个目录下的直接子节点。
+ */
+export function getWorkspaceChildrenByPath(workspacePath, dirPath = "") {
+  return http.get(
+    "/api/agent/workspace/children",
+    {
+      params: {
+        workspacePath,
+        path: dirPath,
+      },
+    }
+  );
+}
+
 export function getWorkspaceFile(
   workspaceId,
   filePath
@@ -52,6 +83,29 @@ export function getWorkspaces() {
   );
 }
 
+/**
+ * 聚合查询所有 Workspace 及其关联的 Session。
+ *
+ * 后端：
+ * GET /api/agent/workspace/sessions
+ *
+ * 返回：
+ * [
+ *   {
+ *     workspaceId,
+ *     workspaceName,
+ *     sessions: [
+ *       { sessionId, title, workspaceId, createdAt, updatedAt }
+ *     ]
+ *   }
+ * ]
+ */
+export function getWorkspacesWithSessions() {
+  return http.get(
+    "/api/agent/workspace/sessions"
+  );
+}
+
 export function updateWorkspaceFile(
   workspaceId,
   filePath,
@@ -69,8 +123,11 @@ export function updateWorkspaceFile(
 export default {
   getWorkspaceTree,
   getWorkspaceTreeByPath,
+  getWorkspaceChildren,
+  getWorkspaceChildrenByPath,
   getWorkspaceFile,
   getWorkspaceFileByPath,
   getWorkspaces,
+  getWorkspacesWithSessions,
   updateWorkspaceFile,
 };

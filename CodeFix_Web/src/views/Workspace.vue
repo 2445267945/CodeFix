@@ -27,29 +27,28 @@
          Resize
          Content
     ========================================================== -->
-    <main class="main" :style="mainGridStyle">
+    <main
+      class="main"
+      :class="{
+        'with-file-panel': filePanelVisible,
+        'sidebar-collapsed': sidebarCollapsed,
+      }"
+      :style="mainGridStyle"
+    >
       <!-- =====================================================
-           Sidebar
+           Sidebar（新对话 + 项目会话）
       ====================================================== -->
       <WorkspaceSidebar
-        :sessions="sessions"
+        :collapsed="sidebarCollapsed"
+        :workspace-groups="workspaceGroups"
         :current-session-id="currentSessionId"
-        :conversations-collapsed="conversationsCollapsed"
-        :files-collapsed="filesCollapsed"
-        :workspace-id="workspaceId"
-        :workspace-locked="workspaceLocked"
-        :workspace-name="workspaceName"
-        :workspace-path="workspacePath"
-        :file-tree="fileTree"
-        :selected-file="selectedFile"
-        :file-tree-loading="fileTreeLoading"
-        @toggle-conversations="conversationsCollapsed = !conversationsCollapsed"
-        @toggle-files="filesCollapsed = !filesCollapsed"
+        :active-workspace-id="filePanelWorkspaceId || workspaceId"
         @new-conversation="startNewConversation"
         @select-session="selectSession"
         @refresh-workspace="refreshWorkspace"
-        @select-file="handleSelectFile"
+        @open-files="openFilePanel"
         @resize-start="startSidebarResize"
+        @collapse-sidebar="toggleSidebar"
       />
 
       <!-- =====================================================
@@ -87,7 +86,41 @@
           @workspace-path-change="handleWorkspacePathChange"
         />
       </section>
+
+      <!-- =====================================================
+           File Panel Resize
+      ====================================================== -->
+      <div
+        v-if="filePanelVisible"
+        class="file-panel-resize-handle"
+        role="separator"
+        aria-label="调整文件面板宽度"
+        aria-orientation="vertical"
+        @pointerdown="startFilePanelResize"
+      >
+        <span class="file-panel-resize-grip"></span>
+      </div>
+
+      <!-- =====================================================
+           File Panel（右侧弹出文件树）
+      ====================================================== -->
+      <WorkspaceFilePanel
+        v-if="filePanelVisible"
+        :workspace-name="filePanelWorkspaceName"
+        :tree="fileTree"
+        :selected-file="selectedFile"
+        :loading="fileTreeLoading"
+        @close="closeFilePanel"
+        @refresh="refreshFilePanelTree"
+        @select-file="handleSelectFile"
+        @toggle="handleToggleDirectory"
+      />
     </main>
+
+    <!-- =========================================================
+         侧边栏的收起 / 展开入口内聚在 WorkspaceSidebar 内部，
+         收起态由 .main.sidebar-collapsed 控制栅格列宽。
+    ========================================================== -->
 
     <!-- =========================================================
          Diff Overlay
@@ -112,9 +145,15 @@ import { useSessionStore } from "../stores/session";
 
 import WorkspaceTopbar from "../components/WorkspaceTopbar.vue";
 import WorkspaceSidebar from "../components/WorkspaceSidebar.vue";
+import WorkspaceFilePanel from "../components/WorkspaceFilePanel.vue";
 
 import WorkspaceTabView from "../components/WorkspaceTabView.vue";
-import { getWorkspaceTree, getWorkspaceTreeByPath } from "../api/workspace";
+import {
+  getWorkspaceTree,
+  getWorkspaceTreeByPath,
+  getWorkspaceChildren,
+  getWorkspaceChildrenByPath,
+} from "../api/workspace";
 import { getFileDiff } from "../api/diff";
 
 import DiffViewer from "../components/DiffViewer.vue";
@@ -141,9 +180,15 @@ const fileTree = ref([]);
 
 const fileTreeLoading = ref(false);
 
-const conversationsCollapsed = ref(false);
+/**
+ * 右侧文件树面板状态。
+ *
+ * filePanelVisible：面板是否展开
+ * filePanelWorkspaceId：面板手动选中的项目（为空时跟随当前会话）
+ */
+const filePanelVisible = ref(false);
 
-const filesCollapsed = ref(false);
+const filePanelWorkspaceId = ref("");
 
 /**
  * 新建对话草稿状态
@@ -180,8 +225,57 @@ const sidebarWidth = ref(
     : SIDEBAR_DEFAULT_WIDTH
 );
 
+/* ============================================================
+   Sidebar Collapse
+
+   收起 ≠ 关闭：
+   收起后侧边栏只是从「新建对话 + 项目会话」列表
+   退化成一条窄导轨（仅一个「+」入口），
+   组件本身依然挂载，列表状态不会丢失。
+   ============================================================ */
+
+const SIDEBAR_COLLAPSED_KEY = "codefix.sidebar-collapsed";
+
+const sidebarCollapsed = ref(
+  localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true"
+);
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+
+  localStorage.setItem(
+    SIDEBAR_COLLAPSED_KEY,
+    String(sidebarCollapsed.value)
+  );
+}
+
+/* ============================================================
+   File Panel Resize
+============================================================ */
+
+const FILE_PANEL_WIDTH_KEY = "codefix.file-panel-width";
+
+const FILE_PANEL_DEFAULT_WIDTH = 280;
+
+const FILE_PANEL_MIN_WIDTH = 200;
+
+const FILE_PANEL_MAX_WIDTH = 640;
+
+const storedFilePanelWidth = Number(
+  localStorage.getItem(FILE_PANEL_WIDTH_KEY)
+);
+
+const filePanelWidth = ref(
+  Number.isFinite(storedFilePanelWidth) &&
+    storedFilePanelWidth >= FILE_PANEL_MIN_WIDTH &&
+    storedFilePanelWidth <= FILE_PANEL_MAX_WIDTH
+    ? storedFilePanelWidth
+    : FILE_PANEL_DEFAULT_WIDTH
+);
+
 const mainGridStyle = computed(() => ({
   "--sidebar-width": `${sidebarWidth.value}px`,
+  "--file-panel-width": `${filePanelWidth.value}px`,
 }));
 
 function clampSidebarWidth(width) {
@@ -225,10 +319,61 @@ function startSidebarResize(event) {
 }
 
 /* ============================================================
+   File Panel Resize
+============================================================ */
+
+function clampFilePanelWidth(width) {
+  return Math.min(FILE_PANEL_MAX_WIDTH, Math.max(FILE_PANEL_MIN_WIDTH, width));
+}
+
+function updateFilePanelWidth(event) {
+  const main = document.querySelector(".main");
+
+  if (!main) {
+    return;
+  }
+
+  const { right } = main.getBoundingClientRect();
+
+  filePanelWidth.value = clampFilePanelWidth(right - event.clientX);
+}
+
+function finishFilePanelResize() {
+  document.body.classList.remove("is-resizing-file-panel");
+
+  localStorage.setItem(FILE_PANEL_WIDTH_KEY, String(filePanelWidth.value));
+
+  window.removeEventListener("pointermove", updateFilePanelWidth);
+
+  window.removeEventListener("pointerup", finishFilePanelResize);
+}
+
+function startFilePanelResize(event) {
+  if (event) {
+    event.preventDefault();
+  }
+
+  document.body.classList.add("is-resizing-file-panel");
+
+  updateFilePanelWidth(event);
+
+  window.addEventListener("pointermove", updateFilePanelWidth);
+
+  window.addEventListener("pointerup", finishFilePanelResize, {
+    once: true,
+  });
+}
+
+/* ============================================================
    Session
 ============================================================ */
 
 const sessions = computed(() => sessionStore.sessions);
+
+/**
+ * 按项目聚合的会话分组（用于左侧项目列表）。
+ */
+const workspaceGroups = computed(() => sessionStore.workspaceGroups);
 
 const currentSessionId = computed(() => sessionStore.currentSessionId);
 
@@ -385,6 +530,12 @@ async function selectSession(targetSessionId) {
 
   fileTree.value = [];
 
+  /**
+   * 切换会话时，取消手动指定项目，
+   * 让右侧文件树跟随当前会话绑定的 Workspace。
+   */
+  filePanelWorkspaceId.value = "";
+
   try {
     const chatView = await sessionStore.openSession(targetSessionId);
     if (!chatView) {
@@ -468,12 +619,41 @@ function startNewConversation() {
 
   pendingWorkspacePath.value = "";
 
+  filePanelWorkspaceId.value = "";
+
   isDraftConversation.value = true;
 }
 
 /* ============================================================
    Workspace
 ============================================================ */
+
+/**
+ * 右侧文件树当前展示的项目。
+ *
+ * 优先使用用户在左侧点击「文件」按钮选中的项目；
+ * 没有手动指定时，回退到当前会话绑定的 Workspace。
+ */
+const activeTreeWorkspaceId = computed(
+  () => filePanelWorkspaceId.value || workspaceId.value || ""
+);
+
+/**
+ * 右侧文件树面板标题展示的项目名称。
+ */
+const filePanelWorkspaceName = computed(() => {
+  const id = activeTreeWorkspaceId.value;
+
+  if (!id) {
+    return workspaceName.value;
+  }
+
+  const group = sessionStore.workspaceGroups.find(
+    (item) => item.workspaceId === id
+  );
+
+  return group?.workspaceName || workspaceName.value || "";
+});
 
 function handleWorkspacePathChange(path) {
   if (workspaceId.value) {
@@ -486,8 +666,36 @@ function handleWorkspacePathChange(path) {
 
   loadWorkspaceTree();
 }
+
+/**
+ * 打开右侧文件树面板。
+ *
+ * 由左侧项目列表中的「文件」按钮触发。
+ */
+function openFilePanel(targetWorkspaceId) {
+  filePanelWorkspaceId.value = targetWorkspaceId || "";
+
+  filePanelVisible.value = true;
+
+  loadWorkspaceTree();
+}
+
+function closeFilePanel() {
+  filePanelVisible.value = false;
+
+  selectedFile.value = "";
+}
+
+function refreshFilePanelTree() {
+  loadWorkspaceTree();
+}
+
 async function loadWorkspaceTree() {
-  if (!workspaceId.value && !workspacePath.value) {
+  const targetWorkspaceId = activeTreeWorkspaceId.value;
+
+  const targetWorkspacePath = workspacePath.value;
+
+  if (!targetWorkspaceId && !targetWorkspacePath) {
     fileTree.value = [];
 
     return;
@@ -498,10 +706,10 @@ async function loadWorkspaceTree() {
   try {
     let response;
 
-    if (workspaceId.value) {
-      response = await getWorkspaceTree(workspaceId.value);
+    if (targetWorkspaceId) {
+      response = await getWorkspaceTree(targetWorkspaceId);
     } else {
-      response = await getWorkspaceTreeByPath(workspacePath.value);
+      response = await getWorkspaceTreeByPath(targetWorkspacePath);
     }
 
     const data = response?.data ?? response;
@@ -519,6 +727,101 @@ async function loadWorkspaceTree() {
     );
   } finally {
     fileTreeLoading.value = false;
+  }
+}
+
+/**
+ * 按路径在文件树中查找节点。
+ *
+ * 懒加载下节点层级是逐层拼装的，展开时需要根据 path 精确回写 children。
+ */
+function findTreeNodeByPath(nodes, path) {
+  if (!Array.isArray(nodes) || !path) {
+    return null;
+  }
+
+  for (const node of nodes) {
+    if (node.path === path) {
+      return node;
+    }
+
+    if (Array.isArray(node.children) && node.children.length) {
+      const matched = findTreeNodeByPath(node.children, path);
+
+      if (matched) {
+        return matched;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 懒加载：展开某个目录时按需请求其直接子节点。
+ *
+ * 只在首次展开（children 尚未加载）时发请求，之后复用缓存。
+ */
+async function handleToggleDirectory(path) {
+  const targetWorkspaceId = activeTreeWorkspaceId.value;
+
+  const targetWorkspacePath = workspacePath.value;
+
+  if (!targetWorkspaceId && !targetWorkspacePath) {
+    return;
+  }
+
+  /*
+   * 优先在组件传入的节点上回写；若已被压缩/替换，
+   * 则按 path 在 fileTree 中重新定位，保证命中真实的响应式节点。
+   */
+  const node = findTreeNodeByPath(fileTree.value, path);
+
+  if (!node || node.type !== "DIRECTORY") {
+    return;
+  }
+
+  if (Array.isArray(node.children)) {
+    return;
+  }
+
+  /*
+   * 防止展开动画/压缩链路切换导致的并发重复请求。
+   */
+  if (node.loading) {
+    return;
+  }
+
+  node.loading = true;
+
+  try {
+    let response;
+
+    if (targetWorkspaceId) {
+      response = await getWorkspaceChildren(targetWorkspaceId, path);
+    } else {
+      response = await getWorkspaceChildrenByPath(targetWorkspacePath, path);
+    }
+
+    const data = response?.data ?? response;
+
+    const children = Array.isArray(data) ? data : data?.children;
+
+    node.children = Array.isArray(children) ? children : [];
+  } catch (error) {
+    console.error("[Workspace] 目录子节点读取失败:", error);
+
+    /*
+     * 请求失败时回写空数组，避免节点一直停留在「加载中」状态。
+     * 用户可通过面板顶部的「刷新」按钮重新加载整棵文件树后重试。
+     */
+    node.children = [];
+
+    ElMessage.error(
+      error?.response?.data?.message || error?.message || "读取目录失败"
+    );
+  } finally {
+    node.loading = false;
   }
 }
 
@@ -588,7 +891,14 @@ function handleSelectFile(path) {
     return;
   }
 
-  if (!workspaceId.value && !workspacePath.value) {
+  /**
+   * 文件树可能来自当前会话绑定的项目，
+   * 也可能来自用户在左侧点击「文件」按钮打开的项目。
+   */
+  const targetWorkspaceId = activeTreeWorkspaceId.value;
+  const targetWorkspacePath = workspacePath.value;
+
+  if (!targetWorkspaceId && !targetWorkspacePath) {
     ElMessage.warning("当前没有可用的 Workspace");
 
     return;
@@ -596,7 +906,10 @@ function handleSelectFile(path) {
 
   selectedFile.value = path;
 
-  workspaceTabViewRef.value?.openFile(path, path.split("/").pop());
+  workspaceTabViewRef.value?.openFile(path, path.split("/").pop(), {
+    workspaceId: targetWorkspaceId || undefined,
+    workspacePath: targetWorkspacePath || undefined,
+  });
 }
 
 async function handleFileChangeClick(block) {
@@ -852,6 +1165,8 @@ onBeforeUnmount(() => {
   taskStore.disconnectSse();
 
   finishSidebarResize();
+
+  finishFilePanelResize();
 });
 </script>
 
@@ -951,6 +1266,95 @@ input {
   overflow: hidden;
 }
 
+/*
+  展开右侧文件树面板时，追加「分割条 + 文件面板」两列，
+  与左侧 Sidebar 的 [sidebar | handle | content] 结构保持一致。
+*/
+.main.with-file-panel {
+  grid-template-columns:
+    var(--sidebar-width, 264px)
+    8px
+    minmax(0, 1fr)
+    8px
+    var(--file-panel-width, 280px);
+}
+
+/*
+  侧边栏收起：
+
+  第一列收缩为窄导轨（仅一个「+」入口），
+  第二列（分割条）压成 0 并隐藏，
+  其余列保持原有结构，避免栅格子项错位。
+*/
+@media (min-width: 761px) {
+  .main.sidebar-collapsed {
+    grid-template-columns:
+      var(--sidebar-rail-width, 56px)
+      0
+      minmax(0, 1fr);
+  }
+
+  .main.sidebar-collapsed.with-file-panel {
+    grid-template-columns:
+      var(--sidebar-rail-width, 56px)
+      0
+      minmax(0, 1fr)
+      8px
+      var(--file-panel-width, 280px);
+  }
+
+  .main.sidebar-collapsed .sidebar-resize-handle {
+    visibility: hidden;
+  }
+}
+
+/* ============================================================
+   File Panel Resize
+============================================================ */
+
+.file-panel-resize-handle {
+  position: relative;
+
+  z-index: 3;
+
+  cursor: col-resize;
+
+  touch-action: none;
+}
+
+.file-panel-resize-handle::before {
+  position: absolute;
+
+  inset: 0 3px;
+
+  background: transparent;
+
+  content: "";
+
+  transition: background 0.16s ease;
+}
+
+.file-panel-resize-handle:hover::before,
+body.is-resizing-file-panel .file-panel-resize-handle::before {
+  background: var(--accent);
+}
+
+.file-panel-resize-grip {
+  position: absolute;
+
+  top: 50%;
+  right: 2px;
+
+  width: 4px;
+  height: 42px;
+
+  transform: translateY(-50%);
+
+  border-radius: 999px;
+
+  background: var(--border);
+}
+
 /* ============================================================
    Content Area
 ============================================================ */
@@ -1008,6 +1412,15 @@ input {
       8px
       minmax(0, 1fr);
   }
+
+  .main.with-file-panel {
+    grid-template-columns:
+      248px
+      8px
+      minmax(0, 1fr)
+      8px
+      var(--file-panel-width, 240px);
+  }
 }
 
 @media (max-width: 760px) {
@@ -1016,6 +1429,15 @@ input {
       0
       0
       minmax(0, 1fr);
+  }
+
+  .main.with-file-panel {
+    grid-template-columns:
+      0
+      0
+      minmax(0, 1fr)
+      8px
+      var(--file-panel-width, 220px);
   }
 
   .sidebar {

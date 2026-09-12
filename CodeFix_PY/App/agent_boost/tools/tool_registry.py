@@ -423,7 +423,6 @@ async def grep(query: str, path: str = "", include: str | None = None, regex: bo
             "results": results,
             "truncated": truncated,
         }
-
     except PermissionError as e:
         return {"success": False, "error_type": "TOOL_PERMISSION_ERROR", "message": str(e)}
     except RuntimeError as e:

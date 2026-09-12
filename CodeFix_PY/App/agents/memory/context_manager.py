@@ -28,8 +28,8 @@ class ContextManager:
     """
     COMPRESS_THRESHOLD = 0.8
     KEEP_CONTEXT_RATIO = 0.4
+    AGENT_CONTEXT_BUDGET = 64_000
     TRIM_THRESHOLD = 0.9
-    AGENT_CONTEXT_BUDGET = 120_000
     # Tool Output Pruning
     TOOL_OUTPUT_FULL_GROUPS = 6
     TOOL_OUTPUT_MAX_CHARS = 2000
@@ -135,7 +135,7 @@ class ContextManager:
         # 5. 使用压缩模型生成 Summary
         try:
             summary_response = await compress_llm.chat(messages=[LLMMessage(role="user", content=compress_prompt)], tools=None)
-            new_summary = (summary_response.content or state.history_summary)
+            new_summary = summary_response.content or state.history_summary
 
         except Exception as e:
             logger.warning("摘要生成失败，保留原历史摘要并继续使用裁剪后的 Context: %s", e)

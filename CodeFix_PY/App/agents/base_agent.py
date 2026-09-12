@@ -34,7 +34,7 @@ class BaseAgent(ABC):
         self.working_memory_store = context.working_memory_store  # 工作内容记忆snapshot
         self.base_message = base_message  # 消息基类
         self.window_size = 50  # 窗口大小
-        self.max_iterations = 100  # 防止死循环
+        self.max_iterations = 120  # 防止死循环
         self.current_step = 0  # 当前步数
         self.systemPrompt = None  # 系统提示词
         self.tools = registry.tools  # 工具
@@ -96,14 +96,13 @@ class BaseAgent(ABC):
                 self.metrics.record_step(self.current_step)
                 tool_definitions = self.tools_schemas.get_tool_definitions(self.allowed_tools)
                 # 压缩
-                compression_result = (
-                    await self.context_manager.compress_if_needed(
+                compression_result = await self.context_manager.compress_if_needed(
                         state=self.context_state,
                         main_llm=self.main_llm,
                         compress_llm=self.compress_llm,
                         tools=tool_definitions,
                     )
-                )
+
                 if compression_result.compressed:
                     self.metrics.record_compression(before_tokens=compression_result.before_tokens, after_tokens=compression_result.after_tokens)
                 await self.step()

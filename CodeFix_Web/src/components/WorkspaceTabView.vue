@@ -498,12 +498,23 @@ function activateTab(tabId) {
   activeTabId.value = tabId;
 }
 
-async function openFile(path, name) {
+async function openFile(path, name, context = {}) {
   if (!path) {
     return;
   }
 
-  if (!props.workspaceId && !props.workspacePath) {
+  /**
+   * 允许调用方显式指定文件所属的 Workspace。
+   *
+   * 例如：右侧文件树面板可能展示的是
+   * 用户在左侧手动选择的项目，
+   * 与当前会话绑定的 Workspace 不一致。
+   */
+  const targetWorkspaceId = context.workspaceId || props.workspaceId;
+
+  const targetWorkspacePath = context.workspacePath || props.workspacePath;
+
+  if (!targetWorkspaceId && !targetWorkspacePath) {
     ElMessage.warning("当前没有可用的 Workspace");
     return;
   }
@@ -537,10 +548,10 @@ async function openFile(path, name) {
   try {
     let response;
 
-    if (props.workspaceId) {
-      response = await getWorkspaceFile(props.workspaceId, path);
+    if (targetWorkspaceId) {
+      response = await getWorkspaceFile(targetWorkspaceId, path);
     } else {
-      response = await getWorkspaceFileByPath(props.workspacePath, path);
+      response = await getWorkspaceFileByPath(targetWorkspacePath, path);
     }
 
     const data = response?.data ?? response;
