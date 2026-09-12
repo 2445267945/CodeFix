@@ -27,23 +27,34 @@
     </button>
 
     <div
-      v-if="isDirectory && expanded && displayChildren.length"
+      v-if="isDirectory && expanded"
       class="children"
     >
-      <WorkspaceTreeNode
-        v-for="child in displayChildren"
-        :key="child.path"
-        :node="child"
-        :selected-file="selectedFile"
-        :depth="depth + 1"
-        @select="$emit('select', $event)"
-      />
+      <div
+        v-if="!loaded"
+        class="children-status"
+        :style="{ paddingLeft: `${8 + (depth + 1) * 14}px` }"
+      >
+        加载中…
+      </div>
+
+      <template v-else>
+        <WorkspaceTreeNode
+          v-for="child in displayChildren"
+          :key="child.path"
+          :node="child"
+          :selected-file="selectedFile"
+          :depth="depth + 1"
+          @select="$emit('select', $event)"
+          @toggle="$emit('toggle', $event)"
+        />
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 
 const props = defineProps({
   node: {
@@ -62,9 +73,12 @@ const props = defineProps({
   },
 });
 
-const emit = defineEmits(["select"]);
+const emit = defineEmits(["select", "toggle"]);
 
-const expanded = ref(props.node.expanded !== false);
+/**
+ * 懒加载模式下目录默认折叠，只有用户点击时才请求子节点。
+ */
+const expanded = ref(props.node.expanded === true);
 
 /** Compress a directory-only chain: com -> xd -> controller becomes com.xd.controller. */
 const displayNode = computed(() => {
@@ -87,6 +101,17 @@ const displayNode = computed(() => {
 const displayName = computed(() => displayNode.value.displayName);
 const displayChildren = computed(() => displayNode.value.children || []);
 const isDirectory = computed(() => displayNode.value.type === "DIRECTORY");
+
+/**
+ * 子节点是否已经加载完成。
+ * - children 已是数组：已加载（哪怕是空目录）
+ * - 后端明确告知 hasChildren === false：空目录，无需请求
+ */
+const loaded = computed(
+  () =>
+    Array.isArray(displayNode.value.children) ||
+    displayNode.value.hasChildren === false
+);
 
 const isFile = computed(() => displayNode.value.type === "FILE");
 
@@ -146,6 +171,24 @@ function handleClick() {
     emit("select", displayNode.value.path);
   }
 }
+
+/**
+ * 懒加载触发点。
+ *
+ * 展开的目录若尚未加载子节点，则向上请求。
+ * 使用 watch 而不是在点击处直接 emit 的原因：
+ * 目录名压缩（com.xd.controller）会改变 displayNode，
+ * 压缩链路切换时同样需要触发一次按需加载。
+ */
+watch(
+  () => [expanded.value, loaded.value, displayNode.value.path],
+  ([isExpanded, isLoaded]) => {
+    if (isExpanded && !isLoaded && displayNode.value.type === "DIRECTORY") {
+      emit("toggle", displayNode.value.path);
+    }
+  },
+  { immediate: true }
+);
 </script>
 
 <style scoped>
@@ -257,5 +300,16 @@ function handleClick() {
 
 .children {
   min-width: 0;
+}
+
+.children-status {
+  min-height: 26px;
+
+  display: flex;
+  align-items: center;
+
+  color: var(--muted);
+
+  font: 10px / 1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 </style>
