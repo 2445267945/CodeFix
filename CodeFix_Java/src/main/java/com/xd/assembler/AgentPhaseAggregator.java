@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.apache.logging.log4j.util.Strings.isBlank;
+
 
 @Component
 public class AgentPhaseAggregator {

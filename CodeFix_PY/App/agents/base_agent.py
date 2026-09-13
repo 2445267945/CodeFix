@@ -34,7 +34,7 @@ class BaseAgent(ABC):
         self.working_memory_store = context.working_memory_store  # 工作内容记忆snapshot
         self.base_message = base_message  # 消息基类
         self.window_size = 50  # 窗口大小
-        self.max_iterations = 250  # 防止死循环
+        self.max_iterations = 120  # 防止死循环
         self.current_step = 0  # 当前步数
         self.systemPrompt = None  # 系统提示词
         self.tools = registry.tools  # 工具
