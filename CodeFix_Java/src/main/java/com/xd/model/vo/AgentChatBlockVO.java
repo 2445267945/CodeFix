@@ -41,8 +41,43 @@ public class AgentChatBlockVO {
      * Agent 名称
      *
      * action 类型主要使用。
+     *
+     * 子 Agent（Explorer / Fixer）产生的 Block 使用子 Agent 名称，
+     * 主 Agent（Cando）产生的 Block 使用主 Agent 名称。
      */
     private String agent;
+
+    /**
+     * 父 Agent 名称
+     *
+     * 主 Agent 自己产生的 Block 为 null；
+     * 子 Agent 产生的 Block 为调用它的父 Agent 名称。
+     *
+     * 前端据此把子 Agent 的 Block 归属到对应的委派（delegate）节点。
+     */
+    private String parentAgent;
+
+    /**
+     * 被委派的子 Agent 名称
+     *
+     * 仅 delegate 类型 Block 使用。
+     *
+     * 主 Agent（Cando）调用 run_explorer / run_fixer 时，
+     * 填入被调用的子 Agent 名称（Explorer / Fixer）。
+     */
+    private String delegateAgent;
+
+    /**
+     * 子 Agent 产生的嵌套 Block
+     *
+     * 仅 delegate 类型 Block 使用。
+     *
+     * 子 Agent（Explorer / Fixer）执行期间产生的
+     * Narration / Action / FileChange / Review / Status Block
+     * 都挂在委派节点下，
+     * 前端可以在委派节点内部按执行顺序展开。
+     */
+    private List<AgentChatBlockVO> children;
 
     /**
      * Action 类型

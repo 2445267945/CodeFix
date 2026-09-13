@@ -95,6 +95,17 @@
                     />
                   </div>
 
+                  <!-- ==================== Delegate（子 Agent） ==================== -->
+                  <div
+                    v-else-if="activity.type === 'delegate'"
+                    class="phase-delegate"
+                  >
+                    <DelegateBlock
+                      :block="activity"
+                      @open-file-change="emit('open-file-change', $event)"
+                    />
+                  </div>
+
                   <!-- ==================== Activity ==================== -->
                   <div v-else class="phase-activity">
                     <span class="activity-marker">↳</span>
@@ -155,6 +166,16 @@
                   <VueMarkdown
                     :source="block.content || block.summary || ''"
                     :options="markdownOptions"
+                  />
+                </div>
+                <!-- Delegate（子 Agent） -->
+                <div
+                  v-else-if="block.type === 'delegate'"
+                  class="phase-delegate"
+                >
+                  <DelegateBlock
+                    :block="block"
+                    @open-file-change="emit('open-file-change', $event)"
                   />
                 </div>
                 <!-- Action -->
@@ -264,6 +285,7 @@ import { computed, nextTick, ref, watch } from "vue";
 import AgentActionBlock from "./AgentActionBlock.vue";
 import FileChangeBlock from "./FileChangeBlock.vue";
 import ReviewBlock from "./ReviewBlock.vue";
+import DelegateBlock from "./DelegateBlock.vue";
 import VueMarkdown from "vue-markdown-render";
 import hljs from "highlight.js";
 const props = defineProps({

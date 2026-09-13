@@ -17,12 +17,15 @@ class ParseJavaCodeInput(BaseModel):
 
 # ---------- run_explorer 的入参规则 ----------
 class RunExplorerInput(BaseModel):
-    task: str = Field(..., description="Java源代码", min_length=1)
+    task: str = Field(..., description="需要 Explorer 分析的问题或目标，例如类结构、调用链、影响范围、潜在风险", min_length=1)
 
 # ---------- run_fixer 的入参规则 ----------
 class RunFixerInput(BaseModel):
-    task: str = Field(..., min_length=1, description="原始 Java 代码")
-    report: dict = Field(..., description="结构化代码分析报告")
+    task: str = Field(..., min_length=1, description="需要 Fixer 完成的修改任务，例如需要修改哪个文件、修什么问题")
+    report: Optional[dict] = Field(
+        default=None,
+        description="Explorer 返回的结构化分析报告，可选；未做前置分析时可以不传",
+    )
 
 class ListFilesInput(BaseModel):
     path: str = Field(default="", description="Workspace 中的相对目录")

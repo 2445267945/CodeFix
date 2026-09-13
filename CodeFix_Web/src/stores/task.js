@@ -1240,21 +1240,6 @@ export const useTaskStore = defineStore('task', {
                         )
                         break
 
-                        if (message.refreshResult) {
-                            Promise.all([
-                                this.fetchTask(message.taskId),
-                                this.fetchResult(
-                                    message.taskId,
-                                    message.runId
-                                )
-                            ]).catch(error => {
-                                console.error(
-                                    '[SSE] 刷新取消后的 Task / Result 失败:',
-                                    error
-                                )
-                            })
-                        }
-
                     case 'BLOCK_UPDATE':
                         this.updateChatBlock(
                             message.block,

@@ -47,6 +47,17 @@ public class AgentPhaseAggregator {
             return false;
         }
         /*
+         * 子 Agent（Explorer / Fixer）的活动
+         *
+         * 统一留在「委派 Agent」这一阶段里，
+         * 不再按 READ / WRITE 切分，
+         * 保证同一批子 Agent Block 在时间线上连续，
+         * 前端才能把它们整体嵌套到 delegate 节点下。
+         */
+        if (!isBlank(activity.getParentAgent())) {
+            return false;
+        }
+        /*
          * VERIFY 永远作为独立阶段
          *
          * WRITE
@@ -119,12 +130,25 @@ public class AgentPhaseAggregator {
 
 
     private String buildPhaseSummary(AgentChatBlockVO activity) {
-        return switch (activity.getAction()) {
+        String action = activity.getAction();
+        String summary = activity.getSummary();
+
+        /*
+         * 子 Agent / 状态类 Block 可能没有 action。
+         *
+         * 此时不能直接 switch(null)，否则会导致
+         * 整次 Phase 聚合失败。
+         */
+        if (action == null) {
+            return summary != null ? summary : "Agent 工作中";
+        }
+
+        return switch (action) {
             case "READ", "SEARCH" -> "分析代码结构";
             case "WRITE" -> "修改代码";
             case "VERIFY" -> "验证修改";
             case "DELEGATE" -> "委派 Agent";
-            default -> activity.getSummary();
+            default -> summary != null ? summary : action;
         };
     }
 

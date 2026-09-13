@@ -34,23 +34,28 @@ public class AgentChatBlockAssembler {
         List<AgentChatBlockVO> blocks = new ArrayList<>();
         Map<String, AgentChatBlockVO> toolBlocks = new HashMap<>();
 
+        /*
+         * 当前处于「打开」状态的委派（delegate）Block。
+         *
+         * 子 Agent（Explorer / Fixer）的事件一定发生在
+         * 父 Agent 的 TOOL_CALL(run_explorer/run_fixer)
+         * 与 TOOL_RESULT 之间，
+         * 因此栈顶就是子 Agent 事件的归属节点。
+         */
+        Deque<AgentChatBlockVO> delegateStack = new ArrayDeque<>();
+
         for (AgentEventDO event : sortedEvents) {
             String eventType = normalize(event.getEvent());
             switch (eventType) {
-                case "THINK" -> {
-                    AgentChatBlockVO block = assembleNarration(event);
-                    if (block != null) {
-                        blocks.add(block);
-                    }
-                }
-                case "TOOL_WAITING" -> assembleToolWaiting(event, toolBlocks, blocks);
-                case "TOOL_CALL" -> assembleToolCall(event, toolBlocks, blocks);
-                case "TOOL_RESULT" -> assembleToolResult(event, toolBlocks, blocks, context);
-                case "ERROR" -> blocks.add(assembleError(event));
-                case "INTERRUPTED" -> blocks.add(assembleInterrupted(event));
+                case "THINK" -> appendBlock(event, assembleNarration(event), blocks, delegateStack);
+                case "TOOL_WAITING" -> assembleToolWaiting(event, toolBlocks, blocks, delegateStack);
+                case "TOOL_CALL" -> assembleToolCall(event, toolBlocks, blocks, delegateStack);
+                case "TOOL_RESULT" -> assembleToolResult(event, toolBlocks, blocks, delegateStack, context);
+                case "ERROR" -> appendBlock(event, assembleError(event), blocks, delegateStack);
+                case "INTERRUPTED" -> appendBlock(event, assembleInterrupted(event), blocks, delegateStack);
                 case "FINISH" -> {
                 }
-                default -> blocks.add(assembleUnknown(event));
+                default -> appendBlock(event, assembleUnknown(event), blocks, delegateStack);
             }
         }
 
@@ -85,7 +90,8 @@ public class AgentChatBlockAssembler {
         return block;
     }
 
-    private void assembleToolWaiting(AgentEventDO event, Map<String, AgentChatBlockVO> toolBlocks, List<AgentChatBlockVO> blocks) {
+    private void assembleToolWaiting(AgentEventDO event, Map<String, AgentChatBlockVO> toolBlocks, List<AgentChatBlockVO> blocks,
+                                     Deque<AgentChatBlockVO> delegateStack) {
         Map<String, Object> data = safeOutput(event);
         String toolName = toStringValue(data.get("tool"));
         String toolCallId = toStringValue(data.get("toolCallId"));
@@ -104,6 +110,7 @@ public class AgentChatBlockAssembler {
         if (isDelegateTool(toolName)) {
             block.setType("delegate");
             block.setAction("DELEGATE");
+            block.setDelegateAgent(resolveDelegateAgentName(toolName));
             block.setStatus("waiting");
             block.setSummary(buildDelegateWaitingSummary(toolName, data));
             block.setContent(block.getSummary());
@@ -120,10 +127,19 @@ public class AgentChatBlockAssembler {
             toolBlocks.put(toolCallId, block);
         }
 
-        blocks.add(block);
+        appendBlock(event, block, blocks, delegateStack);
+
+        /*
+         * 委派节点已打开：
+         * 之后的子 Agent 事件都属于这个节点。
+         */
+        if (isDelegateTool(toolName)) {
+            openDelegate(delegateStack, block);
+        }
     }
 
-    private void assembleToolCall(AgentEventDO event, Map<String, AgentChatBlockVO> toolBlocks, List<AgentChatBlockVO> blocks) {
+    private void assembleToolCall(AgentEventDO event, Map<String, AgentChatBlockVO> toolBlocks, List<AgentChatBlockVO> blocks,
+                                  Deque<AgentChatBlockVO> delegateStack) {
         Map<String, Object> data = safeOutput(event);
         String toolName = toStringValue(data.get("tool"));
         String toolCallId = toStringValue(data.get("toolCallId"));
@@ -139,7 +155,7 @@ public class AgentChatBlockAssembler {
                 toolBlocks.put(toolCallId, block);
             }
 
-            blocks.add(block);
+            appendBlock(event, block, blocks, delegateStack);
         }
 
         block.setToolName(toolName);
@@ -150,6 +166,7 @@ public class AgentChatBlockAssembler {
         if (isDelegateTool(toolName)) {
             block.setType("delegate");
             block.setAction("DELEGATE");
+            block.setDelegateAgent(resolveDelegateAgentName(toolName));
             block.setStatus("running");
             block.setSummary(buildDelegateRunningSummary(toolName, data));
             block.setContent(block.getSummary());
@@ -161,9 +178,18 @@ public class AgentChatBlockAssembler {
         }
 
         appendSourceEvent(block, resolveEventId(event));
+
+        /*
+         * 委派节点已打开：
+         * 之后的子 Agent 事件都属于这个节点。
+         */
+        if (isDelegateTool(toolName)) {
+            openDelegate(delegateStack, block);
+        }
     }
 
-    private void assembleToolResult(AgentEventDO event, Map<String, AgentChatBlockVO> toolBlocks, List<AgentChatBlockVO> blocks, AgentChatAssembleContext context) {
+    private void assembleToolResult(AgentEventDO event, Map<String, AgentChatBlockVO> toolBlocks, List<AgentChatBlockVO> blocks,
+                                    Deque<AgentChatBlockVO> delegateStack, AgentChatAssembleContext context) {
         Map<String, Object> data = safeOutput(event);
         String toolName = toStringValue(data.get("tool"));
         String toolCallId = toStringValue(data.get("toolCallId"));
@@ -182,7 +208,7 @@ public class AgentChatBlockAssembler {
             block.setType(isDelegateTool(toolName) ? "delegate" : "action");
             block.setAction(isDelegateTool(toolName) ? "DELEGATE" : action);
             block.setToolName(toolName);
-            blocks.add(block);
+            appendBlock(event, block, blocks, delegateStack);
         }
 
         Map<String, Object> arguments = block.getArguments();
@@ -203,6 +229,10 @@ public class AgentChatBlockAssembler {
             block.setType("delegate");
             block.setAction("DELEGATE");
 
+            if (isBlank(block.getDelegateAgent())) {
+                block.setDelegateAgent(resolveDelegateAgentName(toolName));
+            }
+
             String summary = buildDelegateResultSummary(data);
 
             block.setSummary(summary);
@@ -221,6 +251,14 @@ public class AgentChatBlockAssembler {
         }
 
         pendingRemove(toolBlocks, toolCallId);
+
+        /*
+         * 委派结束：关闭委派节点。
+         * 之后的 Block 不再归属到这个子 Agent。
+         */
+        if ("delegate".equalsIgnoreCase(block.getType())) {
+            closeDelegate(delegateStack, block);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -373,6 +411,86 @@ public class AgentChatBlockAssembler {
                 || "run_fixer".equalsIgnoreCase(toolName);
     }
 
+    /**
+     * 把 Block 放入最终列表。
+     *
+     * 主 Agent（Cando）产生的 Block 直接进入顶层列表；
+     * 子 Agent（Explorer / Fixer）产生的 Block 挂到
+     * 当前打开的委派节点下，
+     * 这样前端可以把子 Agent 的说明、动作、文件变更
+     * 折叠展示在委派节点内部。
+     */
+    private void appendBlock(AgentEventDO event, AgentChatBlockVO block, List<AgentChatBlockVO> blocks,
+                             Deque<AgentChatBlockVO> delegateStack) {
+        if (block == null) {
+            return;
+        }
+
+        AgentChatBlockVO delegate = isSubAgentEvent(event) && !delegateStack.isEmpty() ? delegateStack.peek() : null;
+
+        if (delegate == null) {
+            blocks.add(block);
+            return;
+        }
+
+        if (delegate.getChildren() == null) {
+            delegate.setChildren(new ArrayList<>());
+        }
+
+        if (!containsIdentity(delegate.getChildren(), block)) {
+            delegate.getChildren().add(block);
+        }
+    }
+
+    /**
+     * 事件是否由子 Agent 产生。
+     *
+     * 主 Agent（Cando）的事件 parentAgent 为空。
+     */
+    private boolean isSubAgentEvent(AgentEventDO event) {
+        return event != null && !isBlank(event.getParentAgent());
+    }
+
+    private void openDelegate(Deque<AgentChatBlockVO> delegateStack, AgentChatBlockVO block) {
+        if (block == null) {
+            return;
+        }
+
+        delegateStack.removeIf(item -> item == block);
+        delegateStack.push(block);
+    }
+
+    private void closeDelegate(Deque<AgentChatBlockVO> delegateStack, AgentChatBlockVO block) {
+        if (block == null) {
+            return;
+        }
+
+        if (delegateStack.removeIf(item -> item == block)) {
+            return;
+        }
+
+        /*
+         * 兜底：
+         * TOOL_RESULT 重新创建了委派 Block 时，
+         * 按子 Agent 名称关闭对应节点。
+         */
+        String delegateAgent = block.getDelegateAgent();
+
+        if (!isBlank(delegateAgent)) {
+            delegateStack.removeIf(item -> item != null && delegateAgent.equalsIgnoreCase(item.getDelegateAgent()));
+        }
+    }
+
+    private boolean containsIdentity(List<AgentChatBlockVO> blocks, AgentChatBlockVO block) {
+        for (AgentChatBlockVO item : blocks) {
+            if (item == block) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private String resolveDelegateAgentName(String toolName) {
         if ("run_explorer".equalsIgnoreCase(toolName)) {
             return "Explorer";
@@ -424,6 +542,7 @@ public class AgentChatBlockAssembler {
         AgentChatBlockVO block = new AgentChatBlockVO();
         block.setId(event.getId() == null ? UUID.randomUUID().toString() : String.valueOf(event.getId()));
         block.setAgent(event.getAgentName());
+        block.setParentAgent(event.getParentAgent());
         block.setTaskId(event.getTaskId());
         block.setRunId(event.getRunId());
         block.setActionId(event.getActionId());

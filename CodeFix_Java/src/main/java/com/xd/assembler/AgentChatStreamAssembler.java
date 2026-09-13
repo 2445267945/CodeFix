@@ -23,12 +23,39 @@ public class AgentChatStreamAssembler {
      */
     private final Map<String, AgentChatBlockVO> pendingToolBlocks = new HashMap<>();
 
+    /**
+     * 当前处于「打开」状态的委派（delegate）Block
+     *
+     * key = runId#子 Agent 名称
+     *
+     * 子 Agent（Explorer / Fixer）执行期间产生的 Block
+     * 都实时挂到这个委派节点下，
+     * 而不是作为主 Agent 的顶层 Block 输出。
+     */
+    private final Map<String, AgentChatBlockVO> openDelegateBlocks = new HashMap<>();
+
     public AgentChatStreamVO assemble(AgentMessageDTO message, AgentMessageProcessContext messageProcessContext) {
         if (message == null) {
             return null;
         }
 
         String event = normalize(message.getEvent());
+
+        /*
+         * 子 Agent（Explorer / Fixer）的消息：
+         *
+         * 1. 子 Agent 的 FINISH 不代表整个 Task 完成，
+         *    不能触发顶层 RESULT_REFRESH；
+         * 2. 子 Agent 的 Block 不作为主 Agent 顶层 Block 输出，
+         *    而是实时挂到当前委派（delegate）节点下。
+         */
+        if (isSubAgentMessage(message)) {
+            AgentChatStreamVO subStream = assembleSubAgentMessage(message, event, messageProcessContext);
+
+            if (subStream != null) {
+                return subStream;
+            }
+        }
 
         return switch (event) {
             case "THINK" -> assembleNarration(message);
@@ -40,6 +67,52 @@ public class AgentChatStreamAssembler {
             case "INTERRUPTED" -> assembleInterrupted(message);
             default -> assembleUnknown(message);
         };
+    }
+
+    /**
+     * 组装子 Agent 消息。
+     *
+     * 返回 null 表示该消息不需要推送 SSE。
+     */
+    private AgentChatStreamVO assembleSubAgentMessage(AgentMessageDTO message, String event, AgentMessageProcessContext messageProcessContext) {
+        AgentChatBlockVO delegate = resolveOpenDelegate(message);
+
+        if ("FINISH".equals(event)) {
+            /*
+             * 子 Agent 执行结束。
+             *
+             * 这里不生成顶层 FINISH，
+             * 整个 Task 是否完成由父 Agent（Cando）的 FINISH 决定；
+             * 只把委派节点整体刷新一次。
+             */
+            return delegate == null ? null : buildUpdate(message, delegate);
+        }
+
+        AgentChatStreamVO stream = switch (event) {
+            case "THINK" -> assembleNarration(message);
+            case "TOOL_WAITING" -> assembleToolWaiting(message);
+            case "TOOL_CALL" -> assembleToolCall(message);
+            case "TOOL_RESULT" -> assembleToolResult(message, messageProcessContext);
+            case "ERROR" -> assembleError(message);
+            case "INTERRUPTED" -> assembleInterrupted(message);
+            default -> assembleUnknown(message);
+        };
+
+        if (delegate == null || stream == null || stream.getBlock() == null) {
+            /*
+             * 找不到委派节点时回退为顶层 Block，
+             * 避免子 Agent 的输出被直接丢弃。
+             */
+            return stream;
+        }
+
+        attachChild(delegate, stream.getBlock());
+
+        return buildUpdate(message, delegate);
+    }
+
+    private boolean isSubAgentMessage(AgentMessageDTO message) {
+        return message != null && !isBlank(message.getParentAgent());
     }
 
     private AgentChatStreamVO assembleNarration(AgentMessageDTO message) {
@@ -80,6 +153,7 @@ public class AgentChatStreamAssembler {
         if (isDelegateTool(toolName)) {
             block.setType("delegate");
             block.setAction("DELEGATE");
+            block.setDelegateAgent(resolveDelegateAgentName(toolName));
             block.setStatus("waiting");
             block.setSummary(buildDelegateWaitingSummary(toolName));
             block.setContent(block.getSummary());
@@ -92,6 +166,14 @@ public class AgentChatStreamAssembler {
 
         if (!isBlank(toolCallId)) {
             pendingToolBlocks.put(toolCallId, block);
+        }
+
+        /*
+         * 委派节点已打开：
+         * 之后子 Agent 的消息都实时挂到这个节点下。
+         */
+        if (isDelegateTool(toolName)) {
+            openDelegate(message, block);
         }
 
         return buildAppend(message, block);
@@ -128,6 +210,7 @@ public class AgentChatStreamAssembler {
         if (isDelegateTool(toolName)) {
             block.setType("delegate");
             block.setAction("DELEGATE");
+            block.setDelegateAgent(resolveDelegateAgentName(toolName));
             block.setStatus("running");
             block.setSummary(buildDelegateRunningSummary(toolName));
             block.setContent(block.getSummary());
@@ -139,6 +222,14 @@ public class AgentChatStreamAssembler {
         }
 
         appendSourceEvent(block, resolveMessageId(message));
+
+        /*
+         * 委派节点已打开：
+         * 之后子 Agent 的消息都实时挂到这个节点下。
+         */
+        if (isDelegateTool(toolName)) {
+            openDelegate(message, block);
+        }
 
         return buildAppendOrUpdate(message, block);
     }
@@ -185,6 +276,10 @@ public class AgentChatStreamAssembler {
             block.setType("delegate");
             block.setAction("DELEGATE");
 
+            if (isBlank(block.getDelegateAgent())) {
+                block.setDelegateAgent(resolveDelegateAgentName(toolName));
+            }
+
             String summary = buildDelegateResultSummary(data);
 
             block.setSummary(summary);
@@ -212,6 +307,14 @@ public class AgentChatStreamAssembler {
         }
 
         pendingToolBlocks.remove(toolCallId);
+
+        /*
+         * 委派结束：关闭委派节点。
+         * 之后的 Block 不再归属到这个子 Agent。
+         */
+        if ("delegate".equalsIgnoreCase(block.getType())) {
+            closeDelegate(message, block);
+        }
 
         return buildUpdate(message, block);
     }
@@ -371,6 +474,114 @@ public class AgentChatStreamAssembler {
         return "run_explorer".equalsIgnoreCase(toolName) || "run_fixer".equalsIgnoreCase(toolName);
     }
 
+    private String resolveDelegateAgentName(String toolName) {
+        if ("run_explorer".equalsIgnoreCase(toolName)) {
+            return "Explorer";
+        }
+
+        if ("run_fixer".equalsIgnoreCase(toolName)) {
+            return "Fixer";
+        }
+
+        return "Sub Agent";
+    }
+
+    private String delegateKey(String runId, String delegateAgent) {
+        return (runId == null ? "" : runId) + "#" + (delegateAgent == null ? "" : delegateAgent);
+    }
+
+    /**
+     * 打开委派节点。
+     *
+     * 以 runId + 子 Agent 名称 作为 key，
+     * 便于子 Agent 的消息定位归属节点。
+     */
+    private void openDelegate(AgentMessageDTO message, AgentChatBlockVO block) {
+        if (block == null) {
+            return;
+        }
+
+        openDelegateBlocks.put(delegateKey(message.getRunId(), block.getDelegateAgent()), block);
+    }
+
+    /**
+     * 关闭委派节点。
+     */
+    private void closeDelegate(AgentMessageDTO message, AgentChatBlockVO block) {
+        if (block == null) {
+            return;
+        }
+
+        String agentName = !isBlank(block.getDelegateAgent())
+                ? block.getDelegateAgent()
+                : message.getAgentName();
+
+        openDelegateBlocks.remove(delegateKey(message.getRunId(), agentName));
+    }
+
+    /**
+     * 找到消息所属的委派节点。
+     *
+     * 优先按 runId + 子 Agent 名称匹配；
+     * 匹配不到时回退到当前 run 下打开的委派节点。
+     */
+    private AgentChatBlockVO resolveOpenDelegate(AgentMessageDTO message) {
+        String runId = message.getRunId();
+
+        if (isBlank(runId) || openDelegateBlocks.isEmpty()) {
+            return null;
+        }
+
+        AgentChatBlockVO matched = openDelegateBlocks.get(delegateKey(runId, message.getAgentName()));
+
+        if (matched != null) {
+            return matched;
+        }
+
+        String prefix = runId + "#";
+
+        for (Map.Entry<String, AgentChatBlockVO> entry : openDelegateBlocks.entrySet()) {
+            if (entry.getKey().startsWith(prefix)) {
+                return entry.getValue();
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 把子 Agent 的 Block 挂到委派节点下。
+     *
+     * 同一个 Block 会被多次更新（TOOL_WAITING / TOOL_CALL / TOOL_RESULT），
+     * 这里按 id 去重，保证顺序与执行顺序一致。
+     */
+    private void attachChild(AgentChatBlockVO delegate, AgentChatBlockVO child) {
+        if (delegate == null || child == null) {
+            return;
+        }
+
+        if (delegate.getChildren() == null) {
+            delegate.setChildren(new ArrayList<>());
+        }
+
+        List<AgentChatBlockVO> children = delegate.getChildren();
+
+        for (int i = 0; i < children.size(); i++) {
+            AgentChatBlockVO existing = children.get(i);
+
+            if (existing == child) {
+                return;
+            }
+
+            if (existing != null && !isBlank(child.getId()) && child.getId().equals(existing.getId())) {
+                children.set(i, child);
+                return;
+            }
+        }
+
+        children.add(child);
+    }
+
     private AgentChatStreamVO assembleError(AgentMessageDTO message) {
         AgentChatBlockVO block = baseBlock(message);
         block.setType("review");
@@ -436,6 +647,7 @@ public class AgentChatStreamAssembler {
         AgentChatBlockVO block = new AgentChatBlockVO();
         block.setId(!isBlank(message.getMessageId()) ? message.getMessageId() : UUID.randomUUID().toString());
         block.setAgent(message.getAgentName());
+        block.setParentAgent(message.getParentAgent());
         block.setSourceEventIds(new ArrayList<>(Collections.singletonList(resolveMessageId(message))));
         block.setTimestamp(resolveTimestamp(message));
         block.setTaskId(message.getTaskId());
