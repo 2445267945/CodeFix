@@ -1,6 +1,5 @@
 package com.xd.service.impl;
 
-import com.xd.model.enums.PermissionDecisionEnum;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -8,7 +7,7 @@ import org.springframework.stereotype.Service;
 import java.util.concurrent.TimeUnit;
 
 @Service
-public class CacheService {
+public class CacheServiceImpl {
 
     @Autowired
     private RedisTemplate<String, Object> redisTemplate;

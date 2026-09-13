@@ -22,9 +22,7 @@ public class OllamaEmbeddingServiceImpl implements EmbeddingService {
     @Override
     public float[] embed(String text) {
         if (text == null || text.isBlank()) throw new IllegalArgumentException("Embedding text cannot be empty");
-
         OllamaEmbeddingRequestDTO request = new OllamaEmbeddingRequestDTO(properties.getModel(), text);
-
         OllamaEmbeddingResponseDTO response = restClient.post()
                 .uri(properties.getBaseUrl() + "/api/embed")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -42,9 +40,7 @@ public class OllamaEmbeddingServiceImpl implements EmbeddingService {
     @Override
     public List<float[]> embed(List<String> texts) {
         if (texts == null || texts.isEmpty()) return List.of();
-
         OllamaEmbeddingRequestDTO request = new OllamaEmbeddingRequestDTO(properties.getModel(), texts);
-
         OllamaEmbeddingResponseDTO response = restClient.post()
                 .uri(properties.getBaseUrl() + "/api/embed")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -52,7 +48,9 @@ public class OllamaEmbeddingServiceImpl implements EmbeddingService {
                 .retrieve()
                 .body(OllamaEmbeddingResponseDTO.class);
 
-        if (response == null || response.getEmbeddings() == null) throw new IllegalStateException("Embedding service returned empty result");
+        if (response == null || response.getEmbeddings() == null) {
+            throw new IllegalStateException("Embedding service returned empty result");
+        }
 
         return response.getEmbeddings().stream().map(this::toFloatArray).toList();
     }

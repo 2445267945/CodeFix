@@ -840,7 +840,7 @@ async function sendMessage(payload = {}) {
     payload?.workspacePath || workspacePath.value || "";
 
   if (!normalizedWorkspacePath) {
-    ElMessage.warning("请先选择一个本地项目目录");
+    ElMessage.warning("请先选择一个本地工作目录");
 
     return;
   }

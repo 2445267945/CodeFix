@@ -112,6 +112,8 @@ public class TaskMemoryServiceImpl implements TaskMemoryService {
     }
 
     private String buildRetrievalText(String userQuestion, String finalAnswer, String workspaceName) {
-        return "[QUESTION]\n" + userQuestion + "\n\n[FINAL_ANSWER]\n" + finalAnswer + "\n\n[WORKSPACE]\n" + (workspaceName == null ? "" : workspaceName);
+        return "[QUESTION]\n" + userQuestion
+                + "\n\n[FINAL_ANSWER]\n" + finalAnswer
+                + "\n\n[WORKSPACE]\n" + workspaceName;
     }
 }

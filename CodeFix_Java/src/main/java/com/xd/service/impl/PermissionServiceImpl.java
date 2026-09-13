@@ -49,8 +49,7 @@ public class PermissionServiceImpl implements PermissionService {
         /*
          * 一个 Task 对应当前正在执行的 Run。
          */
-        AgentRunDO run = agentRunMapper.selectByTaskId(messageDTO.getTaskId()).get(0);
-
+        AgentRunDO run = agentRunMapper.selectByRunId(messageDTO.getRunId());;
         if (run == null) {
             log.warn("Permission Evaluation 找不到 Run: taskId={}", messageDTO.getTaskId());
             return PermissionDecisionEnum.ASK;
@@ -60,7 +59,6 @@ public class PermissionServiceImpl implements PermissionService {
          * 读取当前 Run 的 Permission Profile。
          */
         PermissionProfileEnum profile;
-
         try {
             profile = PermissionProfileEnum.valueOf(run.getPermissionProfile());
         } catch (Exception e) {
@@ -72,7 +70,6 @@ public class PermissionServiceImpl implements PermissionService {
          * Tool。
          */
         String toolName = extractToolName(messageDTO);
-
         if (toolName == null || toolName.isBlank()) {
             return PermissionDecisionEnum.ASK;
         }
@@ -95,36 +92,27 @@ public class PermissionServiceImpl implements PermissionService {
          * ALLOW / ASK / DENY
          */
         PermissionDecisionEnum decision = permissionPolicyEvaluator.evaluate(profile, rules, toolName, arguments);
-
         log.info("Permission Evaluation: runId={}, profile={}, tool={}, ruleCount={}, decision={}", run.getRunId(), profile, toolName, rules == null ? 0 : rules.size(), decision);
-
         return decision;
     }
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> extractArguments(AgentMessageDTO messageDTO) {
-
         if (messageDTO.getOutput() == null) {
             return Collections.emptyMap();
         }
-
         Object arguments = messageDTO.getOutput().get("arguments");
-
         if (arguments instanceof Map<?, ?> map) {
             return (Map<String, Object>) map;
         }
-
         return Collections.emptyMap();
     }
 
     private String extractToolName(AgentMessageDTO messageDTO) {
-
         if (messageDTO.getOutput() == null) {
             return null;
         }
-
         Object tool = messageDTO.getOutput().get("tool");
-
         return tool == null ? null : String.valueOf(tool);
     }
 }

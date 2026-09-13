@@ -1,4 +1,4 @@
-package com.xd.model;
+package com.xd.controller.response;
 
 import lombok.Data;
 

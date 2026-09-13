@@ -49,7 +49,7 @@ class Consumer:
                     except Exception as e:
                         logger.error(f"处理消息失败: {e}")
             except Exception as e:
-                logger.error(f"拉取消息异常: {e}")
+                logger.warning("RocketMQ receive failed: %s", e)
                 time.sleep(3)
 
     def stop(self):

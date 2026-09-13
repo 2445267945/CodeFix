@@ -43,13 +43,7 @@ public class AgentFileChangeAssembler {
             fileChange.setDiff(stringValue(result.get("diff")));
             return fileChange;
         } catch (Exception e) {
-            log.warn(
-                    "FileChange解析异常: taskId={}, runId={}, messageId={}",
-                    message != null ? message.getTaskId() : null,
-                    message != null ? message.getRunId() : null,
-                    message != null ? message.getMessageId() : null,
-                    e
-            );
+            log.warn("FileChange解析异常: taskId={}, runId={}, messageId={}", message != null ? message.getTaskId() : null, message != null ? message.getRunId() : null, message != null ? message.getMessageId() : null, e);
             return null;
         }
     }
@@ -62,11 +56,9 @@ public class AgentFileChangeAssembler {
         if (value == null) {
             return null;
         }
-
         if (value instanceof Number number) {
             return number.intValue();
         }
-
         try {
             return Integer.valueOf(String.valueOf(value));
         } catch (Exception e) {
@@ -75,7 +67,6 @@ public class AgentFileChangeAssembler {
     }
 
     private boolean isBlank(String value) {
-
         return value == null || value.isBlank();
     }
 }

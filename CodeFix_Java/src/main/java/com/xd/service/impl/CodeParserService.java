@@ -20,6 +20,9 @@ import java.util.stream.Collectors;
 
 import com.github.javaparser.ast.stmt.ForEachStmt;
 
+/**
+ * 暂不适用
+ */
 @Slf4j
 @Service
 public class CodeParserService {

@@ -30,29 +30,24 @@ public class AgentMQListener implements MessageListenerOrderly {
                     msg.getQueueId(),
                     msg.getQueueOffset(),
                     msg.getReconsumeTimes()
-//                    json
             );
 
-            taskDispatcher.dispatch(json);
+            try {
+                taskDispatcher.dispatch(json);
+            } catch (Exception e) {
+                log.error(
+                        "[MQ CONSUME ERROR] msgId={}, queueId={}, queueOffset={}",
+                        msg.getMsgId(),
+                        msg.getQueueId(),
+                        msg.getQueueOffset(),
+                        e
+                );
+
+                throw e;
+            }
         }
 
         return ConsumeOrderlyStatus.SUCCESS;
     }
 }
 
-//@Component
-//public class MQListener implements MessageListenerConcurrently {
-//
-//    @Autowired
-//    private TaskDispatcher taskDispatcher;
-//
-//    @Override
-//    public ConsumeConcurrentlyStatus consumeMessage(List<MessageExt> msgs, ConsumeConcurrentlyContext context) {
-//        for (MessageExt msg : msgs) {
-//            String json = new String(msg.getBody());
-//            taskDispatcher.dispatch(json);
-//        }
-//        return ConsumeConcurrentlyStatus.CONSUME_SUCCESS;
-//    }
-//
-//}

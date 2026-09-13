@@ -67,9 +67,7 @@ public class PermissionPolicyEvaluatorImpl implements PermissionPolicyEvaluator 
              * PATH 级规则
              */
             if (rule.getScope() == PermissionScopeEnum.PATH) {
-
                 String path = extractPath(arguments);
-
                 if (path != null && matchPath(rule.getPattern(), path)) {
                     return rule.getDecision();
                 }
@@ -89,7 +87,8 @@ public class PermissionPolicyEvaluatorImpl implements PermissionPolicyEvaluator 
 
     private PermissionDecisionEnum evaluateReadOnly(String toolName) {
         return switch (toolName) {
-            case "list_files", "glob", "grep", "read_file", "search_manual", "parse_java_code" -> PermissionDecisionEnum.ALLOW;
+            case "list_files", "glob", "grep", "read_file", "search_manual", "parse_java_code", "run_explorer",
+                    "run_fixer" -> PermissionDecisionEnum.ALLOW;
             case "write_file", "delete_file", "apply_patch", "run_command" -> PermissionDecisionEnum.DENY;
             case "verify_java_syntax" -> PermissionDecisionEnum.ALLOW;
             default -> PermissionDecisionEnum.ASK;
@@ -98,7 +97,8 @@ public class PermissionPolicyEvaluatorImpl implements PermissionPolicyEvaluator 
 
     private PermissionDecisionEnum evaluateWorkspace(String toolName) {
         return switch (toolName) {
-            case "list_files", "glob", "grep", "read_file", "search_manual", "parse_java_code", "verify_java_syntax" -> PermissionDecisionEnum.ALLOW;
+            case "list_files", "glob", "grep", "read_file", "search_manual", "parse_java_code", "verify_java_syntax", "run_explorer",
+                    "run_fixer" -> PermissionDecisionEnum.ALLOW;
             case "write_file", "delete_file", "apply_patch", "run_command"-> PermissionDecisionEnum.ASK;
             default -> PermissionDecisionEnum.ASK;
         };
@@ -121,14 +121,12 @@ public class PermissionPolicyEvaluatorImpl implements PermissionPolicyEvaluator 
         }
 
         /*
-         * 第一版先做最简单的匹配。
+         * 先做最简单的匹配。
          *
          * 后面再升级 AntPathMatcher / PathPattern。
          */
         if (pattern.endsWith("/**")) {
-
             String prefix = pattern.substring(0, pattern.length() - 3);
-
             return path.startsWith(prefix);
         }
 

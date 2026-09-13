@@ -1,14 +1,12 @@
 package com.xd.controller;
 
-import com.xd.model.Result;
+import com.xd.controller.response.Result;
 import com.xd.model.dto.ChatMessageCreateDTO;
-import com.xd.model.entity.AgentSessionDO;
 import com.xd.model.vo.*;
 import com.xd.service.AgentChatAssemblerService;
 import com.xd.service.AgentConversationService;
 import com.xd.service.AgentSessionService;
 import com.xd.service.AgentTaskService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;

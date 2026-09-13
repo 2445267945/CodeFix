@@ -70,6 +70,7 @@ public interface AgentTaskService {
 
     AgentStateTransitionResult handleAgentEvent(AgentMessageDTO message);
 
+    void sendCommand(String taskId, String runId, String actionId, String command);
     // Command
     AgentStateTransitionResult handleCommand(String taskId, String runId, String actionId, String command);
 

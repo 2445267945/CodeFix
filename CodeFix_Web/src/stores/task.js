@@ -824,7 +824,7 @@ export const useTaskStore = defineStore('task', {
 
             if (!normalizedWorkspacePath) {
                 throw new Error(
-                    "请先选择一个本地项目目录"
+                    "请先选择一个本地工作目录"
                 );
             }
 

@@ -43,14 +43,11 @@ public class AgentEventServiceImpl implements AgentEventService {
             throw new RuntimeException(e);
         }
         event.setEventTimestamp(dto.getTimestamp());
-
-        try {
-            agentEventMapper.insertAgentEvent(event);
-        } catch (DuplicateKeyException e) {
-            log.info("Agent Event 重复消息，忽略: taskId={}, runId={}, messageId={}", event.getTaskId(), event.getRunId(), event.getMessageId());
-            return null;
+        int rows = agentEventMapper.insertAgentEvent(event);
+        if (rows == 1) {
+            return event;
         }
-        return event;
+        return null;
     }
 
     @Override

@@ -19,31 +19,22 @@ public class PermissionRuntimeStoreImpl implements PermissionRuntimeStore {
     private static final String KEY_PREFIX = "agent:permission:rules:";
 
     @Autowired
-    private CacheService cacheService;
+    private CacheServiceImpl cacheService;
 
     @Override
     public List<PermissionRuleDTO> getRules(String runId) {
-
         if (runId == null || runId.isBlank()) {
             return Collections.emptyList();
         }
-
         String key = buildKey(runId);
-
         String value = cacheService.get(key);
-
         if (value == null || value.isBlank()) {
             return Collections.emptyList();
         }
-
         try {
-
             List<PermissionRuleDTO> rules = JSON.parseArray(value, PermissionRuleDTO.class);
-
             return rules == null ? Collections.emptyList() : rules;
-
         } catch (Exception e) {
-
             log.warn("Permission Rule 解析失败: runId={}, key={}", runId, key, e);
 
             /*
@@ -65,18 +56,9 @@ public class PermissionRuntimeStoreImpl implements PermissionRuntimeStore {
         if (rule == null) {
             throw new IllegalArgumentException("PermissionRule 不能为空");
         }
-
         List<PermissionRuleDTO> rules = new ArrayList<>(getRules(runId));
-
-        /*
-         * 第一版：
-         * 同 Tool + Scope + Pattern
-         * 视为同一条规则，直接覆盖。
-         */
         rules.removeIf(existing -> sameRule(existing, rule));
-
         rules.add(rule);
-
         String key = buildKey(runId);
 
         /*
@@ -85,32 +67,24 @@ public class PermissionRuntimeStoreImpl implements PermissionRuntimeStore {
          * 后续再根据实际需求决定 TTL。
          */
         cacheService.put(key, JSON.toJSONString(rules));
-
         log.info("Permission Rule 保存成功: runId={}, tool={}, decision={}, scope={}, pattern={}", runId, rule.getToolName(), rule.getDecision(), rule.getScope(), rule.getPattern());
     }
 
     @Override
     public void deleteRule(String runId, PermissionRuleDTO rule) {
-
         if (runId == null || runId.isBlank()) {
             throw new IllegalArgumentException("runId 不能为空");
         }
-
         if (rule == null) {
             return;
         }
-
         List<PermissionRuleDTO> rules = new ArrayList<>(getRules(runId));
-
         rules.removeIf(existing -> sameRule(existing, rule));
-
         String key = buildKey(runId);
-
         if (rules.isEmpty()) {
             cacheService.delete(key);
             return;
         }
-
         cacheService.put(key, JSON.toJSONString(rules));
     }
 

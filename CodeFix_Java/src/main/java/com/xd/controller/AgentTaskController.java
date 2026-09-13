@@ -1,8 +1,7 @@
 package com.xd.controller;
 
 import com.xd.controller.request.AgentCommandRequest;
-import com.xd.model.Result;
-import com.xd.model.dto.AgentCommandDTO;
+import com.xd.controller.response.Result;
 import com.xd.model.vo.*;
 import com.xd.service.AgentRunService;
 import com.xd.service.AgentSseService;

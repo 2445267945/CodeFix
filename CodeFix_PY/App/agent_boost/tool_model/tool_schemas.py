@@ -17,11 +17,11 @@ class ParseJavaCodeInput(BaseModel):
 
 # ---------- run_explorer 的入参规则 ----------
 class RunExplorerInput(BaseModel):
-    code: str = Field(..., description="Java源代码", min_length=1)
+    task: str = Field(..., description="Java源代码", min_length=1)
 
 # ---------- run_fixer 的入参规则 ----------
 class RunFixerInput(BaseModel):
-    code: str = Field(..., min_length=1, description="原始 Java 代码")
+    task: str = Field(..., min_length=1, description="原始 Java 代码")
     report: dict = Field(..., description="结构化代码分析报告")
 
 class ListFilesInput(BaseModel):

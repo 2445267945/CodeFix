@@ -1,6 +1,6 @@
 package com.xd.exception;
 
-import com.xd.model.Result;
+import com.xd.controller.response.Result;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;

@@ -22,17 +22,18 @@ public class TaskDispatcherImpl implements TaskDispatcher {
 
     @Override
     public void dispatch(String messageJson) {
-        // 解析消息，获取 type
-        String type = null;
-        JSONObject json = null;
+        JSONObject json;
         try {
             json = JSON.parseObject(messageJson);
-            type = json.getString("type");
         } catch (Exception e) {
-            log.info("JSON解析异常", e);
+            log.error("Agent消息JSON解析失败: {}", messageJson, e);
+            throw e;
         }
-        if (!json.get("version").equals("1.0")) {
-            log.warn("消息协议版本不对，目前 1.0, python:" + json.get("version"));
+        String type = json.getString("type");
+        String version = json.getString("version");
+
+        if (!"1.0".equals(version)) {
+            log.warn("消息协议版本不对，目前 1.0, python: {}", version);
         }
         MessageHandler handler = handlerMap.get(type);
 

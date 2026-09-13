@@ -1,7 +1,6 @@
 import difflib
 import re
 from pathlib import Path
-
 import httpx, os, json
 
 from App.agent_boost.tool_model.file_change_result import FileChangeResult
@@ -86,7 +85,7 @@ registry = ToolRegistry()
 def get_length(text) -> int:
     return len(text)
 
-
+# 应用过小，后续升级沙箱预留
 @registry.register(name="verify_java_syntax",
                    description="验证 Java 代码语法是否正确。输入参数: {'code': 'Java 源代码字符串'}")
 async def verify_java_syntax(code: str) -> str:
@@ -104,7 +103,7 @@ async def verify_java_syntax(code: str) -> str:
         else:
             return f"语法校验失败：{data['error']}"
 
-
+# 应用过小，后续升级沙箱预留
 @registry.register(
     name="parse_java_code",
     description="解析 Java 代码结构，返回类名、方法、循环、注解等详细信息。输入参数: {'code': 'Java 源代码字符串'}"
@@ -140,14 +139,22 @@ async def search_manual_async(query: str, n_results: int = 3) -> str:
     return search_manual(query, n_results=n_results)
 
 
+
 @registry.register(
     name="run_explorer",
-    description="调用侦查员 Agent 分析 Java 代码结构。输入: {'code': 'Java源代码'}",
+    description=(
+        "调用 Explorer Agent 对当前 Workspace 进行深入代码分析。"
+        "适用于复杂调用链、依赖关系、影响范围、架构关系、潜在风险等需要系统性探索的任务。"
+        "Explorer 会直接访问当前 Workspace 获取真实文件。"
+        "输入: {'task': '需要分析的问题或目标'}"
+    ),
     need_caller=True
 )
-async def run_explorer(code: str, caller=None) -> str:
+async def run_explorer(task: str, caller=None) -> str:
     if caller is None:
         raise RuntimeError("run_explorer 执行失败：缺少 caller Agent")
+    if not task or not task.strip():
+        raise ValueError("run_explorer 执行失败：task 不能为空")
     from App.agents.worker.explorer_agent import ExplorerAgent
     agent = ExplorerAgent(
         context=caller.context,
@@ -155,22 +162,42 @@ async def run_explorer(code: str, caller=None) -> str:
         base_message=caller.base_message,
         parent_agent=caller.name
     )
-    res = await agent.run(code)
-    return res.model_dump()
+    res = await agent.run(task)
+    return json.dumps(res.model_dump(), ensure_ascii=False)
 
 
 @registry.register(
     name="run_fixer",
-    description="调用修复员 Agent 修复 Java 代码。输入: {'code': '原始代码', 'report': '结构分析报告'}（JSON 格式）",
+    description=(
+        "调用 Fixer Agent 在当前 Workspace 中执行复杂代码修改。"
+        "适用于多文件修改、重构、复杂 Bug 修复以及需要结合分析结果实施修改的任务。"
+        "Fixer 会直接读取当前 Workspace 中的真实文件并完成修改。"
+        "输入: {'task': '需要完成的修改任务', 'report': '已有分析报告，可选'}"
+    ),
     need_caller=True
 )
-async def run_fixer(code: str, report: dict, caller=None) -> str:
+async def run_fixer(task: str, report: dict | None = None, caller=None) -> str:
     if caller is None:
         raise RuntimeError("run_fixer 执行失败：缺少 caller Agent")
+    if not task or not task.strip():
+        raise ValueError("run_fixer 执行失败：task 不能为空")
     from App.agents.worker.fixer_agent import FixerAgent
-    report_text = json.dumps(report, ensure_ascii=False, indent=2)
-    prompt = (f"原始代码：\n"f"{code}\n"
-              f"\n"f"结构报告：\n"f"{report_text}")
+    report_text = ""
+    if report:
+        report_text = json.dumps(report, ensure_ascii=False, indent=2)
+    prompt = (
+        f"当前修改任务：\n"
+        f"{task}\n"
+    )
+    if report_text:
+        prompt += (
+            f"已有 Explorer 分析报告：\n"
+            f"{report_text}\n"
+        )
+    prompt += (
+        "\n请基于当前 Workspace 中真实存在的文件完成修改。"
+        "\n不要假设任务中提供的旧代码就是 Workspace 当前状态。"
+    )
     agent = FixerAgent(
         context=caller.context,
         run_context=caller.run_context,
@@ -178,7 +205,7 @@ async def run_fixer(code: str, report: dict, caller=None) -> str:
         parent_agent=caller.name
     )
     res = await agent.run(prompt)
-    return res.model_dump()
+    return json.dumps(res.model_dump(), ensure_ascii=False)
 
 
 @registry.register(

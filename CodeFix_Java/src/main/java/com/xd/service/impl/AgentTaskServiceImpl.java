@@ -162,11 +162,10 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         AgentTaskDO agentTaskDO = new AgentTaskDO();
         agentTaskDO.setTaskId(agentMessageDTO.getTaskId());
         agentTaskDO.setSessionId(agentMessageDTO.getSessionId());
-        agentTaskDO.setStatus(AgentTaskStatusEnum.getStatusByDesc(agentMessageDTO.getStatus()).statusCode);
+        agentTaskDO.setStatus(status.statusCode);
         agentTaskDO.setUpdatedAt(agentMessageDTO.getTimestamp());
         agentTaskMapper.updateTask(agentTaskDO);
     }
-
 
     @Override
     public TaskDetailVO getTask(String taskId) {
@@ -223,29 +222,25 @@ public class AgentTaskServiceImpl implements AgentTaskService {
 
         AgentStateTransitionResult result = transactionTemplate.execute(status -> {
 
-            // 1. 查询 Task
             AgentTaskDO task = agentTaskMapper.selectByTaskId(taskId);
             if (task == null) {
                 throw new IllegalStateException("Task 不存在: taskId=" + taskId);
             }
-            // 2. 查询 Run
+
             AgentRunDO run = agentRunMapper.selectByRunId(runId);
             if (run == null) {
                 throw new IllegalStateException("Run 不存在: runId=" + runId);
             }
-            // 3. 确认当前 Task 绑定的就是这个 Run
+
             if (!runId.equals(task.getRunId())) {
                 throw new IllegalStateException("runId 不是当前 Task 的最新 Run: " + "taskId=" + taskId + ", 当前=" + task.getRunId() + ", 接收=" + runId);
             }
 
             sessionIdHolder[0] = task.getSessionId();
 
-            // 4. 当前状态
             AgentTaskStatusEnum currentState = AgentTaskStatusEnum.getStatusByCode(task.getStatus());
-            // 5. State Machine：CANCELLED -> AGENT_THINKING
             AgentTaskStatusEnum nextState = stateMachine.transition(currentState, AgentRunCommandEnum.RESUME);
 
-            // 6. 更新 Task 状态
             AgentMessageDTO updateMessageDTO = new AgentMessageDTO();
             updateMessageDTO.setTaskId(taskId);
             updateMessageDTO.setRunId(runId);
@@ -253,7 +248,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             updateMessageDTO.setSessionId(task.getSessionId());
             updateTaskStatus(updateMessageDTO);
 
-            // 7. 写 State History
             AgentRunStateHistoryDO history = new AgentRunStateHistoryDO();
             history.setTaskId(taskId);
             history.setRunId(runId);
@@ -291,8 +285,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             throw new IllegalStateException("Agent Resume 状态迁移失败: taskId=" + taskId);
         }
 
-        // 8. Java 事务提交成功后，再通知 Python Runtime
-        // 得到workspaceId
         AgentSessionDO agentSessionDO = agentSessionMapper.selectBySessionId(result.getSessionId());
         AgentTaskMessage agentTaskMessage = new AgentTaskMessage();
         agentTaskMessage.setSessionId(sessionIdHolder[0]);
@@ -312,19 +304,16 @@ public class AgentTaskServiceImpl implements AgentTaskService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public TaskOperateVO retryTask(String taskId) {
-        // 1. 查询原任务
         AgentTaskDO task = agentTaskMapper.selectByTaskId(taskId);
         if (task == null) {
             throw new BusinessException("任务不存在: " + taskId);
         }
         AgentSessionDO agentSessionDO = agentSessionMapper.selectBySessionId(task.getSessionId());
-        // 2. 生成新的 Run
         String newRunId = UUID.randomUUID().toString();
-        // 3. 查询当前任务已经执行到第几次
         Integer maxAttempt = agentRunMapper.selectMaxAttemptByTaskId(taskId);
         int newAttempt = (maxAttempt == null ? 0 : maxAttempt) + 1;
         long now = System.currentTimeMillis();
-        // 4. 插入新的 AgentRun
+
         AgentRunDO run = new AgentRunDO();
         run.setRunId(newRunId);
         run.setTaskId(taskId);
@@ -335,7 +324,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         run.setStartedAt(now);
         agentRunMapper.insertAgentRun(run);
 
-        // 5. 更新 Task 当前 Run
         AgentTaskDO update = new AgentTaskDO();
         update.setTaskId(taskId);
         update.setRunId(newRunId);
@@ -343,7 +331,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         update.setUpdatedAt(System.currentTimeMillis());
         agentTaskMapper.updateTask(update);
 
-        // 6. 构造新的 AgentTaskMessage
         AgentTaskMessage msg = new AgentTaskMessage();
         msg.setTaskId(taskId);
         msg.setSessionId(task.getSessionId());
@@ -353,13 +340,11 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         msg.setVersion("1.0");
         msg.setTimestamp(now);
         msg.setType("AGENT_TASK");
-        // Retry = 创建新Run，然后按照START执行
         msg.setCommand(AgentRunCommandEnum.START.commandDesc_EN);
         msg.setQuestion(task.getQuestion());
         msg.setCode(task.getCode());
-        // 7. 投递 MQ
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(msg));
-        // 8. 返回
+
         return TaskOperateVO.builder()
                 .taskId(taskId)
                 .runId(newRunId)
@@ -368,7 +353,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                 .message("任务已重新执行")
                 .build();
     }
-
 
     @Override
     public TaskResultVO getTaskResult(String taskId, String runId) {
@@ -390,7 +374,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                 .toList();
     }
 
-
     private AgentRunVO toAgentRunVO(AgentRunDO run, String currentRunId) {
         AgentTaskStatusEnum status = AgentTaskStatusEnum.getStatusByCode(run.getStatus());
         return AgentRunVO.builder()
@@ -404,8 +387,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                 .endedAt(run.getEndedAt())
                 .errorMessage(run.getErrorMessage())
                 .createdAt(run.getCreatedAt())
-                .current(run.getRunId()
-                .equals(currentRunId))
+                .current(run.getRunId().equals(currentRunId))
                 .build();
     }
 
@@ -431,9 +413,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                 .taskId(task.getTaskId())
                 .runId(run.getRunId())
                 .status(AgentTaskStatusEnum.getStatusByCode(run.getStatus()).statusDesc_EN)
-                .chat(chat).build();
+                .chat(chat)
+                .build();
     }
-
 
     /**
      * 处理 Agent Runtime 内部事件。
@@ -450,15 +432,14 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         if (messageDTO == null) {
             return null;
         }
+
         /*
          * 只有 Root Agent 才能驱动当前 Task 状态。
          */
         if (messageDTO.getParentAgent() != null && !messageDTO.getParentAgent().isBlank()) {
             return null;
         }
-        /*
-         * Agent Event。
-         */
+
         AgentEventEnum event = parseEvent(messageDTO.getEvent());
         if (event == null) {
             log.debug(
@@ -470,16 +451,12 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             return null;
         }
 
-        /*
-         * 读取当前 Task 状态。
-         *
-         * 这里的 Task.status 是唯一 Runtime State。
-         */
         AgentTaskDO task = agentTaskMapper.selectByTaskId(messageDTO.getTaskId());
         if (task == null) {
             log.info("Task 不存在: {}", messageDTO.getTaskId());
             return null;
         }
+
         AgentTaskStatusEnum currentState = AgentTaskStatusEnum.getStatusByCode(task.getStatus());
 
         if (currentState == WAITING_HUMAN && event == TOOL_RESULT) {
@@ -494,22 +471,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                     .reason("等待审批期间的 Tool Result，仅用于闭合 Tool Call")
                     .build();
         }
-        /*
-         * 状态机计算下一状态。
-         */
-        AgentTaskStatusEnum nextState = null;
-        nextState = stateMachine.transition(currentState, event);
-        /*
-         * 当前 Event 没有导致状态变化。
-         *
-         * 例如：
-         *
-         * THINKING + THINK
-         * -> THINKING
-         *
-         * Event 本身已经由 AgentEventService 落库，
-         * 所以这里不需要写 StateHistory。
-         */
+
+        AgentTaskStatusEnum nextState = stateMachine.transition(currentState, event);
+
         if (nextState == currentState) {
             return AgentStateTransitionResult.builder()
                     .changed(false)
@@ -521,18 +485,12 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                     .build();
         }
 
-
-        /*
-         * 状态发生变化。
-         */
         AgentMessageDTO updateMessageDTO = new AgentMessageDTO();
         updateMessageDTO.setTaskId(messageDTO.getTaskId());
         updateMessageDTO.setStatus(nextState.statusDesc_EN);
         updateMessageDTO.setSessionId(messageDTO.getSessionId());
         updateTaskStatus(updateMessageDTO);
-        /*
-         * 写 State History。
-         */
+
         AgentRunStateHistoryDO history = new AgentRunStateHistoryDO();
         history.setTaskId(messageDTO.getTaskId());
         history.setRunId(messageDTO.getRunId());
@@ -545,6 +503,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         history.setReason(buildReason(currentState, event, nextState));
         history.setCreatedAt(messageDTO.getTimestamp());
         stateHistoryMapper.insertStateHistory(history);
+
         log.info(
                 "Agent Runtime 状态迁移: taskId={}, runId={}, {} -> {}, event={}",
                 messageDTO.getTaskId(),
@@ -553,6 +512,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                 nextState.statusDesc_EN,
                 event.eventDesc
         );
+
         return AgentStateTransitionResult.builder()
                 .changed(true)
                 .fromStatus(currentState)
@@ -578,7 +538,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             throw new IllegalArgumentException("command 不能为空");
         }
 
-        // 1. 解析 Action Command
         AgentActionCommandEnum actionCommand;
         try {
             actionCommand = AgentActionCommandEnum.valueOf(command.trim().toUpperCase());
@@ -586,22 +545,19 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             throw new IllegalArgumentException("未知 Agent Action Command: " + command, e);
         }
 
-        // 2. 状态更新 + History 必须在同一事务
         AgentStateTransitionResult result = transactionTemplate.execute(status -> {
-            // 3. 查询当前 Task
             AgentTaskDO task = agentTaskMapper.selectByTaskId(taskId);
-            AgentRunDO run = agentRunMapper.selectByTaskId(taskId).get(0);
+            AgentRunDO run = agentRunMapper.selectByRunId(runId);
             if (task == null || run == null) {
                 throw new IllegalStateException("Task或Run 不存在: taskId:" + taskId + ", runId:" + runId);
             }
+
             if (!task.getRunId().equals(runId)) {
                 throw new IllegalStateException("runId不是当前的最新: 当前:" + task.getRunId() + ", 接收:" + runId);
             }
 
-            // 4. 当前状态
             AgentTaskStatusEnum currentState = AgentTaskStatusEnum.getStatusByCode(task.getStatus());
 
-            // 5. Guard Context
             AgentTransitionContext context = AgentTransitionContext.builder()
                     .taskId(taskId)
                     .runId(runId)
@@ -609,7 +565,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                     .state(currentState)
                     .build();
 
-            // 6. Guard
             boolean allowed = switch (actionCommand) {
                 case APPROVE -> agentTransitionGuard.canApprove(context, run.getActionId());
                 case REJECT -> agentTransitionGuard.canReject(context, run.getActionId());
@@ -626,17 +581,14 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                 );
             }
 
-            // 7. State Machine 计算下一状态
             AgentTaskStatusEnum nextState = stateMachine.transition(currentState, actionCommand);
 
-            // 8. 更新 Task 当前状态
             AgentMessageDTO updateMessageDTO = new AgentMessageDTO();
             updateMessageDTO.setTaskId(taskId);
             updateMessageDTO.setRunId(runId);
             updateMessageDTO.setStatus(nextState.statusDesc_EN);
             updateTaskStatus(updateMessageDTO);
 
-            // 9. 写 State History
             AgentRunStateHistoryDO history = new AgentRunStateHistoryDO();
             history.setTaskId(taskId);
             history.setRunId(runId);
@@ -644,8 +596,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             history.setTriggerType("COMMAND");
             history.setTrigger(actionCommand.commandDesc_EN);
             history.setToStatus(nextState.statusDesc_EN);
-            // Command 不是 Python Agent Event，
-            // 因此这里没有 messageId / step 的来源。
             history.setMessageId(null);
             history.setStep(null);
             history.setReason(buildCommandReason(currentState, actionCommand, nextState, actionId));
@@ -662,7 +612,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                     actionCommand.commandDesc_EN
             );
 
-            // 10. 返回迁移结果
             return AgentStateTransitionResult.builder()
                     .changed(currentState != nextState)
                     .fromStatus(currentState)
@@ -673,8 +622,43 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                     .reason(buildCommandReason(currentState, actionCommand, nextState, actionId))
                     .build();
         });
+
         if (result == null) {
             throw new IllegalStateException("Agent Command 状态迁移失败: taskId=" + taskId);
+        }
+
+        sendCommand(taskId, runId, actionId, actionCommand.commandDesc_EN);
+
+        return result;
+    }
+
+    /**
+     * 只向 Python Runtime 发送 Action Command。
+     *
+     * 不修改 Task / Run 状态，不写 StateHistory。
+     *
+     * 用于 Child Agent 的 Tool Action。
+     */
+    @Override
+    public void sendCommand(String taskId, String runId, String actionId, String command) {
+        if (taskId == null || taskId.isBlank()) {
+            throw new IllegalArgumentException("taskId 不能为空");
+        }
+        if (runId == null || runId.isBlank()) {
+            throw new IllegalArgumentException("runId 不能为空");
+        }
+        if (actionId == null || actionId.isBlank()) {
+            throw new IllegalArgumentException("actionId 不能为空");
+        }
+        if (command == null || command.isBlank()) {
+            throw new IllegalArgumentException("command 不能为空");
+        }
+
+        AgentActionCommandEnum actionCommand;
+        try {
+            actionCommand = AgentActionCommandEnum.valueOf(command.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException("未知 Agent Action Command: " + command, e);
         }
 
         AgentTaskMessage agentMessage = new AgentTaskMessage();
@@ -687,9 +671,16 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         agentMessage.setCommand(actionCommand.commandDesc_EN);
         agentMessage.setCommandType("ACTION");
         agentMessage.setActionId(actionId);
+
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(agentMessage));
 
-        return result;
+        log.info(
+                "发送 Agent Action Command: taskId={}, runId={}, actionId={}, command={}",
+                taskId,
+                runId,
+                actionId,
+                actionCommand.commandDesc_EN
+        );
     }
 
     @Override
@@ -700,12 +691,12 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             throw new IllegalStateException("Task 不存在: taskId=" + taskId);
         }
         if (run == null) {
-            throw new IllegalStateException("Run 不存在: runId=" + runId);
+            throw new IllegalStateException("Run 不存在: " + runId);
         }
         if (!runId.equals(task.getRunId())) {
             throw new IllegalStateException("runId 不是当前 Task 的最新 Run: " + "taskId=" + taskId + ", 当前=" + task.getRunId() + ", 接收=" + runId);
         }
-        // 发送 CANCEL 给 Python Runtime
+
         AgentTaskMessage agentTaskMessage = new AgentTaskMessage();
         agentTaskMessage.setType("AGENT_TASK");
         agentTaskMessage.setCommand(AgentRunCommandEnum.CANCEL.commandDesc_EN);
@@ -722,11 +713,12 @@ public class AgentTaskServiceImpl implements AgentTaskService {
     @Override
     public AgentStateTransitionResult handleUserCommand(String runId, String command) {
         if (runId == null || runId.isBlank()) {
-            throw new IllegalArgumentException("taskId 不能为空");
+            throw new IllegalArgumentException("runId 不能为空");
         }
         if (command == null || command.isBlank()) {
             throw new IllegalArgumentException("command 不能为空");
         }
+
         AgentActionCommandEnum actionCommand;
         try {
             actionCommand = AgentActionCommandEnum.valueOf(command.trim().toUpperCase());
@@ -737,43 +729,31 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         AgentRunDO agentRunDO = agentRunMapper.selectByRunId(runId);
         String taskId = agentRunDO.getTaskId();
         String actionId = agentRunDO.getActionId();
-        /*
-         * 人工拒绝：
-         * 只执行 REJECT，不写 Permission Cache。
-         */
+
         if (actionCommand == AgentActionCommandEnum.REJECT) {
             return handleCommand(taskId, runId, actionId, actionCommand.commandDesc_EN);
         }
 
-        /*
-         * 人工允许：
-         * 先找到当前 TOOL_WAITING，
-         * 从中恢复 Tool 信息。
-         */
         AgentEventDO waitingEvent = agentEventService.getToolWaitingByActionId(taskId, runId, actionId);
 
         if (waitingEvent == null) {
             throw new IllegalStateException("找不到对应的 TOOL_WAITING Event: " + "taskId=" + taskId + ", runId=" + runId + ", actionId=" + actionId);
         }
+
         Map<String, Object> data;
         try {
             data = JSON.parseObject(waitingEvent.getOutput());
         } catch (Exception e) {
             throw new IllegalStateException("TOOL_WAITING output 解析失败: actionId=" + actionId, e);
         }
+
         String toolName = data == null ? null : String.valueOf(data.get("tool"));
         if (toolName == null || toolName.isBlank() || "null".equals(toolName)) {
             throw new IllegalStateException("TOOL_WAITING 缺少 tool: actionId=" + actionId);
         }
 
-        /*
-         * 先真正执行 APPROVE。
-         */
         AgentStateTransitionResult result = handleCommand(taskId, runId, actionId, actionCommand.commandDesc_EN);
 
-        /*
-         * Command 成功后，再保存 Permission Rule。
-         */
         PermissionRuleDTO rule = PermissionRuleDTO.builder()
                 .toolName(toolName)
                 .decision(PermissionDecisionEnum.ALLOW)
@@ -785,14 +765,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             permissionRuntimeStore.saveRule(runId, rule);
             log.info("人工 Permission 允许已缓存: runId={}, actionId={}, tool={}", runId, actionId, toolName);
         } catch (Exception e) {
-            /*
-             * Permission Cache 写失败不能让已经成功的 Tool
-             * 变成一次“命令失败”。
-             *
-             * 最坏结果只是下一次再次询问。
-             */
             log.error("Permission Cache 写入失败: runId={}, actionId={}, tool={}", runId, actionId, toolName, e);
         }
+
         return result;
     }
 
@@ -804,7 +779,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             log.warn("Heartbeat timeout处理失败，Task不存在: taskId={}, runId={}", taskId, runId);
             return;
         }
-        // 防止旧 Run 的 watchdog 影响当前 Task
+
         if (!runId.equals(task.getRunId())) {
             log.debug("忽略旧 Run 的 heartbeat timeout: taskId={}, runId={}, currentRunId={}", taskId, runId, task.getRunId());
             return;
@@ -812,13 +787,11 @@ public class AgentTaskServiceImpl implements AgentTaskService {
 
         AgentTaskStatusEnum currentState = AgentTaskStatusEnum.getStatusByCode(task.getStatus());
 
-        // 当前状态本身不允许 heartbeat timeout
         if (!stateMachine.canTransition(currentState, AgentEventEnum.HEARTBEAT_TIMEOUT)) {
             return;
         }
 
         AgentTaskStatusEnum nextState = stateMachine.transition(currentState, AgentEventEnum.HEARTBEAT_TIMEOUT);
-
 
         TaskHeartbeatTimeoutUpdateDTO update = new TaskHeartbeatTimeoutUpdateDTO();
         update.setTaskId(taskId);
@@ -827,9 +800,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         update.setNextStatus(nextState.statusCode);
         update.setUpdatedAt(System.currentTimeMillis());
         update.setLastHeartbeatAt(task.getLastHeartbeatAt());
+
         int updated = agentTaskMapper.updateStatusByHeartbeatTimeout(update);
         if (updated == 0) {
-            // 并发条件下已经被其他流程修改
             log.debug("Heartbeat timeout状态更新未生效，Task可能已被其他流程处理: taskId={}, runId={}", taskId, runId);
         }
     }
@@ -840,6 +813,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                 command.commandDesc_EN, actionId, currentState.statusDesc_EN, nextState.statusDesc_EN
         );
     }
+
     private String buildRunCommandReason(AgentTaskStatusEnum currentState, AgentRunCommandEnum command, AgentTaskStatusEnum nextState, String actionId) {
         return String.format(
                 "Agent Run Command: %s, actionId=%s, %s -> %s",
@@ -847,9 +821,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         );
     }
 
-    /**
-     * Agent Event -> Enum。
-     */
     private AgentEventEnum parseEvent(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -859,7 +830,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
                 return event;
             }
         }
-
         return null;
     }
 

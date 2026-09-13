@@ -143,26 +143,18 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override
     public void initializeFile(String workspaceId, String fileName, String code) {
-
         WorkspaceDO workspace = getWorkspace(workspaceId);
-
         if (!"READY".equals(workspace.getStatus())) {
             throw new IllegalStateException("Workspace当前不可用: " + workspaceId);
         }
-
         if (fileName == null || fileName.isBlank()) {
-
             throw new IllegalArgumentException("fileName不能为空");
         }
-
         if (code == null) {
             code = "";
         }
-
         try {
-
             Path root = Paths.get(workspace.getRootPath()).toAbsolutePath().normalize();
-
             Path target = root.resolve(fileName).normalize();
 
             /*
@@ -171,20 +163,13 @@ public class WorkspaceServiceImpl implements WorkspaceService {
             if (!target.startsWith(root)) {
                 throw new IllegalArgumentException("非法文件路径: " + fileName);
             }
-
             Path parent = target.getParent();
-
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-
             Files.writeString(target, code, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-
-
         } catch (IOException e) {
-
             log.error("初始化Workspace文件失败: workspaceId={}, fileName={}", workspaceId, fileName, e);
-
             throw new BusinessException("Workspace文件初始化失败", e);
         }
     }
@@ -217,7 +202,6 @@ public class WorkspaceServiceImpl implements WorkspaceService {
         if (!StringUtils.hasText(workspacePath)) {
             return null;
         }
-
         String rootPath = Paths.get(workspacePath.trim())
                 .toAbsolutePath()
                 .normalize()

@@ -1,7 +1,6 @@
 package com.xd.controller;
 
-import com.xd.model.Result;
-import com.xd.model.entity.AgentFileChangeDO;
+import com.xd.controller.response.Result;
 import com.xd.model.vo.FileDiffVO;
 import com.xd.service.AgentFileChangeService;
 import org.springframework.beans.factory.annotation.Autowired;

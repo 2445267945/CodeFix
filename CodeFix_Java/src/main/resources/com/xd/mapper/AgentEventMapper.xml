@@ -36,7 +36,7 @@
     </sql>
 
     <insert id="insertAgentEvent" parameterType="com.xd.model.entity.AgentEventDO" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
-        INSERT INTO agent_event (
+        INSERT IGNORE INTO agent_event (
             message_id,
             run_id,
             task_id,
@@ -51,19 +51,19 @@
             event_timestamp
         )
         VALUES (
-                   #{messageId},
-                   #{runId},
-                   #{taskId},
-                   #{sessionId},
-                   #{actionId},
-                   #{agentName},
-                   #{parentAgent},
-                   #{event},
-                   #{step},
-                   #{status},
-                   #{output},
-                   #{eventTimestamp}
-               )
+            #{messageId},
+            #{runId},
+            #{taskId},
+            #{sessionId},
+            #{actionId},
+            #{agentName},
+            #{parentAgent},
+            #{event},
+            #{step},
+            #{status},
+            #{output},
+            #{eventTimestamp}
+            )
     </insert>
 
     <select id="selectByTaskId" parameterType="java.lang.String" resultMap="BaseResultMap">

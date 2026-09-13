@@ -4,7 +4,9 @@ package com.xd.model.enums;
 public enum PermissionDecisionEnum {
     ALLOW(1, "ALLOW"),
     ASK(2, "ASK"),
-    DENY(3, "DENY")
+    DENY(3, "DENY"),
+
+    NONE(4, "NONE")
     ;
 
     public final Integer code;

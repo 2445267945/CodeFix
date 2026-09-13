@@ -1,6 +1,6 @@
 package com.xd.controller;
 
-import com.xd.model.Result;
+import com.xd.controller.response.Result;
 import com.xd.model.dto.WorkspaceFileUpdateDTO;
 import com.xd.model.vo.WorkspaceFileVO;
 import com.xd.model.vo.WorkspaceSessionsVO;

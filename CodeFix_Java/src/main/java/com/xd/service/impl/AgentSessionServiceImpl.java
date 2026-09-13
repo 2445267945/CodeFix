@@ -84,13 +84,10 @@ public class AgentSessionServiceImpl implements AgentSessionService {
 
     @Override
     public void bindWorkspace(String sessionId, String workspaceId) {
-
         AgentSessionDO update = new AgentSessionDO();
-
         update.setSessionId(sessionId);
         update.setWorkspaceId(workspaceId);
         update.setUpdatedAt(System.currentTimeMillis());
-
         agentSessionMapper.updateSession(update);
     }
 }

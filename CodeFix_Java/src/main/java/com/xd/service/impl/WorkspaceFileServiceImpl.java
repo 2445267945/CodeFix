@@ -37,21 +37,15 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
 
     @Override
     public WorkspaceFileVO getFile(String workspaceId, String filePath) {
-
         WorkspaceDO workspace = workSpaceMapper.selectByWorkspaceId(workspaceId);
-
         if (workspace == null) {
             throw new BusinessException("Workspace 不存在: " + workspaceId);
         }
-
         if (filePath == null || filePath.isBlank()) {
             throw new IllegalArgumentException("文件路径不能为空");
         }
-
         Path root = Paths.get(workspace.getRootPath()).toAbsolutePath().normalize();
-
         Path target = root.resolve(filePath).normalize();
-
         /*
          * 防止：
          * ../../xxx
@@ -68,13 +62,11 @@ public class WorkspaceFileServiceImpl implements WorkspaceFileService {
 
         try {
             String content = Files.readString(target, StandardCharsets.UTF_8);
-
             return WorkspaceFileVO.builder()
                     .workspaceId(workspaceId)
                     .filePath(filePath)
                     .content(content)
                     .build();
-
         } catch (IOException e) {
             throw new BusinessException("读取文件失败: " + filePath, e);
         }
