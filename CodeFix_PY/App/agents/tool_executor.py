@@ -212,7 +212,7 @@ class ToolExecutor(ReActAgent):
                     self.status = AgentState.ERROR
                 except Exception as e:
                     tool_res = {"success": False, "error_type": "TOOL_EXECUTION_ERROR", "tool": tool_name, "message": str(e)}
-
+            self.final_answer = tool_res
             self.metrics.record_tool_call(tool_result=tool_res)
             # 6. 标准 Tool Message
             self.add_tool_message(tool_call_id=tool_id, result=tool_res)

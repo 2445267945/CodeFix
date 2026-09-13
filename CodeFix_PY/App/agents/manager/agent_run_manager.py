@@ -34,6 +34,13 @@ class AgentRunManager:
         return asyncio.run_coroutine_threadsafe(self.run(msg, resume=True), self.loop)
 
     async def run(self, msg: AgentMessage, resume: bool = False):
+        logger.info(
+            "Agent start workspace: taskId=%s runId=%s workspaceId=%s rootPath=%s",
+            msg.task_id,
+            msg.run_id,
+            msg.workspace_id,
+            msg.root_path
+        )
         try:
             task = asyncio.current_task()
             cancel_event = asyncio.Event()

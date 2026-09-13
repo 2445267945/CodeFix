@@ -49,10 +49,6 @@ class RedisConfig:
     """Redis 配置"""
     URL = os.getenv("REDIS_URL")
 
-class WorkspaceConfig:
-    """Workspace 配置"""
-    ROOT = os.getenv("WORKSPACE_ROOT", "/data/workspaces")
-
 class VectorDBConfig:
     """向量数据库配置"""
     CHROMA_PATH = os.path.normpath(os.path.join(PROJECT_ROOT, os.getenv("CHROMA_PATH", "./data/chroma_db")))
@@ -69,7 +65,6 @@ class Config:
     embedding = EmbeddingConfig()
     mq = MQConfig()
     redis = RedisConfig()
-    workspace = WorkspaceConfig()
     vector_db = VectorDBConfig()
     backend = BackendConfig()
 
