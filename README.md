@@ -142,6 +142,9 @@ Finish
 
 ## 整体架构
 
+![图片说明](Images/architecture.gif)
+
+简写如下：
 ```text
                     ┌─────────────────────────────┐
                     │       CodeFix_Web (Vue)     │
