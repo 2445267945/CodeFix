@@ -219,6 +219,7 @@ Finish
 Session
   └── Task
         └── Run
+              └── Action
               └── Event
 
 Session ─── Workspace
@@ -233,7 +234,8 @@ Retry → 创建新的 Run
 Resume → 恢复当前 Run
 Cancel → 终止当前 Run
 Run     : Event  = 1 : N
-Session : Workspace = N : 1（目前暂时为1:1，后续将继续迭代）
+Run     : Action = 1 : N
+Session : Workspace = N : 1
 ```
 
 ### 实体说明（Java DO，MySQL `code_fix` 库）
@@ -242,6 +244,7 @@ Session : Workspace = N : 1（目前暂时为1:1，后续将继续迭代）
 - **Task**（`AgentTaskDO`）：用户提出的一个具体工作任务（`question`、`status`、`lastHeartbeatAt`）。
 - **Run**（`AgentRunDO`）：Task 的一次实际执行（`runId`、`actionId`、`permissionProfile`、`attempt`、`startedAt` / `endedAt`）。
 - **Run State History**（`AgentRunStateHistoryDO`）：每次状态迁移的 from / to / trigger / reason。
+- **Event**（`AgentActionDO`）：Agent 执行过程中产生的待审批事件，（`ActionId`、`RunId`)控制一次事件的审批。
 - **Event**（`AgentEventDO`）：Agent 执行过程中产生的原始事实（`event`、`step`、`agentName`、`parentAgent`、`output`），以 `messageId` 保证幂等。
 - **File Change**（`AgentFileChangeDO`）：Agent 对 Workspace 文件的变更记录（`diffId`、`filePath`、`operation`、`addedLines` / `removedLines`、`diffText`）。
 - **Chat Message**（`ChatMessageDO`）：USER / ASSISTANT 级别的对话消息，用于最终答案与上下文构建。
@@ -329,6 +332,7 @@ Task
 - **Run 状态历史**：状态真正变化时才写 `agent_run_state_history`。
 - **Retry / Resume / Cancel**：`POST /api/agent/tasks/{taskId}/retry|resume|cancel`，Java 先切状态再发 MQ 命令。
 - **自动放行**：命中权限策略（ALLOW / REJECT）的工具调用由 Java 直接内部下发命令，快速结束，不打断 Agent。
+- **本地目录操作**：Agent 使用工具对本地目录进行探索和修改，多次session可对同一目录空间操作，通过`Root_Path`控制。
 - **心跳**：Python 周期性上报 `AGENT_HEARTBEAT`，Java 更新 `lastHeartbeatAt`；`TaskWatchdog` 每 5s 扫描超过 15s 未心跳的运行中任务。
 
 
@@ -348,17 +352,24 @@ Task
 | `write_file`         | 创建新文件                                         |
 | `delete_file`        | 删除文件                                           |
 | `apply_patch`        | 精确修改已有文件（生成 Unified Diff）              |
-| `verify_java_syntax` | 调用 Java `/api/validate` 校验 Java 语法           |
-| `parse_java_code`    | 调用 Java `/api/parse`（JavaParser）解析 Java 结构 |
+| `verify_java_syntax` | 调用 Java `/api/validate` 校验 Java 语法（将废弃） |
+| `parse_java_code`    | 调用 Java `/api/parse`（JavaParser）解析 Java 结构 （将废弃）|
 | `search_manual`      | 检索《阿里巴巴 Java 开发手册》编码规范条款         |
 | `run_explorer`       | 委派 Explorer 子 Agent 做代码结构分析              |
 | `run_fixer`          | 委派 Fixer 子 Agent 修复代                         |
+| `run_command`        | 当前目录下，执行一些系统命令                        |
 
 不同 Agent 拥有不同的工具集合（`AgentToolSet`）：
 
+单Agent：
 - `SUPERVISOR`：`list_files` / `glob` / `grep` / `read_file` / `write_file` / `apply_patch` / `delete_file` / `run_explorer` / `run_fixer`
-- `EXPLORER`：`list_files` / `glob` / `grep` / `read_file` / `parse_java_code`
-- `FIXER`：`list_files` / `glob` / `grep` / `read_file` / `write_file` / `apply_patch` / `delete_file` / `search_manual` / `verify_java_syntax`
+- `EXPLORER`：`list_files` / `glob` / `grep` / `read_file` / `parse_java_code（将废弃）`
+- `FIXER`：`list_files` / `glob` / `grep` / `read_file` / `write_file` / `apply_patch` / `delete_file` / `search_manual` / `verify_java_syntax（将废弃）` / `run_command`
+
+多Agent：
+- `SUPERVISOR`： `run_explorer` / `run_fixer`
+- `EXPLORER`：`list_files` / `glob` / `grep` / `read_file` / `parse_java_code（将废弃）`
+- `FIXER`：`list_files` / `glob` / `grep` / `read_file` / `write_file` / `apply_patch` / `delete_file` / `search_manual` / `verify_java_syntax（将废弃）` / `run_command`
 
 ---
 
@@ -566,6 +577,7 @@ npm install
 
 ```bash
 npm run dev
+npm run electron 
 ```
 
 > 注意：`CodeFix_Java`、`CodeFix_PY`、`CodeFix_Web` 中的 Dockerfile 与
@@ -660,6 +672,7 @@ App/
 
 ```text
 src/
+├── electron/     # 桌面壳，主要用于获取本地目录绝对路径
 ├── api/          # http 封装 + task / session / workspace / diff
 ├── stores/       # Pinia（task：任务 + SSE；session：会话与聊天）
 ├── views/        # Workspace.vue（主界面）/ TaskList / TaskCreate
@@ -692,10 +705,10 @@ src/
 - [x] RAG 检索《阿里巴巴 Java 开发手册》（search_manual）
 - [x] Python Working Memory（Redis，消息序列化存储）
 - [x] Heartbeat 上报与 Java 侧看门狗扫描框架
+- [x] Workspace 创建
 
 ### Next / 规划
 
-- [ ] Workspace 创建 / 关联的产品级完整流程（前端已预留创建入口，后端 CRUD 完善中）
 - [ ] sandbox等隔离机制的实现
 - [ ] agent 流式输出
 - [ ] agent 操作回滚
@@ -714,7 +727,7 @@ src/
 
 | Layer                     | Technology                                         |
 | ------------------------- | -------------------------------------------------- |
-| Frontend                  | Vue 3 / Pinia / Vue Router / Element Plus / Axios  |
+| Frontend                  | Vue 3 / Pinia / Vue Router / Element Plus / Axios / electron |
 | Editor / Diff             | Monaco Editor / highlight.js / vue-markdown-render |
 | Backend                   | Java 17 / Spring Boot 3.5                          |
 | ORM                       | MyBatis（mybatis-spring-boot-starter 3.0.3）       |
