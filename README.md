@@ -57,7 +57,7 @@ Tool Calling、Human Approval、Workspace 文件操作、Event 持久化、
 
 目前的框架LangChain、LangGraph虽然很强大，但是他们会过度封装，一个简单的文本生成，调用栈会经过chain，LLMChain、BaseLLM、BaseOpenAI等等好几个类，
 最后才会送到LLM，此外LangChain的版本变动非常频繁，业务逻辑没变的情况下，框架升级就要不断修改代码，不是框架不好。而是框架为了通用就要很多额外的抽象层，
-代价就是隐藏很多的提示词，基本就是黑盒调用状态。
+代价就是隐藏很多的提示词和调用链路，基本就是黑盒调用状态。
 
 框架调用模式：用户 -> 框架 -> 结果
 
