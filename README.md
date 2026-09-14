@@ -14,8 +14,12 @@ Tool Calling、Human Approval、Workspace 文件操作、Event 持久化、
 ## Demo
 
 **运行结果展示：**
-
-![图片说明](Images/codeFix.gif)
+**单agent：**
+> Mater分支同步的是CodeFix_0.1.1分支，为单agent模式。
+![图片说明](Images/agent.gif)
+**多agent:**
+> 多agent模式为CodeFix_0.2.0分支。
+![图片说明](Images/sub_agent.gif)
 
 ---
 
