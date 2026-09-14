@@ -356,7 +356,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         // Retry = 创建新Run，然后按照START执行
         msg.setCommand(AgentRunCommandEnum.START.commandDesc_EN);
         msg.setQuestion(task.getQuestion());
-        msg.setCode(task.getCode());
         // 7. 投递 MQ
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(msg));
         // 8. 返回
