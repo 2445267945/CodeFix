@@ -142,7 +142,7 @@ Finish
 
 ## 整体架构
 
-![图片说明](Images/architecture.gif)
+![图片说明](Images/architecture.png)
 
 简写如下：
 ```text
