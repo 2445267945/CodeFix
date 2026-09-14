@@ -37,8 +37,6 @@
             run_id,
             version,
             question,
-            code,
-            smells,
             status,
             created_at,
             updated_at
@@ -49,8 +47,6 @@
              #{runId},
              #{version},
              #{question},
-             #{code},
-             #{smells},
              #{status},
              #{createdAt},
              #{updatedAt}
@@ -68,9 +64,6 @@
             </if>
             <if test="question != null">
                 question = #{question},
-            </if>
-            <if test="code != null">
-                code = #{code},
             </if>
             <if test="updatedAt != null">
                 updated_at = #{updatedAt},
