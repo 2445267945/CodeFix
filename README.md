@@ -15,7 +15,7 @@ Tool Calling、Human Approval、Workspace 文件操作、Event 持久化、
 
 **运行结果展示：**
 
-![图片说明](Images/codeFix.gif)
+参考Master分支
 
 ---
 
