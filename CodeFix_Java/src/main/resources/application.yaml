@@ -2,22 +2,11 @@ server:
   port: 8080
 
 spring:
-  data:
-    redis:
-      port: 6379
-      host: 192.168.88.130
-      password: 123456
-      database: 0
-  datasource:
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://127.0.0.1:3306/code_fix?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
-    username: root
-    password: 123456
-
+  profiles:
+    active: dev          # 默认激活 dev
 
 mq:
   rocketmq:
-    name-server: 192.168.88.130:9876
     consumer:
       groupName: cid_status_group_test
       topics: agent_status_topic
@@ -38,12 +27,30 @@ agent:
     provider: ollama
     model: nomic-embed-text:latest
     dimension: 768
-    base-url: http://localhost:11434
   memory:
     vector:
       distance-metric: COSINE
       index-name: 'agent_task_memory_idx'
       key-prefix: 'agent:task-memory:'
 
-py:
-  url: http://localhost:8000/analyze
+#!!!! dev !!!!! 配置模板
+#spring:
+#  data:
+#    redis:
+#      host: xxxx
+#      port: xxxx
+#      password: xxxx
+#      database: 0
+#  datasource:
+#    driver-class-name: com.mysql.cj.jdbc.Driver
+#    url: jdbc:mysql://xxxx:xxx/code_fix?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=UTC
+#    username: xxx
+#    password: xxx
+#
+#mq:
+#  rocketmq:
+#    name-server: xxx:xxx
+#
+#agent:
+#  embedding:
+#    base-url: http://xxxx:xxxx
