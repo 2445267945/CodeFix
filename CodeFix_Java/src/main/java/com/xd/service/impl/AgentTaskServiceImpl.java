@@ -63,6 +63,8 @@ public class AgentTaskServiceImpl implements AgentTaskService {
     @Autowired
     private AgentEventService agentEventService;
     @Autowired
+    private AgentActionService agentActionService;
+    @Autowired
     private MQProducer mqProducer;
 
     @Autowired
@@ -134,19 +136,13 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         agentRunMapper.insertAgentRun(run);
 
         // 7. 返回完整执行上下文
-        return TaskRunContext.builder()
-                .session(session)
-                .workspace(workspace)
-                .task(task)
-                .run(run)
-                .build();
+        return TaskRunContext.builder().session(session).workspace(workspace).task(task).run(run).build();
     }
 
     @Override
     public List<TaskDetailVO> getTasksBySessionId(String sessionId) {
         List<AgentTaskDO> tasks = agentTaskMapper.selectBySessionId(sessionId);
-        return tasks.stream()
-                .map(this::toTaskDetailVO).toList();
+        return tasks.stream().map(this::toTaskDetailVO).toList();
     }
 
     @Override
@@ -155,6 +151,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             return;
         }
         AgentTaskStatusEnum status = AgentTaskStatusEnum.getStatusByDesc(agentMessageDTO.getStatus());
+        log.info("[TASK STATUS UPDATE] taskId={}, inputStatus={}, resolvedStatus={}", agentMessageDTO.getTaskId(), agentMessageDTO.getStatus(), status == null ? null : status.statusCode);
         if (status == null) {
             log.info("当前状态不在可维护状态中");
             return;
@@ -164,7 +161,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         agentTaskDO.setSessionId(agentMessageDTO.getSessionId());
         agentTaskDO.setStatus(status.statusCode);
         agentTaskDO.setUpdatedAt(agentMessageDTO.getTimestamp());
-        agentTaskMapper.updateTask(agentTaskDO);
+        int updated = agentTaskMapper.updateTask(agentTaskDO);
+
+        log.info("[TASK STATUS UPDATED] taskId={}, status={}, rows={}", agentMessageDTO.getTaskId(), status.statusCode, updated);
     }
 
     @Override
@@ -184,9 +183,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         } else {
             events = agentEventMapper.selectByTaskIdAndRunId(taskId, runId);
         }
-        return events.stream()
-                .map(this::toEventVO)
-                .toList();
+        return events.stream().map(this::toEventVO).toList();
     }
 
     private AgentEventVO toEventVO(AgentEventDO event) {
@@ -261,24 +258,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             history.setCreatedAt(System.currentTimeMillis());
             stateHistoryMapper.insertStateHistory(history);
 
-            log.info(
-                    "Agent Runtime Resume 状态迁移: taskId={}, runId={}, {} -> {}, command=RESUME",
-                    taskId,
-                    runId,
-                    currentState.statusDesc_EN,
-                    nextState.statusDesc_EN
-            );
+            log.info("Agent Runtime Resume 状态迁移: taskId={}, runId={}, {} -> {}, command=RESUME", taskId, runId, currentState.statusDesc_EN, nextState.statusDesc_EN);
 
-            return AgentStateTransitionResult.builder()
-                    .sessionId(task.getSessionId())
-                    .changed(currentState != nextState)
-                    .fromStatus(currentState)
-                    .toStatus(nextState)
-                    .actionId(run.getActionId())
-                    .triggerType("COMMAND")
-                    .trigger(AgentRunCommandEnum.RESUME.commandDesc_EN)
-                    .reason(buildRunCommandReason(currentState, AgentRunCommandEnum.RESUME, nextState, run.getActionId()))
-                    .build();
+            return AgentStateTransitionResult.builder().sessionId(task.getSessionId()).changed(currentState != nextState).fromStatus(currentState).toStatus(nextState).actionId(run.getActionId()).triggerType("COMMAND").trigger(AgentRunCommandEnum.RESUME.commandDesc_EN).reason(buildRunCommandReason(currentState, AgentRunCommandEnum.RESUME, nextState, run.getActionId())).build();
         });
 
         if (result == null) {
@@ -296,9 +278,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         agentTaskMessage.setTaskId(taskId);
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(agentTaskMessage));
 
-        return TaskOperateVO.builder()
-                .message("任务已继续执行")
-                .build();
+        return TaskOperateVO.builder().message("任务已继续执行").build();
     }
 
     @Override
@@ -342,16 +322,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         msg.setType("AGENT_TASK");
         msg.setCommand(AgentRunCommandEnum.START.commandDesc_EN);
         msg.setQuestion(task.getQuestion());
-        msg.setCode(task.getCode());
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(msg));
 
-        return TaskOperateVO.builder()
-                .taskId(taskId)
-                .runId(newRunId)
-                .status(AgentTaskStatusEnum.AGENT_THINKING.statusCode)
-                .statusValue("CREATED")
-                .message("任务已重新执行")
-                .build();
+        return TaskOperateVO.builder().taskId(taskId).runId(newRunId).status(AgentTaskStatusEnum.AGENT_THINKING.statusCode).statusValue("CREATED").message("任务已重新执行").build();
     }
 
     @Override
@@ -369,26 +342,12 @@ public class AgentTaskServiceImpl implements AgentTaskService {
     @Override
     public List<TaskDetailVO> getTasks() {
         List<AgentTaskDO> tasks = agentTaskMapper.selectTaskList();
-        return tasks.stream()
-                .map(this::toTaskDetailVO)
-                .toList();
+        return tasks.stream().map(this::toTaskDetailVO).toList();
     }
 
     private AgentRunVO toAgentRunVO(AgentRunDO run, String currentRunId) {
         AgentTaskStatusEnum status = AgentTaskStatusEnum.getStatusByCode(run.getStatus());
-        return AgentRunVO.builder()
-                .runId(run.getRunId())
-                .taskId(run.getTaskId())
-                .sessionId(run.getSessionId())
-                .attempt(run.getAttempt())
-                .status(run.getStatus())
-                .statusValue(status == null ? "UNKNOWN" : status.statusDesc_EN)
-                .startedAt(run.getStartedAt())
-                .endedAt(run.getEndedAt())
-                .errorMessage(run.getErrorMessage())
-                .createdAt(run.getCreatedAt())
-                .current(run.getRunId().equals(currentRunId))
-                .build();
+        return AgentRunVO.builder().runId(run.getRunId()).taskId(run.getTaskId()).sessionId(run.getSessionId()).attempt(run.getAttempt()).status(run.getStatus()).statusValue(status == null ? "UNKNOWN" : status.statusDesc_EN).startedAt(run.getStartedAt()).endedAt(run.getEndedAt()).errorMessage(run.getErrorMessage()).createdAt(run.getCreatedAt()).current(run.getRunId().equals(currentRunId)).build();
     }
 
     private TaskDetailVO toTaskDetailVO(AgentTaskDO task) {
@@ -396,25 +355,11 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         if (status == null) {
             throw new BusinessException("未知任务状态: " + task.getStatus());
         }
-        return TaskDetailVO.builder()
-                .taskId(task.getTaskId())
-                .sessionId(task.getSessionId())
-                .runId(task.getRunId())
-                .status(task.getStatus())
-                .statusValue(status.statusDesc_EN)
-                .question(task.getQuestion())
-                .createdAt(task.getCreatedAt())
-                .updatedAt(task.getUpdatedAt())
-                .build();
+        return TaskDetailVO.builder().taskId(task.getTaskId()).sessionId(task.getSessionId()).runId(task.getRunId()).status(task.getStatus()).statusValue(status.statusDesc_EN).question(task.getQuestion()).createdAt(task.getCreatedAt()).updatedAt(task.getUpdatedAt()).build();
     }
 
     private TaskResultVO buildTaskResultVO(AgentTaskDO task, AgentRunDO run, AgentChatViewVO chat) {
-        return TaskResultVO.builder()
-                .taskId(task.getTaskId())
-                .runId(run.getRunId())
-                .status(AgentTaskStatusEnum.getStatusByCode(run.getStatus()).statusDesc_EN)
-                .chat(chat)
-                .build();
+        return TaskResultVO.builder().taskId(task.getTaskId()).runId(run.getRunId()).status(AgentTaskStatusEnum.getStatusByCode(run.getStatus()).statusDesc_EN).chat(chat).build();
     }
 
     /**
@@ -442,12 +387,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
 
         AgentEventEnum event = parseEvent(messageDTO.getEvent());
         if (event == null) {
-            log.debug(
-                    "忽略未知 Agent Event: taskId={}, runId={}, event={}",
-                    messageDTO.getTaskId(),
-                    messageDTO.getRunId(),
-                    messageDTO.getEvent()
-            );
+            log.debug("忽略未知 Agent Event: taskId={}, runId={}, event={}", messageDTO.getTaskId(), messageDTO.getRunId(), messageDTO.getEvent());
             return null;
         }
 
@@ -462,27 +402,14 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         if (currentState == WAITING_HUMAN && event == TOOL_RESULT) {
             log.info("等待审批期间收到 TOOL_RESULT，视为取消收尾结果，不驱动状态迁移: taskId={}, runId={}", messageDTO.getTaskId(), messageDTO.getRunId());
 
-            return AgentStateTransitionResult.builder()
-                    .changed(false)
-                    .fromStatus(currentState)
-                    .toStatus(currentState)
-                    .triggerType("EVENT")
-                    .trigger(event.eventDesc)
-                    .reason("等待审批期间的 Tool Result，仅用于闭合 Tool Call")
-                    .build();
+            return AgentStateTransitionResult.builder().changed(false).fromStatus(currentState).toStatus(currentState).triggerType("EVENT").trigger(event.eventDesc).reason("等待审批期间的 Tool Result，仅用于闭合 Tool Call").build();
         }
 
         AgentTaskStatusEnum nextState = stateMachine.transition(currentState, event);
+        log.info("[RUNTIME TRANSITION] taskId={}, runId={}, event={}, current={}, next={}, nextDesc={}, nextCode={}", messageDTO.getTaskId(), messageDTO.getRunId(), event.eventDesc, currentState.statusDesc_EN, nextState.statusDesc_EN, nextState.statusDesc_EN, nextState.statusCode);
 
         if (nextState == currentState) {
-            return AgentStateTransitionResult.builder()
-                    .changed(false)
-                    .fromStatus(currentState)
-                    .toStatus(currentState)
-                    .triggerType("EVENT")
-                    .trigger(event.eventDesc)
-                    .reason("Agent Event 未导致 Runtime 状态变化")
-                    .build();
+            return AgentStateTransitionResult.builder().changed(false).fromStatus(currentState).toStatus(currentState).triggerType("EVENT").trigger(event.eventDesc).reason("Agent Event 未导致 Runtime 状态变化").build();
         }
 
         AgentMessageDTO updateMessageDTO = new AgentMessageDTO();
@@ -504,23 +431,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         history.setCreatedAt(messageDTO.getTimestamp());
         stateHistoryMapper.insertStateHistory(history);
 
-        log.info(
-                "Agent Runtime 状态迁移: taskId={}, runId={}, {} -> {}, event={}",
-                messageDTO.getTaskId(),
-                messageDTO.getRunId(),
-                currentState.statusDesc_EN,
-                nextState.statusDesc_EN,
-                event.eventDesc
-        );
+        log.info("Agent Runtime 状态迁移: taskId={}, runId={}, {} -> {}, event={}", messageDTO.getTaskId(), messageDTO.getRunId(), currentState.statusDesc_EN, nextState.statusDesc_EN, event.eventDesc);
 
-        return AgentStateTransitionResult.builder()
-                .changed(true)
-                .fromStatus(currentState)
-                .toStatus(nextState)
-                .triggerType("EVENT")
-                .trigger(event.eventDesc)
-                .reason(buildReason(currentState, event, nextState))
-                .build();
+        return AgentStateTransitionResult.builder().changed(true).fromStatus(currentState).toStatus(nextState).triggerType("EVENT").trigger(event.eventDesc).reason(buildReason(currentState, event, nextState)).build();
     }
 
     @Override
@@ -558,12 +471,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
 
             AgentTaskStatusEnum currentState = AgentTaskStatusEnum.getStatusByCode(task.getStatus());
 
-            AgentTransitionContext context = AgentTransitionContext.builder()
-                    .taskId(taskId)
-                    .runId(runId)
-                    .actionId(actionId)
-                    .state(currentState)
-                    .build();
+            AgentTransitionContext context = AgentTransitionContext.builder().taskId(taskId).runId(runId).actionId(actionId).state(currentState).build();
 
             boolean allowed = switch (actionCommand) {
                 case APPROVE -> agentTransitionGuard.canApprove(context, run.getActionId());
@@ -571,14 +479,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             };
 
             if (!allowed) {
-                throw new IllegalStateException(
-                        "当前状态不允许执行 Action Command: "
-                                + "taskId=" + taskId
-                                + ", runId=" + runId
-                                + ", actionId=" + actionId
-                                + ", command=" + actionCommand
-                                + ", currentState=" + currentState
-                );
+                throw new IllegalStateException("当前状态不允许执行 Action Command: " + "taskId=" + taskId + ", runId=" + runId + ", actionId=" + actionId + ", command=" + actionCommand + ", currentState=" + currentState);
             }
 
             AgentTaskStatusEnum nextState = stateMachine.transition(currentState, actionCommand);
@@ -602,25 +503,9 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             history.setCreatedAt(System.currentTimeMillis());
             stateHistoryMapper.insertStateHistory(history);
 
-            log.info(
-                    "Agent Runtime Command 状态迁移: taskId={}, runId={}, actionId={}, {} -> {}, command={}",
-                    taskId,
-                    runId,
-                    actionId,
-                    currentState.statusDesc_EN,
-                    nextState.statusDesc_EN,
-                    actionCommand.commandDesc_EN
-            );
+            log.info("Agent Runtime Command 状态迁移: taskId={}, runId={}, actionId={}, {} -> {}, command={}", taskId, runId, actionId, currentState.statusDesc_EN, nextState.statusDesc_EN, actionCommand.commandDesc_EN);
 
-            return AgentStateTransitionResult.builder()
-                    .changed(currentState != nextState)
-                    .fromStatus(currentState)
-                    .toStatus(nextState)
-                    .actionId(run.getActionId())
-                    .triggerType("COMMAND")
-                    .trigger(actionCommand.commandDesc_EN)
-                    .reason(buildCommandReason(currentState, actionCommand, nextState, actionId))
-                    .build();
+            return AgentStateTransitionResult.builder().changed(currentState != nextState).fromStatus(currentState).toStatus(nextState).actionId(run.getActionId()).triggerType("COMMAND").trigger(actionCommand.commandDesc_EN).reason(buildCommandReason(currentState, actionCommand, nextState, actionId)).build();
         });
 
         if (result == null) {
@@ -628,7 +513,6 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         }
 
         sendCommand(taskId, runId, actionId, actionCommand.commandDesc_EN);
-
         return result;
     }
 
@@ -674,13 +558,7 @@ public class AgentTaskServiceImpl implements AgentTaskService {
 
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(agentMessage));
 
-        log.info(
-                "发送 Agent Action Command: taskId={}, runId={}, actionId={}, command={}",
-                taskId,
-                runId,
-                actionId,
-                actionCommand.commandDesc_EN
-        );
+        log.info("发送 Agent Action Command: taskId={}, runId={}, actionId={}, command={}", taskId, runId, actionId, actionCommand.commandDesc_EN);
     }
 
     @Override
@@ -705,16 +583,19 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         agentTaskMessage.setRunId(runId);
         mqProducer.send("agent_task_topic", "*", JSON.toJSONString(agentTaskMessage));
 
-        return TaskOperateVO.builder()
-                .message("任务已发送取消请求")
-                .build();
+        return TaskOperateVO.builder().message("任务已发送取消请求").build();
     }
 
     @Override
-    public AgentStateTransitionResult handleUserCommand(String runId, String command) {
+    public AgentStateTransitionResult handleUserCommand(String runId, String actionId, String command) {
         if (runId == null || runId.isBlank()) {
             throw new IllegalArgumentException("runId 不能为空");
         }
+
+        if (actionId == null || actionId.isBlank()) {
+            throw new IllegalArgumentException("actionId 不能为空");
+        }
+
         if (command == null || command.isBlank()) {
             throw new IllegalArgumentException("command 不能为空");
         }
@@ -727,9 +608,59 @@ public class AgentTaskServiceImpl implements AgentTaskService {
         }
 
         AgentRunDO agentRunDO = agentRunMapper.selectByRunId(runId);
-        String taskId = agentRunDO.getTaskId();
-        String actionId = agentRunDO.getActionId();
+        if (agentRunDO == null) {
+            throw new IllegalStateException("Run 不存在: " + runId);
+        }
 
+        String taskId = agentRunDO.getTaskId();
+
+        AgentActionDO action = agentActionService.getByActionId(actionId);
+        if (action == null) {
+            throw new IllegalStateException("Action 不存在: actionId=" + actionId);
+        }
+
+        // 校验 Action 是否属于当前 Run
+        if (action.getRunId() == null || !runId.equals(action.getRunId())) {
+            throw new IllegalStateException("Action 不属于当前 Run: actionId=" + actionId + ", actionRunId=" + action.getRunId() + ", runId=" + runId);
+        }
+
+        boolean childAgent = action.getParentAgent() != null && !action.getParentAgent().isBlank();
+
+        /*
+         * Child Agent：
+         * 不修改 Global Task / Run Runtime State。
+         * 只操作 AgentAction，然后向 Python ExecutionGate 发送命令。
+         */
+        if (childAgent) {
+            if (actionCommand == AgentActionCommandEnum.APPROVE) {
+                agentActionService.approve(actionId);
+
+                PermissionRuleDTO rule = PermissionRuleDTO.builder().toolName(action.getToolName()).decision(PermissionDecisionEnum.ALLOW).scope(PermissionScopeEnum.TOOL).pattern(null).build();
+
+                try {
+                    permissionRuntimeStore.saveRule(runId, rule);
+                } catch (Exception e) {
+                    log.error("Permission Cache 写入失败: runId={}, actionId={}, tool={}", runId, actionId, action.getToolName(), e);
+                }
+
+                sendCommand(taskId, runId, actionId, AgentActionCommandEnum.APPROVE.commandDesc_EN);
+
+                return AgentStateTransitionResult.builder().changed(true).actionId(actionId).triggerType("ACTION").trigger(actionCommand.commandDesc_EN).reason("Child Agent Action APPROVE").build();
+            }
+
+            if (actionCommand == AgentActionCommandEnum.REJECT) {
+                agentActionService.reject(actionId);
+
+                sendCommand(taskId, runId, actionId, AgentActionCommandEnum.REJECT.commandDesc_EN);
+
+                return AgentStateTransitionResult.builder().changed(true).actionId(actionId).triggerType("ACTION").trigger(actionCommand.commandDesc_EN).reason("Child Agent Action REJECT").build();
+            }
+        }
+
+        /*
+         * Root Agent：
+         * 保持原来的 Global Task Runtime State 流程。
+         */
         if (actionCommand == AgentActionCommandEnum.REJECT) {
             return handleCommand(taskId, runId, actionId, actionCommand.commandDesc_EN);
         }
@@ -740,32 +671,16 @@ public class AgentTaskServiceImpl implements AgentTaskService {
             throw new IllegalStateException("找不到对应的 TOOL_WAITING Event: " + "taskId=" + taskId + ", runId=" + runId + ", actionId=" + actionId);
         }
 
-        Map<String, Object> data;
-        try {
-            data = JSON.parseObject(waitingEvent.getOutput());
-        } catch (Exception e) {
-            throw new IllegalStateException("TOOL_WAITING output 解析失败: actionId=" + actionId, e);
-        }
-
-        String toolName = data == null ? null : String.valueOf(data.get("tool"));
-        if (toolName == null || toolName.isBlank() || "null".equals(toolName)) {
-            throw new IllegalStateException("TOOL_WAITING 缺少 tool: actionId=" + actionId);
-        }
-
         AgentStateTransitionResult result = handleCommand(taskId, runId, actionId, actionCommand.commandDesc_EN);
 
-        PermissionRuleDTO rule = PermissionRuleDTO.builder()
-                .toolName(toolName)
-                .decision(PermissionDecisionEnum.ALLOW)
-                .scope(PermissionScopeEnum.TOOL)
-                .pattern(null)
-                .build();
+        PermissionRuleDTO rule = PermissionRuleDTO.builder().toolName(action.getToolName()).decision(PermissionDecisionEnum.ALLOW).scope(PermissionScopeEnum.TOOL).pattern(null).build();
 
         try {
             permissionRuntimeStore.saveRule(runId, rule);
-            log.info("人工 Permission 允许已缓存: runId={}, actionId={}, tool={}", runId, actionId, toolName);
+
+            log.info("Root Agent Permission 允许已缓存: runId={}, actionId={}, tool={}", runId, actionId, action.getToolName());
         } catch (Exception e) {
-            log.error("Permission Cache 写入失败: runId={}, actionId={}, tool={}", runId, actionId, toolName, e);
+            log.error("Permission Cache 写入失败: runId={}, actionId={}, tool={}", runId, actionId, action.getToolName(), e);
         }
 
         return result;
@@ -808,17 +723,11 @@ public class AgentTaskServiceImpl implements AgentTaskService {
     }
 
     private String buildCommandReason(AgentTaskStatusEnum currentState, AgentActionCommandEnum command, AgentTaskStatusEnum nextState, String actionId) {
-        return String.format(
-                "Agent Action Command: %s, actionId=%s, %s -> %s",
-                command.commandDesc_EN, actionId, currentState.statusDesc_EN, nextState.statusDesc_EN
-        );
+        return String.format("Agent Action Command: %s, actionId=%s, %s -> %s", command.commandDesc_EN, actionId, currentState.statusDesc_EN, nextState.statusDesc_EN);
     }
 
     private String buildRunCommandReason(AgentTaskStatusEnum currentState, AgentRunCommandEnum command, AgentTaskStatusEnum nextState, String actionId) {
-        return String.format(
-                "Agent Run Command: %s, actionId=%s, %s -> %s",
-                command.commandDesc_EN, actionId, currentState.statusDesc_EN, nextState.statusDesc_EN
-        );
+        return String.format("Agent Run Command: %s, actionId=%s, %s -> %s", command.commandDesc_EN, actionId, currentState.statusDesc_EN, nextState.statusDesc_EN);
     }
 
     private AgentEventEnum parseEvent(String value) {

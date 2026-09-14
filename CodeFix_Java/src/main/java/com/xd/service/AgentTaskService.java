@@ -74,7 +74,7 @@ public interface AgentTaskService {
     // Command
     AgentStateTransitionResult handleCommand(String taskId, String runId, String actionId, String command);
 
-    AgentStateTransitionResult handleUserCommand(String runId, String command);
+    AgentStateTransitionResult handleUserCommand(String runId, String actionId, String command);
 
     void handleHeartbeatTimeout(String taskId, String runId);
 }

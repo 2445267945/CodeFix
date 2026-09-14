@@ -11,6 +11,11 @@ public class AgentCommandRequest {
     private String runId;
 
     /**
+     * 当前需要审批的 Action
+     */
+    private String actionId;
+
+    /**
      * 命令：
      * APPROVE / REJECT / CANCEL / RESUME ...
      */

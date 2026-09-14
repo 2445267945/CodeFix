@@ -160,7 +160,7 @@ async function approve() {
   approvalLoading.value = true;
 
   try {
-    await taskStore.approveAction(props.block.runId);
+    await taskStore.approveAction(props.block.runId, props.block.actionId);
   } catch (error) {
     console.error("[AgentActionBlock] 批准失败:", error);
   } finally {
@@ -179,7 +179,7 @@ async function reject() {
   approvalLoading.value = true;
 
   try {
-    await taskStore.rejectAction(props.block.runId);
+    await taskStore.rejectAction(props.block.runId, props.block.actionId);
   } catch (error) {
     console.error("[AgentActionBlock] 拒绝失败:", error);
   } finally {

@@ -16,8 +16,10 @@ public class AgentChatStreamAssembler {
 
     @Autowired
     private AgentActivityMapper activityMapper;
+
     @Autowired
     private ObjectMapper objectMapper;
+
     /**
      * toolCallId -> 当前实时 Activity Block
      */
@@ -111,10 +113,6 @@ public class AgentChatStreamAssembler {
         return buildUpdate(message, delegate);
     }
 
-    private boolean isSubAgentMessage(AgentMessageDTO message) {
-        return message != null && !isBlank(message.getParentAgent());
-    }
-
     private AgentChatStreamVO assembleNarration(AgentMessageDTO message) {
         Map<String, Object> data = safeOutput(message);
         String content = toStringValue(data.get("content"));
@@ -124,6 +122,7 @@ public class AgentChatStreamAssembler {
         }
 
         AgentChatBlockVO block = baseBlock(message);
+
         block.setType("narration");
         block.setAction("THINK");
         block.setStatus("completed");
@@ -135,6 +134,7 @@ public class AgentChatStreamAssembler {
 
     private AgentChatStreamVO assembleToolWaiting(AgentMessageDTO message) {
         Map<String, Object> data = safeOutput(message);
+
         String toolName = toStringValue(data.get("tool"));
         String toolCallId = toStringValue(data.get("toolCallId"));
         String action = activityMapper.resolveAction(toolName);
@@ -155,7 +155,9 @@ public class AgentChatStreamAssembler {
             block.setAction("DELEGATE");
             block.setDelegateAgent(resolveDelegateAgentName(toolName));
             block.setStatus("waiting");
-            block.setSummary(buildDelegateWaitingSummary(toolName));
+
+            block.setSummary(activityMapper.buildDelegateWaitingSummary(toolName));
+
             block.setContent(block.getSummary());
         } else {
             block.setType("action");
@@ -181,6 +183,7 @@ public class AgentChatStreamAssembler {
 
     private AgentChatStreamVO assembleToolCall(AgentMessageDTO message) {
         Map<String, Object> data = safeOutput(message);
+
         String toolName = toStringValue(data.get("tool"));
         String toolCallId = toStringValue(data.get("toolCallId"));
         String action = activityMapper.resolveAction(toolName);
@@ -195,6 +198,7 @@ public class AgentChatStreamAssembler {
             }
 
             block.setType(isDelegateTool(toolName) ? "delegate" : "action");
+
             block.setAction(isDelegateTool(toolName) ? "DELEGATE" : action);
 
             if (!isBlank(toolCallId)) {
@@ -212,7 +216,9 @@ public class AgentChatStreamAssembler {
             block.setAction("DELEGATE");
             block.setDelegateAgent(resolveDelegateAgentName(toolName));
             block.setStatus("running");
-            block.setSummary(buildDelegateRunningSummary(toolName));
+
+            block.setSummary(activityMapper.buildDelegateRunningSummary(toolName));
+
             block.setContent(block.getSummary());
         } else {
             block.setType("action");
@@ -243,6 +249,7 @@ public class AgentChatStreamAssembler {
         }
 
         String toolName = toStringValue(data.get("tool"));
+
         String action = activityMapper.resolveAction(toolName);
 
         AgentChatBlockVO block = pendingToolBlocks.get(toolCallId);
@@ -253,6 +260,7 @@ public class AgentChatStreamAssembler {
             block.setType(isDelegateTool(toolName) ? "delegate" : "action");
             block.setAction(isDelegateTool(toolName) ? "DELEGATE" : action);
             block.setToolName(toolName);
+
             pendingToolBlocks.put(toolCallId, block);
         }
 
@@ -267,12 +275,15 @@ public class AgentChatStreamAssembler {
         }
 
         block.setStatus(activityMapper.resolveResultStatus(message.getStatus(), data));
+
         block.setActionId(message.getActionId());
+
         block.setRequiresApproval(false);
 
         appendSourceEvent(block, resolveMessageId(message));
 
         if (isDelegateTool(toolName) || "delegate".equalsIgnoreCase(block.getType()) || "DELEGATE".equalsIgnoreCase(block.getAction())) {
+
             block.setType("delegate");
             block.setAction("DELEGATE");
 
@@ -280,28 +291,24 @@ public class AgentChatStreamAssembler {
                 block.setDelegateAgent(resolveDelegateAgentName(toolName));
             }
 
-            String summary = buildDelegateResultSummary(data);
+            /*
+             * Delegate 的最终结果统一由 AgentActivityMapper
+             * 解析 AgentResult.result.summary。
+             */
+            String summary = activityMapper.buildDelegateSummary(toolName, data);
 
             block.setSummary(summary);
             block.setContent(summary);
+
         } else {
             block.setType("action");
             block.setAction(action);
 
             Map<String, Object> result = extractResult(data);
 
-            block.setSummary(
-                    activityMapper.buildCompletedSummary(
-                            action,
-                            toolName,
-                            arguments,
-                            result
-                    )
-            );
+            block.setSummary(activityMapper.buildCompletedSummary(action, toolName, arguments, result));
 
-            String diffId = messageProcessContext == null
-                    ? null
-                    : messageProcessContext.getDiffId();
+            String diffId = messageProcessContext == null ? null : messageProcessContext.getDiffId();
 
             activityMapper.applyFileChange(block, data, diffId);
         }
@@ -332,6 +339,7 @@ public class AgentChatStreamAssembler {
         }
 
         if (result instanceof String text && !text.isBlank()) {
+
             Map<String, Object> parsed = parseJsonMap(text);
 
             if (parsed != null) {
@@ -342,113 +350,12 @@ public class AgentChatStreamAssembler {
         return Collections.emptyMap();
     }
 
-    private String buildDelegateWaitingSummary(String toolName) {
-        if ("run_explorer".equalsIgnoreCase(toolName)) {
-            return "正在调用 Explorer Agent";
-        }
-
-        if ("run_fixer".equalsIgnoreCase(toolName)) {
-            return "正在调用 Fixer Agent";
-        }
-
-        return "正在调用子 Agent";
-    }
-
-    private String buildDelegateRunningSummary(String toolName) {
-        if ("run_explorer".equalsIgnoreCase(toolName)) {
-            return "Explorer Agent 正在执行";
-        }
-
-        if ("run_fixer".equalsIgnoreCase(toolName)) {
-            return "Fixer Agent 正在执行";
-        }
-
-        return "子 Agent 正在执行";
-    }
-
-    private String buildDelegateResultSummary(Map<String, Object> data) {
-        if (data == null || data.isEmpty()) {
-            return "子 Agent 执行完成";
-        }
-
-        Object result = data.get("result");
-        Map<String, Object> resultMap = null;
-
-        if (result instanceof Map<?, ?> map) {
-            resultMap = castMap(map);
-        } else if (result instanceof String text && !text.isBlank()) {
-            resultMap = parseJsonMap(text);
-
-            if (resultMap == null) {
-                return buildPlainDelegateSummary(text);
-            }
-        }
-
-        if (resultMap == null) {
-            Object summary = data.get("summary");
-
-            if (summary != null && !String.valueOf(summary).isBlank()) {
-                return String.valueOf(summary);
-            }
-
-            Object content = data.get("content");
-
-            if (content != null && !String.valueOf(content).isBlank()) {
-                return buildPlainDelegateSummary(String.valueOf(content));
-            }
-
-            return "子 Agent 执行完成";
-        }
-
-        Object summary = resultMap.get("summary");
-
-        if (summary != null && !String.valueOf(summary).isBlank()) {
-            return String.valueOf(summary);
-        }
-
-        Object content = resultMap.get("content");
-
-        if (content != null && !String.valueOf(content).isBlank()) {
-            return buildPlainDelegateSummary(String.valueOf(content));
-        }
-
-        return buildStructuredDelegateSummary(resultMap);
-    }
-
-    private String buildStructuredDelegateSummary(Map<String, Object> result) {
-        Object changes = result.get("changes");
-
-        if (changes instanceof Collection<?> collection && !collection.isEmpty()) {
-            return "子 Agent 已完成处理，涉及 " + collection.size() + " 项变更";
-        }
-
-        Object riskPoints = result.get("risk_points");
-
-        if (riskPoints instanceof Collection<?> collection && !collection.isEmpty()) {
-            return "子 Agent 已完成分析，发现 " + collection.size() + " 个风险点";
-        }
-
-        Object files = result.get("files");
-
-        if (files instanceof Collection<?> collection && !collection.isEmpty()) {
-            return "子 Agent 已完成分析，涉及 " + collection.size() + " 个文件";
-        }
-
-        return "子 Agent 执行完成";
-    }
-
-    private String buildPlainDelegateSummary(String content) {
-        String normalized = content.trim();
-
-        if (normalized.length() <= 300) {
-            return normalized;
-        }
-
-        return normalized.substring(0, 300) + "...";
-    }
-
     @SuppressWarnings("unchecked")
     private Map<String, Object> parseJsonMap(String text) {
+        if (isBlank(text)) {
+            return null;
+        }
+
         try {
             Object value = objectMapper.readValue(text, Object.class);
 
@@ -456,18 +363,13 @@ public class AgentChatStreamAssembler {
                 return (Map<String, Object>) map;
             }
 
-            if (value instanceof String nested && !nested.equals(text)) {
+            if (value instanceof String nested && !nested.equals(text) && !nested.isBlank()) {
                 return parseJsonMap(nested);
             }
         } catch (Exception ignored) {
         }
 
         return null;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> castMap(Map<?, ?> map) {
-        return (Map<String, Object>) map;
     }
 
     private boolean isDelegateTool(String toolName) {
@@ -492,9 +394,6 @@ public class AgentChatStreamAssembler {
 
     /**
      * 打开委派节点。
-     *
-     * 以 runId + 子 Agent 名称 作为 key，
-     * 便于子 Agent 的消息定位归属节点。
      */
     private void openDelegate(AgentMessageDTO message, AgentChatBlockVO block) {
         if (block == null) {
@@ -512,9 +411,7 @@ public class AgentChatStreamAssembler {
             return;
         }
 
-        String agentName = !isBlank(block.getDelegateAgent())
-                ? block.getDelegateAgent()
-                : message.getAgentName();
+        String agentName = !isBlank(block.getDelegateAgent()) ? block.getDelegateAgent() : message.getAgentName();
 
         openDelegateBlocks.remove(delegateKey(message.getRunId(), agentName));
     }
@@ -541,6 +438,7 @@ public class AgentChatStreamAssembler {
         String prefix = runId + "#";
 
         for (Map.Entry<String, AgentChatBlockVO> entry : openDelegateBlocks.entrySet()) {
+
             if (entry.getKey().startsWith(prefix)) {
                 return entry.getValue();
             }
@@ -552,7 +450,8 @@ public class AgentChatStreamAssembler {
     /**
      * 把子 Agent 的 Block 挂到委派节点下。
      *
-     * 同一个 Block 会被多次更新（TOOL_WAITING / TOOL_CALL / TOOL_RESULT），
+     * 同一个 Block 会被多次更新
+     * （TOOL_WAITING / TOOL_CALL / TOOL_RESULT），
      * 这里按 id 去重，保证顺序与执行顺序一致。
      */
     private void attachChild(AgentChatBlockVO delegate, AgentChatBlockVO child) {
@@ -584,6 +483,7 @@ public class AgentChatStreamAssembler {
 
     private AgentChatStreamVO assembleError(AgentMessageDTO message) {
         AgentChatBlockVO block = baseBlock(message);
+
         block.setType("review");
         block.setAction("ERROR");
         block.setStatus("failed");
@@ -596,20 +496,12 @@ public class AgentChatStreamAssembler {
     }
 
     private AgentChatStreamVO assembleFinish(AgentMessageDTO message) {
-        return AgentChatStreamVO.builder()
-                .taskId(message.getTaskId())
-                .runId(message.getRunId())
-                .sessionId(message.getSessionId())
-                .messageId(message.getMessageId())
-                .type("RESULT_REFRESH")
-                .block(null)
-                .refreshResult(true)
-                .timestamp(resolveTimestamp(message))
-                .build();
+        return AgentChatStreamVO.builder().taskId(message.getTaskId()).runId(message.getRunId()).sessionId(message.getSessionId()).messageId(message.getMessageId()).type("RESULT_REFRESH").block(null).refreshResult(true).timestamp(resolveTimestamp(message)).build();
     }
 
     private AgentChatStreamVO assembleInterrupted(AgentMessageDTO message) {
         AgentChatBlockVO block = baseBlock(message);
+
         block.setType("status");
         block.setStatus("cancelled");
         block.setLevel("warning");
@@ -621,20 +513,12 @@ public class AgentChatStreamAssembler {
     }
 
     private AgentChatStreamVO buildStatusAppend(AgentMessageDTO message, AgentChatBlockVO block) {
-        return AgentChatStreamVO.builder()
-                .taskId(message.getTaskId())
-                .runId(message.getRunId())
-                .sessionId(message.getSessionId())
-                .messageId(message.getMessageId())
-                .type("BLOCK_APPEND")
-                .block(block)
-                .refreshResult(true)
-                .timestamp(resolveTimestamp(message))
-                .build();
+        return AgentChatStreamVO.builder().taskId(message.getTaskId()).runId(message.getRunId()).sessionId(message.getSessionId()).messageId(message.getMessageId()).type("BLOCK_APPEND").block(block).refreshResult(true).timestamp(resolveTimestamp(message)).build();
     }
 
     private AgentChatStreamVO assembleUnknown(AgentMessageDTO message) {
         AgentChatBlockVO block = baseBlock(message);
+
         block.setType("action");
         block.setAction("EXECUTE");
         block.setStatus(activityMapper.resolveGenericStatus(message.getStatus()));
@@ -643,16 +527,29 @@ public class AgentChatStreamAssembler {
         return buildAppend(message, block);
     }
 
+    private boolean isSubAgentMessage(AgentMessageDTO message) {
+        return message != null && !isBlank(message.getParentAgent());
+    }
+
     private AgentChatBlockVO baseBlock(AgentMessageDTO message) {
         AgentChatBlockVO block = new AgentChatBlockVO();
+
         block.setId(!isBlank(message.getMessageId()) ? message.getMessageId() : UUID.randomUUID().toString());
+
         block.setAgent(message.getAgentName());
+
         block.setParentAgent(message.getParentAgent());
+
         block.setSourceEventIds(new ArrayList<>(Collections.singletonList(resolveMessageId(message))));
+
         block.setTimestamp(resolveTimestamp(message));
+
         block.setTaskId(message.getTaskId());
+
         block.setRunId(message.getRunId());
+
         block.setActionId(message.getActionId());
+
         return block;
     }
 
@@ -687,8 +584,10 @@ public class AgentChatStreamAssembler {
         }
 
         if (arguments instanceof String text && !text.isBlank()) {
+
             try {
-                return objectMapper.readValue(text, new TypeReference<Map<String, Object>>() {});
+                return objectMapper.readValue(text, new TypeReference<Map<String, Object>>() {
+                });
             } catch (Exception ignored) {
             }
         }
@@ -702,6 +601,7 @@ public class AgentChatStreamAssembler {
         }
 
         Map<String, Object> output = safeOutput(message);
+
         return output.isEmpty() ? "Agent 执行中" : output.toString();
     }
 
@@ -711,6 +611,7 @@ public class AgentChatStreamAssembler {
         }
 
         Map<String, Object> output = safeOutput(message);
+
         return output.isEmpty() ? "Agent 执行失败" : output.toString();
     }
 
@@ -735,41 +636,14 @@ public class AgentChatStreamAssembler {
     }
 
     private AgentChatStreamVO buildAppend(AgentMessageDTO message, AgentChatBlockVO block) {
-        return AgentChatStreamVO.builder()
-                .taskId(message.getTaskId())
-                .runId(message.getRunId())
-                .sessionId(message.getSessionId())
-                .messageId(message.getMessageId())
-                .type("BLOCK_APPEND")
-                .block(block)
-                .refreshResult(false)
-                .timestamp(resolveTimestamp(message))
-                .build();
+        return AgentChatStreamVO.builder().taskId(message.getTaskId()).runId(message.getRunId()).sessionId(message.getSessionId()).messageId(message.getMessageId()).type("BLOCK_APPEND").block(block).refreshResult(false).timestamp(resolveTimestamp(message)).build();
     }
 
     private AgentChatStreamVO buildAppendOrUpdate(AgentMessageDTO message, AgentChatBlockVO block) {
-        return AgentChatStreamVO.builder()
-                .taskId(message.getTaskId())
-                .runId(message.getRunId())
-                .sessionId(message.getSessionId())
-                .messageId(message.getMessageId())
-                .type("BLOCK_UPDATE")
-                .block(block)
-                .refreshResult(false)
-                .timestamp(resolveTimestamp(message))
-                .build();
+        return AgentChatStreamVO.builder().taskId(message.getTaskId()).runId(message.getRunId()).sessionId(message.getSessionId()).messageId(message.getMessageId()).type("BLOCK_UPDATE").block(block).refreshResult(false).timestamp(resolveTimestamp(message)).build();
     }
 
     private AgentChatStreamVO buildUpdate(AgentMessageDTO message, AgentChatBlockVO block) {
-        return AgentChatStreamVO.builder()
-                .taskId(message.getTaskId())
-                .runId(message.getRunId())
-                .sessionId(message.getSessionId())
-                .messageId(message.getMessageId())
-                .type("BLOCK_UPDATE")
-                .block(block)
-                .refreshResult(false)
-                .timestamp(resolveTimestamp(message))
-                .build();
+        return AgentChatStreamVO.builder().taskId(message.getTaskId()).runId(message.getRunId()).sessionId(message.getSessionId()).messageId(message.getMessageId()).type("BLOCK_UPDATE").block(block).refreshResult(false).timestamp(resolveTimestamp(message)).build();
     }
 }

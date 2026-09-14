@@ -2,7 +2,7 @@
   <div class="delegate-block" :class="[`is-${status}`]">
     <!-- ==================== Delegate 主行 ==================== -->
     <button class="delegate-row" type="button" @click="toggle">
-      <span class="delegate-chevron" :class="{ expanded }"> › </span>
+      <span class="delegate-chevron" :class="{ expanded }">›</span>
 
       <span class="delegate-agent">
         {{ agentLabel }}
@@ -49,15 +49,16 @@
       <div v-show="expanded" class="delegate-children">
         <!-- 子 Agent 尚未回传任何内容 -->
         <div v-if="!children.length" class="delegate-empty">
-          {{ status === "completed" ? "子 Agent 未返回可展示内容" : `等待 ${agentLabel} 返回结果…` }}
+          {{
+            status === "completed"
+              ? "子 Agent 未返回可展示内容"
+              : `等待 ${agentLabel} 返回结果…`
+          }}
         </div>
 
         <template v-for="child in children" :key="child.id || child.timestamp">
           <!-- 子 Agent Narration -->
-          <div
-            v-if="child.type === 'narration'"
-            class="child-narration"
-          >
+          <div v-if="child.type === 'narration'" class="child-narration">
             <VueMarkdown
               :source="child.content || child.summary || ''"
               :options="markdownOptions"
@@ -69,10 +70,7 @@
             <span class="child-marker">↳</span>
 
             <div class="child-content">
-              <AgentActionBlock
-                v-if="child.type === 'action'"
-                :block="child"
-              />
+              <AgentActionBlock v-if="child.type === 'action'" :block="child" />
 
               <FileChangeBlock
                 v-else-if="child.type === 'file_change'"
@@ -80,10 +78,7 @@
                 @open="emit('open-file-change', $event)"
               />
 
-              <ReviewBlock
-                v-else-if="child.type === 'review'"
-                :block="child"
-              />
+              <ReviewBlock v-else-if="child.type === 'review'" :block="child" />
 
               <!-- 理论上不会有嵌套委派，兜底渲染 -->
               <DelegateBlock
@@ -92,10 +87,7 @@
                 @open-file-change="emit('open-file-change', $event)"
               />
 
-              <div
-                v-else-if="child.type === 'status'"
-                class="status-activity"
-              >
+              <div v-else-if="child.type === 'status'" class="status-activity">
                 <span class="status-marker">■</span>
 
                 <span class="status-text">
@@ -103,10 +95,7 @@
                 </span>
               </div>
 
-              <span
-                v-else
-                class="child-text"
-              >
+              <span v-else class="child-text">
                 {{ child.content || child.summary || child.title }}
               </span>
             </div>
@@ -115,8 +104,8 @@
       </div>
     </transition>
   </div>
-</template>
-
+</template> 
+ 
 <script setup>
 import { computed, ref } from "vue";
 import VueMarkdown from "vue-markdown-render";
@@ -140,10 +129,22 @@ const emit = defineEmits(["open-file-change"]);
 const taskStore = useTaskStore();
 
 /*
- * 委派节点默认展开：
- * 子 Agent 的输出本身就是这一轮对话的主要内容。
+ * Delegate 默认收起。
+ *
+ * 子 Agent 内部可能产生大量：
+ * - THINK
+ * - Tool Call
+ * - Tool Result
+ * - 文件读取
+ * - 搜索
+ * - 验证
+ *
+ * 这些属于 Agent 的执行过程。
+ *
+ * 对用户默认展示压缩后的 summary。
+ * 用户需要查看详细执行过程时，再手动展开。
  */
-const expanded = ref(true);
+const expanded = ref(false);
 const approvalLoading = ref(false);
 
 const status = computed(() => {
@@ -151,11 +152,7 @@ const status = computed(() => {
 });
 
 const agentLabel = computed(() => {
-  return (
-    props.block?.delegateAgent ||
-    props.block?.agentName ||
-    "子 Agent"
-  );
+  return props.block?.delegateAgent || props.block?.agentName || "子 Agent";
 });
 
 const children = computed(() => {
@@ -214,7 +211,7 @@ async function approve() {
   approvalLoading.value = true;
 
   try {
-    await taskStore.approveAction(props.block.runId);
+    await taskStore.approveAction(props.block.runId, props.block.actionId);
   } catch (error) {
     console.error("[DelegateBlock] 批准失败:", error);
   } finally {
@@ -230,22 +227,22 @@ async function reject() {
   approvalLoading.value = true;
 
   try {
-    await taskStore.rejectAction(props.block.runId);
+    await taskStore.rejectAction(props.block.runId, props.block.actionId);
   } catch (error) {
     console.error("[DelegateBlock] 拒绝失败:", error);
   } finally {
     approvalLoading.value = false;
   }
 }
-</script>
-
+</script> 
+ 
 <style scoped>
 .delegate-block {
   margin: 4px 0;
 }
 
-/* ============================================================
-   Delegate 主行
+/* ============================================================ 
+   Delegate 主行 
 ============================================================ */
 
 .delegate-row {
@@ -296,7 +293,6 @@ async function reject() {
   font-weight: 400;
 
   overflow: hidden;
-
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -319,8 +315,8 @@ async function reject() {
   color: var(--el-text-color-secondary);
 }
 
-/* ============================================================
-   子 Agent 容器
+/* ============================================================ 
+   子 Agent 容器 
 ============================================================ */
 
 .delegate-children {
@@ -392,8 +388,8 @@ async function reject() {
   font-size: 11px;
 }
 
-/* ============================================================
-   Approval
+/* ============================================================ 
+   Approval 
 ============================================================ */
 
 .approval-row {
@@ -459,8 +455,8 @@ async function reject() {
   color: var(--el-color-danger);
 }
 
-/* ============================================================
-   Collapse
+/* ============================================================ 
+   Collapse 
 ============================================================ */
 
 .collapse-enter-active,
@@ -475,4 +471,4 @@ async function reject() {
   max-height: 0;
   opacity: 0;
 }
-</style>
+</style> 

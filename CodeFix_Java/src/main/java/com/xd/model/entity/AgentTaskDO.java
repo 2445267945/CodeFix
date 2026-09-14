@@ -17,10 +17,6 @@ public class AgentTaskDO {
 
     private String question;
 
-    private String code;
-
-    private String smells;
-
     private Integer status;
     private String output;
     private Long createdAt;

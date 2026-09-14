@@ -2,60 +2,108 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
 <mapper namespace="com.xd.mapper.AgentActionMapper">
+
+    <resultMap id="AgentActionResultMap" type="com.xd.model.entity.AgentActionDO">
+        <id property="id" column="id"/>
+        <result property="actionId" column="action_id"/>
+        <result property="taskId" column="task_id"/>
+        <result property="runId" column="run_id"/>
+        <result property="agentName" column="agent_name"/>
+        <result property="parentAgent" column="parent_agent"/>
+        <result property="toolName" column="tool_name"/>
+        <result property="toolCallId" column="tool_call_id"/>
+        <result property="status" column="status"/>
+        <result property="permissionDecision" column="permission_decision"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="startedAt" column="started_at"/>
+        <result property="endedAt" column="ended_at"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        action_id,
+        task_id,
+        run_id,
+        agent_name,
+        parent_agent,
+        tool_name,
+        tool_call_id,
+        status,
+        permission_decision,
+        created_at,
+        updated_at,
+        started_at,
+        ended_at
+    </sql>
+
     <insert id="insertAction"
             parameterType="com.xd.model.entity.AgentActionDO"
             useGeneratedKeys="true"
             keyProperty="id"
             keyColumn="id">
 
-        INSERT INTO agent_action (action_id,
-                                  task_id,
-                                  run_id,
-                                  agent_name,
-                                  parent_agent,
-                                  tool_name,
-                                  tool_call_id,
-                                  status,
-                                  permission_decision,
-                                  created_at,
-                                  updated_at,
-                                  started_at,
-                                  ended_at)
-        VALUES (#{actionId},
-                #{taskId},
-                #{runId},
-                #{agentName},
-                #{parentAgent},
-                #{toolName},
-                #{toolCallId},
-                #{status},
-                #{permissionDecision},
-                #{createdAt},
-                #{updatedAt},
-                #{startedAt},
-                #{endedAt})
+        INSERT INTO agent_action (
+            action_id,
+            task_id,
+            run_id,
+            agent_name,
+            parent_agent,
+            tool_name,
+            tool_call_id,
+            status,
+            permission_decision,
+            created_at,
+            updated_at,
+            started_at,
+            ended_at
+        )
+        VALUES (
+                   #{actionId},
+                   #{taskId},
+                   #{runId},
+                   #{agentName},
+                   #{parentAgent},
+                   #{toolName},
+                   #{toolCallId},
+                   #{status},
+                   #{permissionDecision},
+                   #{createdAt},
+                   #{updatedAt},
+                   #{startedAt},
+                   #{endedAt}
+               )
     </insert>
 
     <select id="selectByActionId"
-            resultType="com.xd.model.entity.AgentActionDO">
-        SELECT *
+            resultMap="AgentActionResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
         FROM agent_action
         WHERE action_id = #{actionId}
     </select>
 
     <select id="selectCurrentByRunId"
-            resultType="com.xd.model.entity.AgentActionDO">
-        SELECT *
+            resultMap="AgentActionResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
         FROM agent_action
         WHERE run_id = #{runId}
-          AND status IN ('PENDING', 'WAITING_APPROVAL', 'APPROVED', 'EXECUTING')
-        ORDER BY created_at DESC LIMIT 1
+          AND status IN (
+                         'PENDING',
+                         'WAITING_APPROVAL',
+                         'APPROVED',
+                         'EXECUTING'
+            )
+        ORDER BY created_at DESC
+            LIMIT 1
     </select>
 
     <select id="selectByRunId"
-            resultType="com.xd.model.entity.AgentActionDO">
-        SELECT *
+            resultMap="AgentActionResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
         FROM agent_action
         WHERE run_id = #{runId}
         ORDER BY created_at ASC
@@ -64,11 +112,12 @@
     <update id="updateActionStatus"
             parameterType="com.xd.model.entity.AgentActionDO">
         UPDATE agent_action
-        SET status              = #{status},
+        SET status = #{status},
             permission_decision = #{permissionDecision},
-            updated_at          = #{updatedAt},
-            started_at          = #{startedAt},
-            ended_at            = #{endedAt}
+            updated_at = #{updatedAt},
+            started_at = #{startedAt},
+            ended_at = #{endedAt}
         WHERE action_id = #{actionId}
     </update>
+
 </mapper>

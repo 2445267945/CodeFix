@@ -29,8 +29,8 @@ public class AgentTaskController {
         if (request == null) {
             throw new IllegalArgumentException("Command 请求不能为空");
         }
-        AgentStateTransitionResult agentStateTransitionResult = agentTaskService.handleUserCommand(request.getRunId(), request.getCommand());
-        return Result.success(agentStateTransitionResult);
+        AgentStateTransitionResult result = agentTaskService.handleUserCommand(request.getRunId(), request.getActionId(), request.getCommand());
+        return Result.success(result);
     }
 
     @GetMapping("/{taskId}")
@@ -41,7 +41,6 @@ public class AgentTaskController {
 
     /**
      * 建立 Task 的实时事件流
-     
      * 前端建立连接后，Java 会持续向该连接推送：
      * - Agent THINK
      * - TOOL_CALL

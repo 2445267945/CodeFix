@@ -932,13 +932,22 @@ export const useTaskStore = defineStore('task', {
          * Task 操作
          * =====================================================
          */
-        async approveAction(runId) {
+        async approveAction(runId, actionId) {
             this.operating = true
             this.error = null
 
             try {
+                if (!runId) {
+                    throw new Error('缺少 runId，无法批准操作')
+                }
+
+                if (!actionId) {
+                    throw new Error('缺少 actionId，无法批准操作')
+                }
+
                 return await commandTask({
-                    runId: runId,
+                    runId,
+                    actionId,
                     command: 'APPROVE'
                 })
             } catch (error) {
@@ -952,13 +961,22 @@ export const useTaskStore = defineStore('task', {
             }
         },
 
-        async rejectAction(runId) {
+        async rejectAction(runId, actionId) {
             this.operating = true
             this.error = null
 
             try {
+                if (!runId) {
+                    throw new Error('缺少 runId，无法拒绝操作')
+                }
+
+                if (!actionId) {
+                    throw new Error('缺少 actionId，无法拒绝操作')
+                }
+
                 return await commandTask({
-                    runId: runId,
+                    runId,
+                    actionId,
                     command: 'REJECT'
                 })
             } catch (error) {
@@ -971,6 +989,7 @@ export const useTaskStore = defineStore('task', {
                 this.operating = false
             }
         },
+
 
         async resume(
             taskId,

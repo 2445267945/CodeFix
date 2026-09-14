@@ -58,6 +58,8 @@ public class AgentTaskStateMachine {
         registerEvent(CREATED, THINK, AGENT_THINKING);
 
         registerEvent(AGENT_THINKING, TOOL_WAITING, WAITING_HUMAN);
+        registerEvent(TOOL_CALLING, TOOL_WAITING, WAITING_HUMAN);
+
         registerEvent(TOOL_CALLING, TOOL_CALL, TOOL_CALLING);
         registerEvent(AGENT_THINKING, TOOL_RESULT, AGENT_THINKING);
         registerEvent(AGENT_THINKING, HEARTBEAT_TIMEOUT, NEED_RETRY);

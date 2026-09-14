@@ -134,7 +134,7 @@ class BaseAgent(ABC):
             if self.final_answer is None:
                 self.final_answer = {"error": f"{self.name} 执行失败", "status": self.status.value}
             logger.exception("Agent 执行出错: agent=%s", self.name)
-            return AgentResult.fail(agent_name=self.name, result=self.final_answer, iterations=self.current_step)
+            return AgentResult.fail(agent_name=self.name, result=self.final_answer, iterations=self.current_step, error=str(e))
 
     # 恢复记忆
     async def restore_working_memory(self) -> bool:

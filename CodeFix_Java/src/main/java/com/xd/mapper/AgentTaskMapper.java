@@ -9,7 +9,7 @@ import java.util.List;
 @Mapper
 public interface AgentTaskMapper {
 
-    void updateTask(AgentTaskDO agentTaskDO);
+    int updateTask(AgentTaskDO agentTaskDO);
     int updateHeartbeat(AgentTaskDO agentTaskDO);
 
     void insertAgentTask(AgentTaskDO agentTaskDO);
