@@ -13,7 +13,6 @@ Tool Calling、Human Approval、Workspace 文件操作、Event 持久化、
 
 ## Demo
 
-**运行结果展示：**
 
 **单agent：**
 
