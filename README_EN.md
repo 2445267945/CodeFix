@@ -1,5 +1,7 @@
 # AI Coding Agent
 
+[English](README_EN.md) | [中文](README.md)
+
 A long-running Coding Agent / Agent IDE for individual developers.
 
 Built with **Java + Python + Vue**, featuring full Session / Task / Run / Event lifecycles, Tool Calling, Human Approval, Workspace file operations, Event persistence, long-task execution, and real-time visualization with history recovery.
