@@ -28,7 +28,7 @@
 
 ## 项目简介
 
-CodeFix 是一个面向个人开发者的 **长任务 Coding Agent / Agent IDE**。
+Cando 是一个面向个人开发者的 **长任务 Coding Agent / Agent IDE**。
 
 它不是为了重新实现一个“更强的 Codex”，而是希望回答另一个问题：
 
@@ -45,11 +45,11 @@ CodeFix 是一个面向个人开发者的 **长任务 Coding Agent / Agent IDE**
 
 ---
 
-## 为什么做 CodeFix
+## 为什么做 Cando
 
 成熟的 Coding Agent 已经可以完成很多复杂的软件开发任务。
 
-CodeFix 关注的不是“模型还能不能更聪明”，而是 **Agent 为什么能够稳定地完成一个持续数十步甚至更久的工程任务**。
+Cando 关注的不是“模型还能不能更聪明”，而是 **Agent 为什么能够稳定地完成一个持续数十步甚至更久的工程任务**。
 
 例如：
 
@@ -62,7 +62,7 @@ CodeFix 关注的不是“模型还能不能更聪明”，而是 **Agent 为什
 - 多 Agent 的子任务如何接入同一套 Permission / Action / Workspace 体系？
 - Agent 的底层事件如何变成用户真正看得懂的产品 UI？
 
-因此，CodeFix 更关注 **Agent Engineering / Agent Runtime / Control Plane**，而不只是 LLM API 调用。
+因此，Cando 更关注 **Agent Engineering / Agent Runtime / Control Plane**，而不只是 LLM API 调用。
 
 ---
 
@@ -108,7 +108,7 @@ CodeFix 关注的不是“模型还能不能更聪明”，而是 **Agent 为什
 
 ```text
                          ┌─────────────────────────────┐
-                         │     CodeFix Web / Electron  │
+                         │     Cando Web / Electron  │
                          │                             │
                          │ Workspace / Task / Chat    │
                          │ Agent Activity / Diff      │
@@ -117,7 +117,7 @@ CodeFix 关注的不是“模型还能不能更聪明”，而是 **Agent 为什
                                         │ HTTP / SSE
                                         ▼
                          ┌─────────────────────────────┐
-                         │    CodeFix Java / Control   │
+                         │    Cando Java / Control   │
                          │          Plane              │
                          │                             │
                          │ Session / Task / Run        │
@@ -128,7 +128,7 @@ CodeFix 关注的不是“模型还能不能更聪明”，而是 **Agent 为什
                                         │ RocketMQ
                                         ▼
                          ┌─────────────────────────────┐
-                         │    CodeFix Python Runtime   │
+                         │    Cando Python Runtime   │
                          │                             │
                          │ Supervisor / Worker Agent   │
                          │ ReAct / LLM / Tool Calling  │
@@ -248,7 +248,7 @@ Frontend
 
 ### Long-running Task
 
-CodeFix 不采用简单的：
+Cando 不采用简单的：
 
 ```text
 HTTP → Agent → Response
@@ -272,7 +272,7 @@ Task
 
 ## Human-in-the-loop
 
-CodeFix 将“是否允许执行某个 Tool”从 Python Agent 的单纯本地判断中抽离出来，由 Java Control Plane 参与统一控制。
+Cando 将“是否允许执行某个 Tool”从 Python Agent 的单纯本地判断中抽离出来，由 Java Control Plane 参与统一控制。
 
 ```text
 Tool Call
@@ -378,7 +378,7 @@ Explorer 不负责修改业务文件。
 
 ## Event → Activity → UI
 
-CodeFix 不会把 Python Runtime 的原始 Event 直接展示给用户。
+Cando 不会把 Python Runtime 的原始 Event 直接展示给用户。
 
 底层执行信息会经过一层产品语义转换：
 
@@ -487,7 +487,7 @@ Activity / Review
 
 长任务 Coding Agent 的一个核心问题是：**什么信息应该进入下一轮上下文？**
 
-CodeFix 在 Java 侧提供 Context Retrieval，结合 Workspace 范围进行历史任务检索，并将真正的 USER / ASSISTANT 消息重新组装进 Agent Context。
+Cando 在 Java 侧提供 Context Retrieval，结合 Workspace 范围进行历史任务检索，并将真正的 USER / ASSISTANT 消息重新组装进 Agent Context。
 
 Python 侧同时维护运行时 Working Memory，用于处理 Agent 执行过程中的消息窗口、上下文管理与压缩。
 
@@ -514,10 +514,10 @@ Python 侧同时维护运行时 Working Memory，用于处理 Agent 执行过程
 ### 仓库结构
 
 ```text
-CodeFix/
-├── CodeFix_Java/      # Spring Boot Control Plane
-├── CodeFix_PY/        # Python Agent Runtime
-├── CodeFix_Web/       # Vue / Electron Frontend
+Cando/
+├── Cando_Java/      # Spring Boot Control Plane
+├── Cando_PY/        # Python Agent Runtime
+├── Cando_Web/       # Vue / Electron Frontend
 ├── Images/            # README 图片与 Demo
 └── README.md
 ```
@@ -529,13 +529,13 @@ CodeFix/
 Java 端主要配置位于：
 
 ```text
-CodeFix_Java/src/main/resources/application.yaml
+Cando_Java/src/main/resources/application.yaml
 ```
 
 Python 端建议使用：
 
 ```text
-CodeFix_PY/.env.example
+Cando_PY/.env.example
 ```
 
 复制为 `.env` 后填写本地配置。
@@ -543,7 +543,7 @@ CodeFix_PY/.env.example
 ### 2. 启动 Java
 
 ```bash
-cd CodeFix_Java
+cd Cando_Java
 mvn spring-boot:run
 ```
 
@@ -552,7 +552,7 @@ Java 服务端口以 `application.yaml` 中的 `server.port` 为准。
 ### 3. 启动 Python Agent Runtime
 
 ```bash
-cd CodeFix_PY
+cd Cando_PY
 python -m venv .venv
 
 # Windows
@@ -568,7 +568,7 @@ python App/main.py
 ### 4. 启动 Frontend
 
 ```bash
-cd CodeFix_Web
+cd Cando_Web
 npm install
 npm run dev
 ```
@@ -583,7 +583,7 @@ Electron 开发环境可按项目现有脚本启动。
 
 ## 项目结构
 
-### CodeFix_Java
+### Cando_Java
 
 ```text
 src/main/java/com/xd/
@@ -598,7 +598,7 @@ src/main/java/com/xd/
 └── config/           # Web / MQ / Redis / Transaction 等配置
 ```
 
-### CodeFix_PY
+### Cando_PY
 
 ```text
 App/
@@ -618,7 +618,7 @@ App/
 └── models/
 ```
 
-### CodeFix_Web
+### Cando_Web
 
 ```text
 src/
@@ -712,7 +712,7 @@ V2.7 的核心目标是完成从 **Single-Agent → Multi-Agent** 的架构演�
 
 ## 项目定位
 
-CodeFix 的目标不是证明“自己做的 Coding Agent 比 Codex 更强”。
+Cando 的目标不是证明“自己做的 Coding Agent 比 Codex 更强”。
 
 相反，我希望通过自己实现一套完整的 Agent Runtime，理解一个 Coding Agent 从“调用 LLM”走向“真正执行软件工程任务”之后，需要解决的工程问题：
 
@@ -736,7 +736,7 @@ Realtime UI / History
 A controllable Coding Agent Runtime
 ```
 
-这也是 CodeFix 最核心的探索方向：
+这也是 Cando 最核心的探索方向：
 
 > **不是重新做一个更强的 Coding Agent，而是探索一个 Coding Agent 背后的工程架构。**
 
