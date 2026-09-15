@@ -1,735 +1,747 @@
 <div align="center">
   <pre>
-  ██████╗ █████╗ ███╗   ██╗██████╗  ██████╗ 
- ██╔════╝██╔══██╗████╗  ██║██╔══██╗██╔═══██╗
- ██║     ███████║██╔██╗ ██║██║  ██║██║   ██║
- ██║     ██╔══██║██║╚██╗██║██║  ██║██║   ██║
- ╚██████╗██║  ██║██║ ╚████║██████╔╝╚██████╔╝
-  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ 
+ ██████╗ █████╗ ███╗   ██╗██████╗  ██████╗
+██╔════╝██╔══██╗████╗  ██║██╔══██╗██╔═══██╗
+██║     ███████║██╔██╗ ██║██║  ██║██║   ██║
+██║     ██╔══██║██║╚██╗██║██║  ██║██║   ██║
+╚██████╗██║  ██║██║ ╚████║██████╔╝╚██████╔╝
+ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝
   </pre>
-  
-  <h3>🤖 长任务 Coding Agent / Agent IDE</h3>
-  
-  <br />
-  
+
+  <h3>🤖 Long-running Coding Agent / Agent IDE</h3>
+
   <p>
-    <b>🌐 语言 / Language</b>
-    <br />
+    A Coding Agent project for exploring the runtime, control plane, and product experience behind long-running AI coding tasks.
+  </p>
+
+  <p>
     <a href="README.md">🇨🇳 中文</a> | <a href="README_EN.md">🇺🇸 English</a>
   </p>
 </div>
 
-# AI Coding Agent
+---
 
-A long-running Coding Agent / Agent IDE for individual developers.
+## Overview
 
-Built with **Java + Python + Vue**, featuring full Session / Task / Run / Event lifecycles, Tool Calling, Human Approval, Workspace file operations, Event persistence, long-task execution, and real-time visualization with history recovery.
+CodeFix is a **long-running Coding Agent / Agent IDE** designed for individual developers.
 
-> **Java** serves as the **control plane and product backend**, **Python** serves as the **reasoning and execution runtime**, and the **Web frontend** presents structured execution states as a "user-friendly Agent working process."
+It is not intended to simply build "a stronger Codex". Instead, it explores a different question:
+
+> **What kind of engineering system is needed behind a Coding Agent once it starts executing real, long-running software engineering tasks?**
+
+CodeFix is built with **Java + Python + Vue**, separating the agent's intelligence and execution from the system responsible for controlling and managing it:
+
+* **Java** acts as the Control Plane and product backend, managing Tasks, Runs, Events, Permissions, Workspaces, history, and runtime state.
+* **Python** provides the Agent Runtime, including ReAct execution, LLM interaction, Tool Calling, sub-agent collaboration, and tool execution.
+* **Vue / Electron** turns structured execution events into an IDE-style interface that users can understand, interact with, and recover.
+* **RocketMQ** connects Java and Python through asynchronous messaging for task dispatch, status reporting, commands, and heartbeats.
+
+The project has evolved from an early Single-Agent architecture into a **Multi-Agent architecture based on Supervisor + Explorer + Fixer**, with long-running execution, Human-in-the-loop control, Workspace management, and Realtime UI as its main capabilities.
+
+---
+
+## Why CodeFix?
+
+Modern Coding Agents are already capable of completing many complex software engineering tasks.
+
+CodeFix is less about making the model "smarter" and more about exploring **why an Agent can reliably complete a long-running engineering task in the first place**.
+
+For example:
+
+* How should a natural-language request become a persistent Task?
+* Why should a Task be separated from a Run?
+* How should Tool Calls, approvals, and execution results be represented?
+* How can an Agent pause for human approval and then continue execution?
+* How can Java and Python collaborate asynchronously instead of waiting for the entire Agent execution through a synchronous HTTP request?
+* How can the system restore an Agent's working process after the page is refreshed?
+* How should multiple Agents share the same Permission, Action, and Workspace infrastructure?
+* How can low-level Agent events be transformed into a UI that users can actually understand?
+
+Because of this, CodeFix focuses on **Agent Engineering / Agent Runtime / Control Plane**, rather than simply wrapping an LLM API.
 
 ---
 
 ## Demo
 
-**Single Agent:**
+### Coding Agent
 
-> The `master` branch tracks `CodeFix_0.1.1`, which is the single-agent mode.
+![Agent Demo](Images/agent.gif)
 
-![Single Agent Demo](Images/agent.gif)
+### Multi-Agent
 
-**Multi-Agent:**
-
-> Multi-agent mode is on the `CodeFix_0.2.0` branch.
+The current Multi-Agent mode uses **Supervisor / Explorer / Fixer** to collaboratively complete tasks.
 
 ![Multi-Agent Demo](Images/sub_agent.gif)
 
 ---
 
-## Introduction
-
-This system solves one core problem: **A user submits a coding task in natural language, and the Agent actually completes it**, rather than just generating a text response.
-
-Users can initiate tasks in the UI, such as *"Check the current project structure and locate N+1 queries."* The Agent will:
-
-- Explore the Workspace.
-- Read / Search / Modify / Delete files.
-- Execute Java syntax validation and structural parsing.
-- Delegate to Explorer (reconnaissance) and Fixer (repair) sub-agents as needed.
-- Wait for human approval before sensitive operations like file modifications.
-- Continuously execute multi-turn ReAct loops over long periods.
-- Present the work process and results to the user.
-
-The system consists of three independent codebases:
-
-| Codebase | Role |
-| :--- | :--- |
-| `CodeFix_Java` | Control Plane / Product Backend: Task, Run, State, Event, Approval, Workspace, Aggregation, SSE |
-| `CodeFix_PY` | Agent Runtime: Supervisor, ReAct, LLM, Tools, Context, Approval Gating |
-| `CodeFix_Web` | Frontend: Tasks, Sessions, Chat Process, File Changes, Diff, Workspace Visualization |
-
----
-
-## Why This Project?
-
-While frameworks like **LangChain** and **LangGraph** are powerful, they often over-abstract the development process. A simple text generation call might traverse through `chain`, `LLMChain`, `BaseLLM`, `BaseOpenAI`, and several other classes before reaching the LLM. Moreover, LangChain's version changes are frequent, forcing constant code modifications even when business logic hasn't changed.
-
-The cost of this generality is hidden prompts and opaque call chains — essentially a black-box state.
-
-**Framework approach:** `User -> Framework -> Result`
-
-> **Real-world case study:** Octomind used LangChain for over a year before deciding to build their own ReAct implementation. They needed to dynamically adjust available tools during Agent execution, which LangChain's mechanism did not support. The intermediate operations were encapsulated, making debugging difficult, and custom operations were extremely hard to implement.
-
-Therefore, we recommend developers call APIs directly. However, building from scratch is not about reinventing the wheel, but rather:
-
-1. **Absolute control over ReAct**: Observable, intervenable, and interceptable.
-2. **Extreme compression of context engineering and cost**: Frameworks often have redundant encapsulated prompts for generality, which disrupts prefix alignment and may cause server-side prompt caching to fail.
-3. **Scheduling capabilities**: From detailed tool execution flows to macro-level tool sequencing and concurrency.
-
-**Custom ReAct approach:** `User -> Custom Operation Details -> Observe -> Result`
-
-While a standard Chat is a "one-off Q&A":
-
-```text
-User
- ↓
-LLM
- ↓
-Answer
-```
-A Coding Agent is a continuous engineering task:
-```text
-User
- ↓
-Task
- ↓
-Run
- ↓
-Think
- ↓
-Tool Call
- ↓
-Tool Result
- ↓
-Think
- ↓
-Tool Call
- ↓
-...
- ↓
-Finish
-```
-
-Therefore, the engineering challenges are not just "how to call an LLM," but also:
-
-- Long-running task lifecycle (Task / Run / Event).
-
-- State management and context across multiple Tool Calls.
-
-- Failure / Retry / Resume / Cancel.
-
-- Human approval for sensitive operations (Approval).
-
-- Workspace read, modification, and change tracking.
-
-- Observability (real-time UI) and recoverability (history restoration after page refresh).
-
-- Asynchronous message collaboration between Java, Python, and the frontend.
-
-> This is an Agent Engineering / Agent Platform project, not just an LLM Demo.
-
----
-
 ## Core Capabilities
-|Capability	|Description|
-| -------------- | ------------------------------------------------------------ |
-|Long-running Task|	Dispatched asynchronously via MQ. Java orchestrates without blocking HTTP, supporting multi-turn continuous execution.|
-|Task / Run Lifecycle|	Task and Run are separated; one Task can correspond to multiple Runs (Retry / Resume).|
-|State Machine| Java-side state machine drives CREATED → QUEUED → THINKING → EXECUTING → WAITING_HUMAN → FINISHED / ERROR / CANCELLED.|
-|Event Persistence|	Every Agent Event reported by Python is persisted with idempotent deduplication.|
-|Run State History|	Records the from → to, trigger source, and reason for each state transition.|
-|Tool Calling|	12 tools for file read/write, search, syntax validation, parsing, and sub-agent delegation.|
-|Human Approval|	High-risk operations enter WAITING_HUMAN; Java approves or rejects before proceeding.|
-|Permission Profile|	READ_ONLY / WORKSPACE / FULL_AUTO policies.|
-|Workspace|	Python tools restrict file paths to the Workspace root; changes are recorded and generate a diffId.|
-|Realtime UI|	SSE pushes BLOCK_APPEND / BLOCK_UPDATE / RESULT_REFRESH.|
-|History Restore|	After a page refresh, events are re-aggregated with the same semantics for display.|
-|Activity Aggregation|	Low-level Events are aggregated into user-understandable Activity / Phase blocks.|
-|Multi-Agent	|Supervisor + Explorer + Fixer.|
-|RAG Manual Query|	Retrieves clauses from the Alibaba Java Development Manual to provide authoritative references for repair suggestions.|
 
-## High-Level Architecture
+| Capability           | Description                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------- |
+| Long-running Task    | Models coding work as persistent asynchronous execution instead of a single synchronous request |
+| Task / Run Lifecycle | Separates Tasks and Runs, with Retry / Resume / Cancel support                                  |
+| State Machine        | Centralizes task state management and transitions on the Java side                              |
+| Event Persistence    | Persists Agent runtime events with idempotent processing                                        |
+| Human-in-the-loop    | Allows sensitive Tool Actions to pause for human approval                                       |
+| ActionId             | Binds approval commands to a specific Tool Action                                               |
+| Permission           | Supports READ_ONLY / WORKSPACE / FULL_AUTO execution policies                                   |
+| Workspace            | Restricts Agent file operations to a Workspace and records file changes                         |
+| Diff / File Change   | Tracks file modifications and exposes reviewable diffs                                          |
+| Multi-Agent          | Supervisor + Explorer + Fixer collaboration                                                     |
+| Context / Memory     | Supports context selection, message management, and Working Memory                              |
+| Realtime UI          | Streams Agent execution state to the frontend through SSE                                       |
+| History Restore      | Reconstructs the Agent working process from persisted data                                      |
+| Activity Aggregation | Converts low-level Events into user-oriented Activities / Phases                                |
+| RAG                  | Supports document and coding-standard retrieval                                                 |
 
-![图片说明](Images/architecture.png)
+---
+
+## Architecture
+
+![Architecture](Images/architecture.png)
+
 ```text
-                    ┌─────────────────────────────┐
-                    │       CodeFix_Web (Vue)     │
-                    │  Workspace / Task / Chat    │
-                    │  AgentChat / Diff / Review  │
-                    └──────────────┬──────────────┘
-                                   │ HTTP (REST) / SSE
-                                   ▼
-                    ┌─────────────────────────────┐
-                    │   CodeFix_Java (Spring Boot)│
-                    │                             │
-                    │ Session · Task / Run        │
-                    │ State Machine · Event       │
-                    │ Approval / Permission       │
-                    │ Workspace API · Activity    │
-                    │ Phase Aggregation · SSE/History │
-                    └──────────────┬──────────────┘
-                                   │ RocketMQ (Async)
-                                   ▼
-                    ┌─────────────────────────────┐
-                    │   CodeFix_PY (Agent Runtime)│
-                    │                             │
-                    │ Supervisor · ReAct · Tool   │
-                    │ LLM · Context · Execution   │
-                    │ Gate · Worker Agent         │
-                    │ Heartbeat · Working Memory  │
-                    └─────────────────────────────┘
+                         ┌─────────────────────────────┐
+                         │     CodeFix Web / Electron  │
+                         │                             │
+                         │ Workspace / Task / Chat    │
+                         │ Agent Activity / Diff      │
+                         │ Approval / File Review     │
+                         └──────────────┬──────────────┘
+                                        │ HTTP / SSE
+                                        ▼
+                         ┌─────────────────────────────┐
+                         │    CodeFix Java / Control   │
+                         │          Plane              │
+                         │                             │
+                         │ Session / Task / Run        │
+                         │ State / Event / Action      │
+                         │ Permission / Workspace      │
+                         │ History / Aggregation / SSE │
+                         └──────────────┬──────────────┘
+                                        │ RocketMQ
+                                        ▼
+                         ┌─────────────────────────────┐
+                         │    CodeFix Python Runtime   │
+                         │                             │
+                         │ Supervisor / Worker Agent   │
+                         │ ReAct / LLM / Tool Calling  │
+                         │ Context / Memory            │
+                         │ ExecutionGate / Heartbeat   │
+                         └─────────────────────────────┘
+
+                    ┌──────────────┐      ┌──────────────┐
+                    │    MySQL     │      │    Redis     │
+                    │ Persistence  │      │ Cache/Memory │
+                    └──────────────┘      └──────────────┘
 ```
 
-## Collaboration Model
-- Java: Control plane and product backend — "How the system runs and how users control it."
+### Java / Python Responsibilities
 
-- Python: Agent Runtime and intelligent execution — "How the Agent thinks and executes."
+**Java Control Plane**
 
-- RocketMQ: Asynchronous message bus between Java and Python (task dispatch / status reporting / heartbeat).
+* Session / Task / Run lifecycle
+* State machine and state transitions
+* Event / Action persistence
+* Permission and Human Approval
+* Workspace and File Change management
+* SSE / History / Activity Aggregation
+* MQ message routing and runtime control
+* Heartbeats and task watchdog
 
-- Frontend: User interaction and visualization of the Agent's working process.
+**Python Agent Runtime**
 
-## Java / Python Responsibilities
-### Java Backend (CodeFix_Java)
-- Session / Task / Run creation and lifecycle management.
+* Supervisor / Explorer / Fixer
+* ReAct execution loop
+* LLM interaction and context management
+* Tool Registry / Tool Calling
+* Workspace file operations
+* ExecutionGate
+* Working Memory
+* Agent Heartbeat
 
-- Agent state machine and transition guards (Event / Command / ActionCommand transition tables).
+In one sentence:
 
-- Event persistence and idempotent deduplication.
+> **Java controls how the Agent runs, is recorded, and is controlled; Python controls how the Agent reasons and executes.**
 
-- Run state history recording.
+---
 
-- MQ Producer / Consumer and message dispatch (routing by type to different Handlers).
-
-- Approval and permission decisions (ALLOW / ASK / DENY, READ_ONLY / WORKSPACE / FULL_AUTO).
-
-- File change parsing, persistence, and diffId generation.
-
-- Activity / Phase aggregation (AgentChatBlockAssembler → AgentPhaseAggregator → AgentChatAssemblerService).
-
-- SSE real-time push and REST history recovery.
-
-- Workspace tree / file read and file update APIs.
-
-- Heartbeat maintenance and Task Watchdog framework.
-
-### Python Agent Runtime (CodeFix_PY)
-- SupervisorAgent (orchestrator), ExplorerAgent / FixerAgent (workers).
-
-- ReAct execution loop (Think → Tool Call → Tool Result).
-
-- Tool Registry / Tool Schema / parameter validation.
-
-- Tool Execution and path isolation (restricted to the Workspace root).
-
-- ExecutionGate: Truly blocks the current Agent coroutine and waits for Java's APPROVE / REJECT.
-
-- Tool Policy: Declares whether a tool is AUTO or CONFIRM.
-
-- Context / Working Memory: Message window, compression, and Redis working memory (TTL 6h).
-
-- Heartbeat reporting.
-
-- LLM clients (DeepSeek / Ollama) and LLM Factory.
-
-- RAG (chromadb + Alibaba Java Development Manual) for search_manual.
-
-> Summary: Java is responsible for "how the system runs and how users control it," while Python is responsible for "how the Agent thinks and executes."
+## Core Domain Model
 
 ```text
 Session
   └── Task
         └── Run
-              └── Action
+              ├── Action
               └── Event
 
 Session ─── Workspace
 ```
 
-### Relationships
+Relationships:
+
 ```text
-Session : Task   = 1 : N
-Task    : Run    = 1 : N  
-Retry → Creates a new Run
-Resume → Resumes the current Run
-Cancel → Terminates the current Run
-Run     : Event  = 1 : N
-Run     : Action = 1 : N
-Session : Workspace = N : 1
+Session : Task       = 1 : N
+Task    : Run        = 1 : N
+Run     : Action     = 1 : N
+Run     : Event      = 1 : N
+Session : Workspace  = N : 1
 ```
 
-### Entity Descriptions (Java DO, MySQL code_fix database)
-- Session (AgentSessionDO): Context container for a continuous conversation, recording workspaceId and title.
+### Core Concepts
 
-- Task (AgentTaskDO): A specific work task proposed by the user (question, status, lastHeartbeatAt).
+* **Session**: A container for long-lived conversational context.
+* **Task**: A concrete coding task submitted by the user.
+* **Run**: One execution attempt of a Task.
+* **Action**: A concrete Tool Action that can be controlled, approved, executed, and tracked independently.
+* **Event**: A raw execution fact reported by the Agent Runtime.
+* **Workspace**: The working directory where the Agent reads and modifies files.
 
-- Run (AgentRunDO): An actual execution of a Task (runId, actionId, permissionProfile, attempt, startedAt / endedAt).
+The goal of this model is to separate the user's request from a specific execution attempt, while giving each Tool Action an explicit lifecycle and control boundary.
 
-- Run State History (AgentRunStateHistoryDO): from / to / trigger / reason for each state transition.
-
-- Action (AgentActionDO): An approval-pending event generated during Agent execution. (ActionId, RunId) controls the approval of a single event.
-
-- Event (AgentEventDO): Raw facts generated during Agent execution (event, step, agentName, parentAgent, output). messageId ensures idempotency.
-
-- File Change (AgentFileChangeDO): Records of Agent modifications to Workspace files (diffId, filePath, operation, addedLines / removedLines, diffText).
-
-- Chat Message (ChatMessageDO): USER / ASSISTANT level dialogue messages, used for final answers and context building.
-
-- Workspace (WorkspaceDO): The workspace where the Agent actually reads / modifies code.
+---
 
 ## Agent Execution Flow
+
+A typical execution looks like this:
+
 ```text
 User
  ↓
-Java creates Task + Run (createTaskWithRun)
+Java creates Task + Run
  ↓
-Java assembles AGENT_TASK message and publishes to agent_task_topic
+RocketMQ
  ↓
-Python SupervisorAgent starts the Run
+Supervisor Agent
  ↓
-Think (THINK event reported)
+Think
  ↓
-Tool Call (TOOL_CALL event reported)
+Tool Call
  ↓
-Tool Result (TOOL_RESULT event reported)
+Permission Decision
+ ├── ALLOW  → Execute
+ ├── ASK    → Human Approval
+ └── DENY   → Reject
+ ↓
+Tool Result
  ↓
 Think ...
  ↓
-Finish (FINISH event reported → Java persists ASSISTANT message)
-```
-
-### Human Approval Flow
-```text
-Tool Call
-     ↓
-Need approval?
- ┌───┴────┐
- No       Yes
- │         │
-Execute   Python ExecutionGate blocks (TOOL_WAITING)
- │         ↓
- │      Java persists WAITING_HUMAN and pushes Approval Block
- │         ↓
- │      Java APPROVE / REJECT (AGENT_COMMAND + actionId)
- │         ↓
- │      ExecutionGate.resolve(actionId, ALLOW/DENY)
- │         ↓
- │      Continue execution / Reject
-```
-
-Role of actionId: Strictly binds the current pending Tool Call with the APPROVE / REJECT command issued by Java (Python's ExecutionGate waits on a Future keyed by action_id), preventing "approved A but executed B."
-
---- 
-
-## Long-Task Design
-The system is not a simple "HTTP → Python Agent → synchronous wait" model:
-```text
-HTTP
+Sub Agent (when needed)
  ↓
-Python Agent
+...
  ↓
-Wait for completion
+Finish
  ↓
-Response
-```
-Instead, tasks are modeled as persistable, recoverable, and approvable asynchronous execution units:
-```text
-Task
- └── Run
-      ├── State (State Machine)
-      ├── Event (Raw execution facts, persisted)
-      ├── Tool execution (Controlled by ExecutionGate)
-      └── lifecycle (Retry / Resume / Cancel)
-```
-
-Implemented mechanisms:
-
-- Task / Run Separation: createTaskWithRun creates the Session / Task / Run / Workspace association in a single message.
-
-- State Machine Driven: Java AgentTaskStateMachine manages transitions triggered by Event / Command / ActionCommand via three transition tables.
-
-- Event Persistence: All Python-reported events are first persisted to agent_event; DuplicateKeyException deduplication provides natural idempotency.
-
-- Run State History: agent_run_state_history is written only when the state actually changes.
-
-- Retry / Resume / Cancel: POST /api/agent/tasks/{taskId}/retry|resume|cancel. Java transitions the state first, then sends the MQ command.
-
-- Auto-Approval: Tool calls matching the permission policy (ALLOW / REJECT) are internally commanded by Java immediately, without interrupting the Agent.
-
-- Local Directory Operations: The Agent explores and modifies local directories using tools. Multiple sessions can operate on the same directory space, controlled by Root_Path.
-
-- Heartbeat: Python periodically reports AGENT_HEARTBEAT; Java updates lastHeartbeatAt. TaskWatchdog scans running tasks every 5s for those exceeding 15s without a heartbeat.
-
----
-## Tool System
-Tools are registered in Python's ToolRegistry (App/agent_boost/tools/tool_registry.py). Currently there are 13 tools:
-|Tool|	Purpose|
-|------------------|------------------|
-|list_files|	List files and directories in the Workspace|
-|read_file|	Read a file|
-|glob|	Find files by pattern|
-|grep|	Search text / class names / method names / config items in the Workspace|
-|write_file|	Create a new file|
-|delete_file|	Delete a file|
-|apply_patch|	Precisely modify an existing file (generates Unified Diff)|
-|verify_java_syntax|	Call Java /api/validate to validate Java syntax (Deprecated)|
-|parse_java_code|	Call Java /api/parse (JavaParser) to parse Java structure (Deprecated)|
-|search_manual|	Retrieve coding standard clauses from the Alibaba Java Development Manual|
-|run_explorer|	Delegate to Explorer sub-agent for code structure analysis|
-|run_fixer|	Delegate to Fixer sub-agent for code repair|
-|run_command|	Execute system commands in the current directory|
-Different Agents have different tool sets (AgentToolSet):
-Single Agent:
-- `SUPERVISOR`：`list_files` / `glob` / `grep` / `read_file` / `write_file` / `apply_patch` / `delete_file` / `run_explorer` / `run_fixer`
-- `EXPLORER`：`list_files` / `glob` / `grep` / `read_file` / `parse_java_code（将废弃）`
-- `FIXER`：`list_files` / `glob` / `grep` / `read_file` / `write_file` / `apply_patch` / `delete_file` / `search_manual` / `verify_java_syntax（将废弃）` / `run_command`
-
-Multi-Agent:
-- `SUPERVISOR`： `run_explorer` / `run_fixer`
-- `EXPLORER`：`list_files` / `glob` / `grep` / `read_file` / `parse_java_code（将废弃）`
-- `FIXER`：`list_files` / `glob` / `grep` / `read_file` / `write_file` / `apply_patch` / `delete_file` / `search_manual` / `verify_java_syntax（将废弃）` / `run_command`
-
----
-## Permission / Approval / ActionId
-### Permission Profiles
-```text
-READ_ONLY   Only read and query operations allowed; file modifications prohibited.
-WORKSPACE   File modifications allowed within the specified Workspace.
-FULL_AUTO   Agent automatically executes all supported operations.
-```
-(PermissionProfileEnum, recorded on the Run.)
-### Decision & Approval
-```text
-Agent
+Java persists the result
  ↓
-Tool Call
+SSE / History
  ↓
-Permission Policy Evaluator (tool + path rules + profile)
- ↓
-ALLOW ────────> Java automatically issues APPROVE, Agent executes directly
-ASK  ─────────> Enters WAITING_HUMAN, SSE pushes Approval Block
-DENY ─────────> Java automatically issues REJECT, Agent is rejected
-```
-
-- Python declares default permissions for each tool (tool_policy.py, default is CONFIRM).
-
-- Java's PermissionService.evaluate combines the Run's permissionProfile with runtime permission policies/cache to make decisions.
-
-- When human intervention is needed, Python's ExecutionGate blocks the current Agent coroutine keyed by actionId.
-
-- The user APPROVEs / REJECTs in the frontend → Java AgentCommandService → MQ AGENT_COMMAND → Python wakes up the corresponding Future.
-
-> Note: The current permission control is a "product-level tool/path approval" mechanism. OS-level sandbox / container isolation is not implemented in this repository.
-
----
-
-## Event → Activity → Phase → UI
-Underlying Events are not directly shown to users; they undergo multi-layer aggregation:
-```text
-Agent Event (TOOL_CALL / TOOL_WAITING / TOOL_RESULT / THINK / ERROR ...)
-     ↓
-AgentChatBlockAssembler
-     ↓
-Activity Block (type: action / file_change / review)
-     ↓
-AgentPhaseAggregator
-     ↓
-Phase (ANALYSIS / IMPLEMENTATION / VERIFICATION / SUBTASK / ERROR)
-     ↓
-AgentChatAssemblerService → AgentChatViewVO / AgentChatStreamVO
-     ↓
 Frontend
 ```
 
-## What is a Phase?
-**Phase is an internal aggregation container on the backend, not a UI layer that users must see.**
-- AgentChatBlockAssembler converts a single Event into an Activity Block (containing summary, action, status, actionId, requiresApproval, etc.).
+### Long-running Tasks
 
-- AgentPhaseAggregator aggregates Blocks into Phases by work stage, for example:
+CodeFix does not simply implement:
+
 ```text
-Phase "Analyze Problem" (ANALYSIS)
- ├── narration (Agent text narration)
- ├── action (Read src/...)
- ├── action (Search ...)
- └── narration
-Phase "Modify Code" (IMPLEMENTATION)
- ├── narration
- ├── file_change
- └── narration
+HTTP → Agent → Response
 ```
-The frontend renders Blocks sequentially, forming a narrative flow similar to "the Agent is working.
-### Narration vs. Reasoning
-- The user-facing content in Agent events is work narration, which is displayed.
 
-- The model's internal reasoning is part of the internal reasoning process and is not displayed as product UI narration.
+Instead, execution is modeled as a persistent, recoverable, and controllable runtime:
+
+```text
+Task
+ └── Run
+      ├── State
+      ├── Action
+      ├── Event
+      ├── Tool Execution
+      └── Retry / Resume / Cancel
+```
+
+This allows an Agent to pause for human intervention, recover from failures, retry execution, resume a previous Run, and reconstruct its working process after a page refresh.
 
 ---
 
-## Realtime / History Consistency
-Both the real-time and history pipelines use the same product semantics for Activity aggregation:
+## Human-in-the-loop
+
+CodeFix separates Tool execution permission from the Agent's local decision-making and lets the Java Control Plane participate in centralized runtime control.
+
 ```text
-Realtime (SSE):
-Python Agent Event → Java Persistence → AgentChatStreamAssembler → SSE → Frontend
-
-History (REST):
-MySQL AgentEvent → AgentChatBlockAssembler → AgentChatAssemblerService → REST → Frontend
+Tool Call
+   ↓
+Permission Evaluator
+   ├── ALLOW ──────→ Auto approve
+   │
+   ├── ASK ────────→ WAITING_HUMAN
+   │                      ↓
+   │                 Frontend Approval
+   │                      ↓
+   │                 APPROVE / REJECT
+   │                      ↓
+   │                 RocketMQ Command
+   │                      ↓
+   │                 ExecutionGate
+   │
+   └── DENY ───────→ Reject
 ```
-- During a task, the frontend connects to GET /api/agent/tasks/{taskId}/stream via EventSource.
 
-- SSE event types: BLOCK_APPEND / BLOCK_UPDATE / RESULT_REFRESH (AgentChatStreamVO.type).
+### Permission Profiles
 
-- After a page refresh, GET /api/agent/sessions/{sessionId}/chat can be called to retrieve the complete AgentChatViewVO (turns + phases) to restore the same visual state.
+```text
+READ_ONLY   Read and query only
+WORKSPACE   Allow modifications inside the assigned Workspace
+FULL_AUTO   Automatically execute supported operations
+```
+
+### Why ActionId?
+
+In a Multi-Agent environment, a single Run may contain multiple Agents and multiple Tool Actions.
+
+Approval therefore cannot simply be tied to "the current Run". It must be bound to a concrete `actionId`:
+
+```text
+Tool Call A → actionId=A
+Tool Call B → actionId=B
+
+User Approve(A)
+      ↓
+Java
+      ↓
+AGENT_COMMAND(actionId=A)
+      ↓
+ExecutionGate.resolve(A)
+```
+
+This prevents control ambiguity such as approving one action while another action is actually executed.
+
+> The current permission system provides application-level Tool / Path approval. It is not an OS-level sandbox or container isolation mechanism.
+
+---
+
+## Multi-Agent
+
+The current Multi-Agent architecture uses a simple role separation:
+
+```text
+                  Supervisor
+                      │
+              ┌───────┴───────┐
+              ▼               ▼
+          Explorer          Fixer
+              │               │
+         Exploration        Modification
+          / Analysis         / Validation
+```
+
+### Supervisor
+
+Responsible for task orchestration rather than directly handling every low-level operation.
+
+Main responsibilities:
+
+* Understand the user's task
+* Decide whether delegation is needed
+* Select Explorer / Fixer
+* Aggregate sub-agent results
+* Drive the overall execution forward
+
+### Explorer
+
+Responsible for:
+
+* Exploring the Workspace
+* Finding relevant code
+* Analyzing structure and dependencies
+* Returning a compressed analysis result
+
+Explorer does not modify business files.
+
+### Fixer
+
+Responsible for:
+
+* Locating modification points
+* Making minimal necessary changes
+* Performing validation when needed
+* Returning the modification result and supporting evidence
+
+The purpose of this separation is not to make the system "more Agentic" by simply adding more agents. The goal is to let different roles share the same Runtime, Workspace, Permission, and Action control infrastructure.
+
+---
+
+## Event → Activity → UI
+
+CodeFix does not expose raw Python Runtime Events directly to the user.
+
+Execution information is transformed into product-level semantics:
+
+```text
+Agent Event
+(THINK / TOOL_CALL / TOOL_WAITING / TOOL_RESULT / ERROR ...)
+       ↓
+Event → Activity Block
+       ↓
+Phase Aggregation
+       ↓
+Agent Chat View
+       ↓
+Frontend
+```
+
+For example, the runtime may generate:
+
+```text
+TOOL_CALL
+TOOL_RESULT
+TOOL_CALL
+TOOL_RESULT
+TOOL_CALL
+TOOL_RESULT
+```
+
+while the frontend presents a more user-oriented Coding Agent workflow:
+
+```text
+● Analyze project structure
+  ├─ Read xxx
+  ├─ Search xxx
+  └─ Inspect xxx
+
+● Delegate to Explorer
+  └─ Explorer is analyzing the relevant code
+
+● Modify code
+  └─ Update xxx
+
+● Verify result
+```
+
+### Realtime / History Consistency
+
+Realtime execution and history restoration use the same product semantics:
+
+```text
+Realtime:
+Python Event
+    ↓
+Java persistence
+    ↓
+Stream Assembler
+    ↓
+SSE
+    ↓
+Frontend
+
+History:
+MySQL Event
+    ↓
+Block Assembler
+    ↓
+Chat View Assembly
+    ↓
+Frontend
+```
+
+This prevents the realtime and historical views from becoming two completely different presentation systems.
+
+---
 
 ## Workspace
-All Agent file operations occur within a dedicated Workspace:
+
+Agent file operations are always performed inside a Workspace:
+
 ```text
-Workspace (Root directory, e.g., /data/workspaces/<id>)
-    ↓
-Tool (list_files / read_file / glob / grep / write_file / apply_patch / delete_file)
-    ↓
-Path Isolation (Python resolve_workspace_path strictly restricts to root; out-of-bounds throws PermissionError)
-    ↓
-File Change (created / modified / deleted, records added/removed lines and Unified Diff)
-    ↓
-Java persists agent_file_change and generates diffId
-    ↓
-Activity / Diff display
+Workspace
+   ↓
+Tool
+   ↓
+Path Isolation
+   ↓
+File Change
+   ↓
+Diff
+   ↓
+Activity / Review
 ```
 
-- On the Python side, each Run binds to a workspace via run_context.workspace.
+Current capabilities include:
 
-- On the Java side, Workspace APIs are exposed:
-   - GET /api/agent/workspace (List Workspaces)
+* File and directory browsing
+* File reading
+* Search and pattern matching
+* File creation / modification / deletion
+* Diff viewing
+* File Change tracking
+* Workspace path isolation
 
-   - GET /api/agent/workspace/{workspaceId}/tree
-
-   - GET /api/agent/workspace/{workspaceId}/file?path=...
-
-   - PUT /api/agent/workspace/{workspaceId}/file
- 
-- File changes can be viewed via GET /api/agent/diffs/{diffId}.
-
-> Note: The current implementation does not include container / sandbox isolation, only application-level path isolation and change tracking.
+> The current implementation primarily provides application-level path isolation and change tracking. Container-level / OS-level sandboxing is not implemented yet.
 
 ---
+
+## Context / Memory
+
+One of the central problems of a long-running Coding Agent is:
+
+> **What information should be carried into the next step of the task?**
+
+CodeFix provides context retrieval on the Java side, with Workspace-scoped historical task retrieval and reconstruction of actual USER / ASSISTANT messages for Agent context.
+
+The Python runtime also maintains Working Memory for execution-time message management, context handling, and compression.
+
+The goal is not to keep indefinitely accumulating history, but to provide the Agent with **more relevant and higher-value context** during long-running tasks.
+
+---
+
 ## Quick Start
 
 ### Requirements
-|Dependency|	Version / Notes
-| -------- | ----------------------------------------------------- |
-|Java	|17 (pom.xml java.version=17)|
-|Maven	|For building CodeFix_Java|
-|Python|	3.x (dependencies in CodeFix_PY/requirements.txt)|
-|Node.js|	For building / running CodeFix_Web (Vite)|
-|MySQL	|Database name code_fix (see application.yaml)|
-|Redis|	Used by both Java and Python (session, cache, Working Memory)|
-|RocketMQ	|Namesrv + Broker (Java and Python communicate through it)|
 
-### Directory Structure
+| Dependency   | Description                                        |
+| ------------ | -------------------------------------------------- |
+| Java         | 17                                                 |
+| Maven        | Build and run the Java backend                     |
+| Python       | 3.x                                                |
+| Node.js      | Vue / Vite / Electron                              |
+| MySQL        | `code_fix` database                                |
+| Redis        | Cache / Working Memory / Context-related features  |
+| RocketMQ     | Asynchronous communication between Java and Python |
+| LLM Provider | DeepSeek / OpenAI-compatible providers             |
+| Ollama       | Local model / Embedding scenarios (optional)       |
+
+### Repository Structure
+
 ```text
-project/
-├── CodeFix_Java/     # Spring Boot Platform Backend (Control Plane)
-├── CodeFix_PY/       # Python Agent Runtime
-├── CodeFix_Web/      # Vue Frontend
+CodeFix/
+├── CodeFix_Java/      # Spring Boot Control Plane
+├── CodeFix_PY/        # Python Agent Runtime
+├── CodeFix_Web/       # Vue / Electron Frontend
+├── Images/            # README images and demos
 └── README.md
 ```
 
-### Backend（CodeFix_Java）
-1. Prepare MySQL (create database code_fix), Redis, RocketMQ.
+### 1. Start Infrastructure
 
-2. Modify the connection configurations in CodeFix_Java/src/main/resources/application.yaml (MySQL address / credentials, Redis, mq.rocketmq.name-server, consumer / producer group and topic).
-3. Start:
+Prepare MySQL, Redis, and RocketMQ, then update the Java and Python configuration for your local environment.
+
+Java configuration:
+
+```text
+CodeFix_Java/src/main/resources/application.yaml
+```
+
+Python configuration:
+
+```text
+CodeFix_PY/.env.example
+```
+
+Copy the example environment file to `.env` and fill in the required values.
+
+### 2. Start Java
+
 ```bash
 cd CodeFix_Java
 mvn spring-boot:run
 ```
-Default listening address: http://localhost:8080.
-### Agent (CodeFix_PY)
-1. Prepare the Python environment and install dependencies:
+
+The server port is configured through `server.port` in `application.yaml`.
+
+### 3. Start the Python Agent Runtime
+
 ```bash
 cd CodeFix_PY
 python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# Linux / macOS
+# source .venv/bin/activate
+
 pip install -r requirements.txt
-```
-2. Copy the template and fill in environment variables (LLM, MySQL/Redis/RocketMQ, Ollama, Embedding, Workspace root, etc.):
-```bash
-cp .env.example .env
-```
-3. Start (defaults to 0.0.0.0:8000; subscribes to RocketMQ messages on startup):
-```bash
 python App/main.py
 ```
-### Frontend（CodeFix_Web）
-1. Install dependencies:
+
+### 4. Start the Frontend
+
 ```bash
 cd CodeFix_Web
 npm install
-```
-3. Development environment backend address defaults to http://localhost:8080 (see .env.development):
-```bash
 npm run dev
-npm run electron 
 ```
-> Note: The Dockerfile and CodeFix_PY/docker-compose.yml in CodeFix_Java, CodeFix_PY, and CodeFix_Web are currently placeholders and do not contain usable container orchestration content.
 
----
+Use the project's existing Electron scripts for desktop development.
 
-## Configuration
-Core configuration items (Please use environment variables or local configurations for sensitive information; do not commit them to the repository):
-|Config Area|	Location / Example|	Description|
-| ---------------- | -------------------------------------------------- | ----------------------------- |
-|Java Port	|server.port (default 8080)	Backend service port|
-|MySQL|	spring.datasource (database code_fix)	Persistence|
-|Redis|	spring.data.redis / REDIS_URL	Cache / Working Memory|
-|RocketMQ	|mq.rocketmq.name-server, group, topic	Task / Status / Heartbeat messages|
-|LLM Provider	|LLM_API_KEY / LLM_BASE_URL / LLM_TIMEOUT	DeepSeek and other OpenAI-compatible interfaces|
-|Ollama|	OLLAMA_BASE_URL	Local inference / Embedding|
-|Embedding	|EMBEDDING_BASE_URL / EMBEDDING_MODEL	chromadb vector store Embedding|
-|Workspace Root|	WORKSPACE_ROOT (default /data/workspaces)	Root directory for Python tool access|
-|Java Backend URL|	BACKEND_BASE_URL (default http://localhost:8080)	Python calls Java auxiliary interfaces|
-> CodeFix_PY/.env.example exists as a template file. Please fill in the values according to your local environment.
-The README does not contain any real API Keys / Passwords / Tokens / Private network addresses.
+### Configuration Notes
+
+Do not commit real API keys, passwords, tokens, private addresses, or other sensitive information to the repository.
 
 ---
 
 ## Project Structure
-### Java（CodeFix_Java）
+
+### CodeFix_Java
+
 ```text
 src/main/java/com/xd/
-├── controller/        # REST / SSE interfaces (sessions, tasks, workspace, diffs, parse, validate)
-├── service/
-│   ├── impl/          # Session/Task/Run/Event/Approval/SSE/Aggregation implementations
-│   ├── TaskDispatcher # Routes MQ messages by type
-│   └── ...
-├── assembler/         # AgentChatBlockAssembler / AgentPhaseAggregator / AgentChatStreamAssembler ...
-├── runtime/
-│   ├── state/         # State machine + transition guards
-│   └── permission/    # Permission policy evaluator / runtime cache
-├── mq/                # MQProducer / Listener / TopicInitializer / MessageHandler
-├── mapper/            # MyBatis Mapper (Java interfaces)
-├── model/
-│   ├── entity/        # DO (session/task/run/event/file_change/chat_message/workspace...)
-│   ├── dto/           # Message and request DTOs (AgentTaskMessage / AgentMessageDTO ...)
-│   ├── vo/            # Display VOs (AgentChatViewVO / PhaseVO / BlockVO / StreamVO ...)
-│   ├── enums/         # State / Event / Command / Permission enums
-│   └── context/       # SessionContext / TaskRunContext ...
-├── scheduler/         # TaskWatchdog (Heartbeat Watchdog)
-├── config/            # Web / Redis / RocketMQ / Transaction configurations
-└── resources/
-    ├── application.yaml
-    └── com/xd/mapper/*.xml   # MyBatis SQL
+├── controller/       # REST / SSE
+├── service/          # Session / Task / Run / Event / Permission logic
+├── runtime/          # State Machine / Permission Runtime
+├── assembler/        # Event → Activity / Phase / Chat View
+├── mq/               # RocketMQ Producer / Consumer / Handler
+├── mapper/            # MyBatis Mapper
+├── model/             # DO / DTO / VO / Enum / Context
+├── scheduleder/      # Task Watchdog / Heartbeat
+└── config/            # Web / MQ / Redis / Transaction configuration
 ```
 
-### Python（CodeFix_PY）
+### CodeFix_PY
+
 ```text
 App/
-├── main.py              # FastAPI entry (lifespan starts/stops MQ)
-├── config.py            # Environment variable configuration (LLM / MQ / Redis / Workspace / VectorDB)
-├── bootstrap/
-│   └── mq_bootstrap.py  # RocketMQ Consumer bootstrapping and message type registration
 ├── agents/
-│   ├── base_agent.py / react_agent.py / tool_executor.py   # ReAct execution foundation
-│   ├── supervisor/supervisor_agent.py                      # Orchestrator Agent
-│   ├── worker/explorer_agent.py / fixer_agent.py           # Worker Agent
-│   ├── control/execution_gate.py / tool_policy.py / agent_command_service.py
-│   ├── manager/agent_run_manager.py / agent_tool_manager.py
-│   ├── memory/             # context / message / token / working memory
-│   ├── agent_model/        # LLMMessage / ToolCall / LLMResponse ...
-│   ├── context/            # AgentContext / AgentRunContext
-│   └── agent_state.py
+│   ├── base_agent.py
+│   ├── react_agent.py
+│   ├── supervisor/
+│   ├── worker/
+│   ├── control/
+│   ├── memory/
+│   └── context/
 ├── agent_boost/
-│   ├── tools/tool_registry.py     # 13 tools
-│   ├── tool_model/tool_schemas.py # Tool parameter schemas
+│   ├── tools/
 │   └── rag/
 ├── services/
-│   ├── agent_msg_service.py       # AGENT_TASK processing and AGENT_STATUS reporting
-│   ├── llm_service/ (ollama / deepseek)
-│   ├── factory/llm_factory.py
-│   ├── rag_service.py             # chromadb retrieval for Alibaba Java Manual
-│   └── redis_working_memory_store.py
-├── infrastructure/        # mq / redis / heartbeat / files_search / message / handler
-└── models/                # Messages / Events / Commands / Workspace / Session data models
+├── infrastructure/
+└── models/
 ```
 
-### Frontend（CodeFix_Web）
+### CodeFix_Web
+
 ```text
 src/
-├── electron/     # Desktop shell, mainly used to obtain the absolute path of local directories
-├── api/          # http wrapper + task / session / workspace / diff
-├── stores/       # Pinia (task: task + SSE; session: session and chat)
-├── views/        # Workspace.vue (Main UI) / TaskList / TaskCreate
-├── components/   # AgentChat / AgentActionBlock / FileChangeBlock / ReviewBlock
-│                 # DiffViewer / CodeViewer / Editor / WorkspaceTree ...
-├── router/       # Vue Router
-├── types/        # task / event / agentChat types
-└── config/       # API / SSE addresses (reads from .env)
+├── electron/         # Electron desktop shell
+├── api/              # HTTP / SSE API
+├── stores/           # Pinia
+├── views/            # Main UI / Task / Workspace
+├── components/       # Agent Chat / Activity / Diff / Review
+├── router/
+├── types/
+└── config/
 ```
 
 ---
-## Roadmap
-###Current (Implemented)
 
-- ☑ Session / Task / Run lifecycle and relationship modeling
-- ☑ Agent state machine (Event / Command / ActionCommand transitions) + transition guards
-- ☑ Agent Event persistence and idempotent deduplication
-- ☑ Run state history recording
-- ☑ Retry / Resume / Cancel
-- ☑ Tool Registry and ReAct execution loop (Python)
-- ☑ Tool Permission (AUTO / CONFIRM) and Permission Profile (READ_ONLY / WORKSPACE / FULL_AUTO)
-- ☑ Human Approval: ExecutionGate blocking + Java APPROVE / REJECT + actionId binding
-- ☑ Workspace file operations and path isolation
-- ☑ File Change recording (diffId / unified diff) and Diff viewing
-- ☑ Activity / Phase aggregation display (Event → Block → Phase → UI)
-- ☑ SSE real-time push and history recovery (same aggregation semantics)
-- ☑ Sub-agents: Supervisor + Explorer + Fixer
-- ☑ RAG retrieval from Alibaba Java Development Manual (search_manual)
-- ☑ Python Working Memory (Redis, message serialization storage)
-- ☑ Heartbeat reporting and Java-side Watchdog scanning framework
-- ☑ Workspace creation
+## Tech Stack
 
-### Next / Planned
-
-- □ Implementation of sandbox isolation mechanisms
-- □ Agent streaming output
-- □ Agent operation rollback
-- □ Display of effective information (token consumption, elapsed time, etc.)
-- □ User / login / account-level permission system
-- □ More complete Docker / docker-compose one-click orchestration (currently placeholder files)
-- □ Unit / integration test coverage (currently CodeFix_Java only contains startup smoke tests)
-- □ Session-level long-task history archiving and retrieval
-- □ More LLM Provider adaptations and context compression strategy tuning
-
-> Note: The items in "Next" above are currently not yet completed in the repository.
+| Layer                  | Technology                                           |
+| ---------------------- | ---------------------------------------------------- |
+| Frontend               | Vue 3 / Pinia / Vue Router / Element Plus / Electron |
+| Editor / Diff          | Monaco Editor / highlight.js / Markdown Renderer     |
+| Backend                | Java 17 / Spring Boot 3.5                            |
+| ORM                    | MyBatis                                              |
+| Messaging              | RocketMQ                                             |
+| Database               | MySQL                                                |
+| Cache / Working Memory | Redis                                                |
+| Agent Runtime          | Python / FastAPI / Uvicorn                           |
+| Agent Model            | Pydantic                                             |
+| Realtime               | SSE                                                  |
+| RAG / Embedding        | ChromaDB / Ollama Embedding                          |
 
 ---
-## Tech Stack
-|Layer|	Technology
-| ------------------------- | -------------------------------------------------- |
-|Frontend|	Vue 3 / Pinia / Vue Router / Element Plus / Axios / Electron|
-|Editor / Diff|	Monaco Editor / highlight.js / vue-markdown-render|
-|Backend	|Java 17 / Spring Boot 3.5|
-|ORM|	MyBatis (mybatis-spring-boot-starter 3.0.3)|
-|Messaging|	RocketMQ (client 5.3.3, FIFO status topic)|
-|Database|	MySQL (database code_fix)|
-|Cache / Working Memory|	Redis|
-|Agent Runtime|	Python / FastAPI / Uvicorn|
-|Agent Models / Validation|	Pydantic|
-|Code Analysis|	JavaParser (core 3.28.0) / JavaSyntaxValidator|
-|Realtime|	SSE (SseEmitter + EventSource)|
-|RAG / Embedding|	ChromaDB / Ollama Embedding / pypdf|
-|JSON Processing|	fastjson2 / Jackson|
+
+## Current Status
+
+### V2.7
+
+The main goal of V2.7 was to evolve CodeFix from **Single-Agent → Multi-Agent** while allowing sub-agents to operate inside the same Runtime control system.
+
+Current capabilities include:
+
+* [x] Session / Task / Run lifecycle model
+* [x] Task / Run state management
+* [x] Event persistence and idempotent processing
+* [x] Run State History
+* [x] Retry / Resume / Cancel
+* [x] Tool Registry + ReAct Runtime
+* [x] Permission Profiles
+* [x] Human Approval + ExecutionGate
+* [x] actionId-based approval binding
+* [x] Workspace file operations and path isolation
+* [x] File Change / Diff
+* [x] SSE realtime execution stream
+* [x] History Restore
+* [x] Event → Activity / Phase aggregation
+* [x] Supervisor + Explorer + Fixer Multi-Agent
+* [x] Context / Memory foundation
+* [x] Working Memory
+* [x] Heartbeat / Watchdog foundation
+
+---
+
+## Roadmap
+
+Future versions focus more on **runtime reliability, observability, and execution capabilities** than on simply adding more Agents.
+
+### V2.8
+
+* [ ] Reliability and edge-case improvements
+* [ ] Workspace / Multi-Agent collaboration refinement
+* [ ] Context Selection / Memory tuning
+* [ ] Docker Compose one-click infrastructure startup
+
+### V2.9
+
+* [ ] Verification Loop
+* [ ] Token / Cost / Latency Metrics
+* [ ] Agent Evaluation
+* [ ] More complete execution quality feedback
+
+### V3.0 / Exploring
+
+* [ ] Sandbox / execution isolation
+* [ ] A more complete Agent Runtime
+* [ ] Dynamic Agent / Skill Registry
+* [ ] More LLM providers and context strategies
+
+> The roadmap represents current exploration directions and does not imply that every item will be implemented exactly as listed.
+
+---
+
+## Project Philosophy
+
+CodeFix is not trying to prove that its Coding Agent is "better than Codex".
+
+Instead, the project is an attempt to understand what happens after an Agent moves beyond "calling an LLM" and starts performing real software engineering tasks:
+
+```text
+LLM
+ ↓
+Agent Loop
+ ↓
+Tool Execution
+ ↓
+Task / Run Lifecycle
+ ↓
+Permission / Human Approval
+ ↓
+Workspace / File Change
+ ↓
+Event Persistence
+ ↓
+Realtime UI / History
+ ↓
+A Controllable Coding Agent Runtime
+```
+
+That is the core direction of CodeFix:
+
+> **Not building a stronger Coding Agent from scratch, but exploring the engineering architecture behind a Coding Agent.**
 
 ---
 
 ## License
 
-This project is licensed under the MIT License.
+MIT License
