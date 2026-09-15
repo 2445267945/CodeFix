@@ -1,96 +1,82 @@
-# AI Coding Agent
+<div align="center">
+  <pre>
+ ██████╗ █████╗ ███╗   ██╗██████╗  ██████╗
+██╔════╝██╔══██╗████╗  ██║██╔══██╗██╔═══██╗
+██║     ███████║██╔██╗ ██║██║  ██║██║   ██║
+██║     ██╔══██║██║╚██╗██║██║  ██║██║   ██║
+╚██████╗██║  ██║██║ ╚████║██████╔╝╚██████╔╝
+ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝
+  </pre>
 
-一个面向个人开发者的长任务 Coding Agent / Agent IDE。
 
-基于 **Java + Python + Vue** 构建，支持 Session / Task / Run / Event 生命周期、
-Tool Calling、Human Approval、Workspace 文件操作、Event 持久化、
-长任务执行以及实时工作过程展示与历史恢复。
+  <h3>🤖 长任务 Coding Agent / Agent IDE</h3>
 
-> Java 是 Agent 平台的**控制面与产品后端**，Python 是 Agent 的**推理与执行运行时**，
-> Web 前端负责把结构化的执行状态呈现为"用户可以看懂的 Agent 工作过程"。
+  <p>
+    一个面向个人开发者的 Coding Agent 实验项目，重点探索 Agent 背后的运行时、控制面与产品化交互。
+  </p>
+
+
+  <p>
+    <a href="README.md">🇨🇳 中文</a> | <a href="README_EN.md">🇺🇸 English</a>
+  </p>
+
+</div>
+
+---
+
+
+
+## 项目简介
+
+Cando 是一个面向个人开发者的 **长任务 Coding Agent / Agent IDE**。
+
+它不是为了重新实现一个“更强的 Codex”，而是希望回答另一个问题：
+
+> **一个 Coding Agent 真正进入工程执行阶段后，背后的运行时系统应该如何设计？**
+
+项目基于 **Java + Python + Vue** 构建，将 Agent 的“智能执行”和“系统控制”拆成两个相对独立的部分：
+
+- **Java**：负责 Control Plane / 产品后端，管理 Task、Run、Event、Permission、Workspace、历史与实时状态。
+- **Python**：负责 Agent Runtime，执行 ReAct 循环、LLM 调用、Tool Calling、子 Agent 协作以及工具执行。
+- **Vue / Electron**：负责把 Agent 的执行过程转化为用户可以理解、可以介入、可以恢复的 IDE 式交互。
+- **RocketMQ**：连接 Java 与 Python，承担任务下发、状态回报、命令控制与心跳等异步通信。
+
+当前项目已经从早期的单 Agent 逐步演进到 **Supervisor + Explorer + Fixer 的 Multi-Agent 模式**，并围绕长任务执行、Human-in-the-loop、Workspace、Realtime UI 等能力形成较完整的运行链路。
+
+---
+
+## 为什么做 Cando
+
+成熟的 Coding Agent 已经可以完成很多复杂的软件开发任务。
+
+Cando 关注的不是“模型还能不能更聪明”，而是 **Agent 为什么能够稳定地完成一个持续数十步甚至更久的工程任务**。
+
+例如：
+
+- 一个自然语言需求如何变成可持久化的 Task？
+- 一次 Task 为什么需要独立的 Run？
+- Tool Call、审批、执行结果应该如何记录？
+- Agent 运行到一半如何等待人工确认，再继续执行？
+- Java 与 Python 如何异步协同，而不是 HTTP 同步等待整个 Agent？
+- 页面刷新后，为什么还能恢复之前的 Agent 工作过程？
+- 多 Agent 的子任务如何接入同一套 Permission / Action / Workspace 体系？
+- Agent 的底层事件如何变成用户真正看得懂的产品 UI？
+
+因此，Cando 更关注 **Agent Engineering / Agent Runtime / Control Plane**，而不只是 LLM API 调用。
 
 ---
 
 ## Demo
 
-**运行结果展示：**
+### Coding Agent
 
-参考Master分支
+![Agent Demo](Images/agent.gif)
 
----
+### Multi-Agent
 
-## 项目简介
+当前 Multi-Agent 模式由 **Supervisor / Explorer / Fixer** 协作完成任务。
 
-这个系统解决的是这样一件事：**用户用自然语言提出一个 Coding Task，Agent 真正去把它做完**，
-而不是只生成一段回答。
-
-用户可以在界面中发起任务，例如"检查当前项目结构并定位 N+1 查询"，Agent 会：
-
-- 浏览 Workspace（工作区）；
-- 读取 / 搜索 / 修改 / 删除文件；
-- 执行 Java 语法校验与结构解析；
-- 按需委派 Explorer（侦查）与 Fixer（修复）子 Agent；
-- 在涉及文件修改等敏感操作时等待人工审批；
-- 长时间持续执行多轮 ReAct 循环；
-- 最后把工作过程与结果展示给用户。
-
-系统由三个独立代码库组成：
-
-| 代码库         | 角色                                                         |
-| -------------- | ------------------------------------------------------------ |
-| `CodeFix_Java` | 平台控制面 / 产品后端：Task、Run、状态、事件、审批、Workspace、聚合、SSE |
-| `CodeFix_PY`   | Agent Runtime：Supervisor、ReAct、LLM、Tools、Context、审批门控 |
-| `CodeFix_Web`  | 前端：任务、会话、聊天过程、文件变更、Diff、Workspace 可视化 |
-
----
-
-## 为什么做这个项目
-
-普通 Chat 是"一次性问答"：
-
-```text
-User
- ↓
-LLM
- ↓
-Answer
-```
-
-而 Coding Agent 是一个**持续执行的工程任务**：
-
-```text
-User
- ↓
-Task
- ↓
-Run
- ↓
-Think
- ↓
-Tool Call
- ↓
-Tool Result
- ↓
-Think
- ↓
-Tool Call
- ↓
-...
- ↓
-Finish
-```
-
-因此工程难点并不只是"如何调用 LLM"，还包括：
-
-- 长任务生命周期（Task / Run / Event）；
-- 多次 Tool Call 的状态管理与上下文；
-- 失败 / Retry / Resume / Cancel；
-- 需要人工介入时的审批（Approval）；
-- Workspace 的读取、修改与变更记录；
-- 执行过程的可观察性（实时 UI）与可恢复性（页面刷新后历史恢复）；
-- Java、Python、前端三方之间的异步消息协同。
-
-> 这是一个 **Agent Engineering / Agent Platform** 项目，而不仅是 LLM Demo。
+![Multi-Agent Demo](Images/sub_agent.gif)
 
 ---
 
@@ -98,93 +84,91 @@ Finish
 
 | 能力                 | 说明                                                         |
 | -------------------- | ------------------------------------------------------------ |
-| Long-running Task    | 通过 MQ 异步下发，Java 只做编排，不阻塞 HTTP，支持多轮持续执行 |
-| Task / Run Lifecycle | Task 与 Run 分离；一次 Task 可对应多次 Run（Retry / Resume） |
-| State Machine        | Java 侧状态机驱动 CREATED → QUEUED → THINKING → EXECUTING → WAITING_HUMAN → FINISHED / ERROR / CANCELLED |
-| Event Persistence    | Python 上报的每个 Agent Event 都落库并做幂等判重             |
-| Run State History    | 记录每次状态迁移的 from → to、触发来源与原因                 |
-| Tool Calling         | 文件读写 / 搜索 / 语法校验 / 解析 / 子 Agent 委派等 12 个工具 |
-| Human Approval       | 高风险操作进入 WAITING_HUMAN，Java APPROVE / REJECT 后放行或拒绝 |
-| Permission Profile   | READ_ONLY / WORKSPACE / FULL_AUTO 三档策略                   |
-| Workspace            | Python 工具把文件路径限制在 Workspace 根内，变更被记录并生成 diffId |
-| Realtime UI          | SSE 实时推送 BLOCK_APPEND / BLOCK_UPDATE / RESULT_REFRESH    |
-| History Restore      | 页面刷新后从持久化 Event 按同一语义重新聚合展示              |
-| Activity Aggregation | 底层 Event 被聚合为用户可理解的 Activity / Phase             |
-| Multi-Agent          | Supervisor + Explorer + Fixer                                |
-| RAG 规范查询         | 检索《阿里巴巴 Java 开发手册》条款，为修复建议提供权威依据   |
+| Long-running Task    | 将 Coding Task 建模为可持续执行的异步任务，而不是一次同步问答 |
+| Task / Run Lifecycle | Task 与 Run 分离，支持 Retry / Resume / Cancel               |
+| State Machine        | Java 侧统一管理任务状态与状态迁移                            |
+| Event Persistence    | Agent 运行事件持久化，并进行幂等处理                         |
+| Human-in-the-loop    | 敏感 Tool Action 可进入人工审批流程                          |
+| ActionId             | 将审批命令与具体 Tool Action 严格绑定                        |
+| Permission           | 支持 READ_ONLY / WORKSPACE / FULL_AUTO 等运行策略            |
+| Workspace            | Agent 文件操作受 Workspace 根目录约束，并记录文件变化        |
+| Diff / File Change   | 将文件修改记录为可查看的变更与 Diff                          |
+| Multi-Agent          | Supervisor + Explorer + Fixer 协同执行                       |
+| Context / Memory     | 支持上下文选择、消息管理与 Working Memory                    |
+| Realtime UI          | 通过 SSE 将执行状态实时推送到前端                            |
+| History Restore      | 页面刷新后从持久化数据恢复 Agent 工作过程                    |
+| Activity Aggregation | 将底层 Event 聚合为用户可理解的 Activity / Phase             |
+| RAG                  | 支持文档 / 规范检索等扩展能力                                |
 
 ---
 
 ## 整体架构
 
+![Architecture](Images/architecture.png)
+
 ```text
-                    ┌─────────────────────────────┐
-                    │       CodeFix_Web (Vue)     │
-                    │  Workspace / Task / Chat    │
-                    │  AgentChat / Diff / Review  │
-                    └──────────────┬──────────────┘
-                                   │ HTTP (REST) / SSE
-                                   ▼
-                    ┌─────────────────────────────┐
-                    │   CodeFix_Java (Spring Boot)│
-                    │                             │
-                    │ Session · Task / Run        │
-                    │ State Machine · Event       │
-                    │ Approval / Permission       │
-                    │ Workspace API · Activity    │
-                    │ Phase 聚合 · SSE / History  │
-                    └──────────────┬──────────────┘
-                                   │ RocketMQ (异步)
-                                   ▼
-                    ┌─────────────────────────────┐
-                    │   CodeFix_PY (Agent Runtime)│
-                    │                             │
-                    │ Supervisor · ReAct · Tool   │
-                    │ LLM · Context · Execution   │
-                    │ Gate · Worker Agent         │
-                    │ Heartbeat · Working Memory  │
-                    └─────────────────────────────┘
+                         ┌─────────────────────────────┐
+                         │     Cando Web / Electron  │
+                         │                             │
+                         │ Workspace / Task / Chat    │
+                         │ Agent Activity / Diff      │
+                         │ Approval / File Review     │
+                         └──────────────┬──────────────┘
+                                        │ HTTP / SSE
+                                        ▼
+                         ┌─────────────────────────────┐
+                         │    Cando Java / Control   │
+                         │          Plane              │
+                         │                             │
+                         │ Session / Task / Run        │
+                         │ State / Event / Action      │
+                         │ Permission / Workspace      │
+                         │ History / Aggregation / SSE  │
+                         └──────────────┬──────────────┘
+                                        │ RocketMQ
+                                        ▼
+                         ┌─────────────────────────────┐
+                         │    Cando Python Runtime   │
+                         │                             │
+                         │ Supervisor / Worker Agent   │
+                         │ ReAct / LLM / Tool Calling  │
+                         │ Context / Memory            │
+                         │ ExecutionGate / Heartbeat   │
+                         └─────────────────────────────┘
+
+                    ┌──────────────┐      ┌──────────────┐
+                    │    MySQL     │      │    Redis     │
+                    │ Persistence  │      │ Cache/Memory │
+                    └──────────────┘      └──────────────┘
 ```
 
-### 协作方式
+### Java / Python 的职责边界
 
-- **Java**：负责控制面与产品后端 —— "系统如何运行、如何被用户控制"。
-- **Python**：负责 Agent Runtime 与智能执行 —— "Agent 如何思考并执行"。
-- **RocketMQ**：Java 与 Python 之间的异步消息总线（任务下发 / 状态回报 / 心跳）。
-- **Frontend**：用户交互与 Agent 工作过程可视化。
+**Java Control Plane** 负责：
 
----
+- Session / Task / Run 生命周期
+- 状态机与状态迁移
+- Event / Action 持久化
+- Permission / Human Approval
+- Workspace 与 File Change
+- SSE / History / Activity Aggregation
+- MQ 消息分发与运行控制
+- 心跳与任务看门狗
 
-## Java / Python 职责划分
+**Python Agent Runtime** 负责：
 
-### Java Backend（`CodeFix_Java`）
+- Supervisor / Explorer / Fixer
+- ReAct 执行循环
+- LLM 调用与上下文组织
+- Tool Registry / Tool Calling
+- Workspace 文件操作
+- ExecutionGate
+- Working Memory
+- Agent Heartbeat
 
-- Session / Task / Run 的创建与生命周期管理；
-- Agent 状态机与迁移守卫（Event / Command / ActionCommand 三类迁移表）；
-- Event 持久化与幂等判重；
-- Run 状态历史记录；
-- MQ Producer / Consumer 与消息分发（按 `type` 路由到不同 Handler）；
-- 审批与权限决策（ALLOW / ASK / DENY，READ_ONLY / WORKSPACE / FULL_AUTO）；
-- 文件变更解析、落库、生成 `diffId`；
-- Activity / Phase 聚合（`AgentChatBlockAssembler` → `AgentPhaseAggregator` → `AgentChatAssemblerService`）；
-- SSE 实时推送与历史 REST 恢复；
-- Workspace 树 / 文件读取与文件更新 API；
-- 心跳维护与 Task 看门狗框架。
+一句话总结：
 
-### Python Agent Runtime（`CodeFix_PY`）
-
-- SupervisorAgent（总控）、ExplorerAgent / FixerAgent（Worker）；
-- ReAct 执行循环（Think → Tool Call → Tool Result）；
-- Tool Registry / Tool Schema / 参数校验；
-- Tool Execution 与路径隔离（限制在 Workspace 根内）；
-- ExecutionGate：真正阻塞当前 Agent 协程并等待 Java 的 APPROVE / REJECT；
-- Tool Policy：声明工具是 AUTO 还是 CONFIRM；
-- Context / Working Memory：消息窗口、压缩与 Redis 工作记忆（TTL 6h）；
-- Heartbeat 上报；
-- LLM 客户端（DeepSeek / Ollama）与 LLM Factory；
-- RAG（chromadb + 《阿里巴巴 Java 开发手册》）用于 `search_manual`。
-
-> 一句话总结：**Java 负责"系统如何运行和如何被用户控制"，Python 负责"Agent 如何思考并执行"。**
+> **Java 决定 Agent 如何被运行、记录和控制；Python 决定 Agent 如何思考并执行。**
 
 ---
 
@@ -194,517 +178,570 @@ Finish
 Session
   └── Task
         └── Run
+              ├── Action
               └── Event
 
 Session ─── Workspace
 ```
 
-### 关系
+关系：
 
 ```text
-Session : Task   = 1 : N
-Task    : Run    = 1 : N  
-Retry → 创建新的 Run
-Resume → 恢复当前 Run
-Cancel → 终止当前 Run
-Run     : Event  = 1 : N
-Session : Workspace = N : 1（目前暂时为1:1，后续将继续迭代）
+Session : Task       = 1 : N
+Task    : Run        = 1 : N
+Run     : Action     = 1 : N
+Run     : Event      = 1 : N
+Session : Workspace  = N : 1
 ```
 
-### 实体说明（Java DO，MySQL `code_fix` 库）
+### 核心概念
 
-- **Session**（`AgentSessionDO`）：一次持续对话的上下文容器，记录 `workspaceId` 与标题。
-- **Task**（`AgentTaskDO`）：用户提出的一个具体工作任务（`question`、`status`、`lastHeartbeatAt`）。
-- **Run**（`AgentRunDO`）：Task 的一次实际执行（`runId`、`actionId`、`permissionProfile`、`attempt`、`startedAt` / `endedAt`）。
-- **Run State History**（`AgentRunStateHistoryDO`）：每次状态迁移的 from / to / trigger / reason。
-- **Event**（`AgentEventDO`）：Agent 执行过程中产生的原始事实（`event`、`step`、`agentName`、`parentAgent`、`output`），以 `messageId` 保证幂等。
-- **File Change**（`AgentFileChangeDO`）：Agent 对 Workspace 文件的变更记录（`diffId`、`filePath`、`operation`、`addedLines` / `removedLines`、`diffText`）。
-- **Chat Message**（`ChatMessageDO`）：USER / ASSISTANT 级别的对话消息，用于最终答案与上下文构建。
-- **Workspace**（`WorkspaceDO`）：Agent 实际读取 / 修改代码的工作空间。
+- **Session**：持续对话上下文的容器。
+- **Task**：用户提出的一次具体 Coding Task。
+- **Run**：Task 的一次实际执行尝试。
+- **Action**：一个可以被控制、审批、执行和追踪的具体 Tool Action。
+- **Event**：Agent Runtime 上报的原始执行事实。
+- **Workspace**：Agent 实际读取和修改文件的工作空间。
+
+这种拆分的核心目的，是让“用户的一次请求”和“Agent 的一次执行尝试”解耦，同时让每一个具体 Tool Action 都能够被独立控制。
 
 ---
 
 ## Agent 执行流程
 
+典型执行过程：
+
 ```text
 User
  ↓
-Java 创建 Task + Run（createTaskWithRun）
+Java 创建 Task + Run
  ↓
-Java 组装 AGENT_TASK 消息并投递 agent_task_topic
+RocketMQ
  ↓
-Python SupervisorAgent 启动 Run
+Supervisor Agent
  ↓
-Think（THINK 事件上报）
+Think
  ↓
-Tool Call（TOOL_CALL 事件上报）
+Tool Call
  ↓
-Tool Result（TOOL_RESULT 事件上报）
+Permission Decision
+ ├── ALLOW  → Execute
+ ├── ASK    → Human Approval
+ └── DENY   → Reject
+ ↓
+Tool Result
  ↓
 Think ...
  ↓
-Finish（FINISH 事件上报 → Java 落 ASSISTANT 消息）
+Sub Agent（按需）
+ ↓
+...
+ ↓
+Finish
+ ↓
+Java 持久化结果
+ ↓
+SSE / History
+ ↓
+Frontend
 ```
 
-### Human Approval 流程
+### Long-running Task
+
+Cando 不采用简单的：
 
 ```text
-Tool Call
-     ↓
-需要审批？
- ┌───┴────┐
- No       Yes
- │         │
-执行      Python ExecutionGate 阻塞（TOOL_WAITING）
- │         ↓
- │      Java 落 WAITING_HUMAN 并推送审批 Block
- │         ↓
- │      Java APPROVE / REJECT（AGENT_COMMAND + actionId）
- │         ↓
- │      ExecutionGate.resolve(actionId, ALLOW/DENY)
- │         ↓
- │      继续执行 / 拒绝
+HTTP → Agent → Response
 ```
 
-`actionId` 的作用：把**当前待审批的 Tool Call** 与 Java 下发的 APPROVE / REJECT 命令严格绑定
-（Python `ExecutionGate` 以 `action_id` 为 key 的 Future 等待唤醒），避免"批了 A 却执行了 B"。
-
----
-
-## 长任务设计
-
-系统不是简单"HTTP → Python Agent → 同步等待"：
-
-```text
-HTTP
- ↓
-Python Agent
- ↓
-等待结束
- ↓
-Response
-```
-
-而是将任务建模为可持久化、可恢复、可审批的异步执行单元：
+而是将一次执行建模成可持久化、可恢复、可干预的运行过程：
 
 ```text
 Task
  └── Run
-      ├── State（状态机）
-      ├── Event（原始执行事实，落库）
-      ├── Tool execution（受 ExecutionGate 控制）
-      └── lifecycle（Retry / Resume / Cancel）
+      ├── State
+      ├── Action
+      ├── Event
+      ├── Tool Execution
+      └── Retry / Resume / Cancel
 ```
 
-已实现的机制：
-
-- **Task / Run 分离**：`createTaskWithRun` 一次消息即创建 Session / Task / Run / Workspace 关联。
-- **状态机驱动**：Java `AgentTaskStateMachine` 以三张迁移表管理 Event / Command / ActionCommand 触发的迁移。
-- **Event 持久化**：所有 Python 上报事件先落 `agent_event`，`DuplicateKeyException` 判重，天然幂等。
-- **Run 状态历史**：状态真正变化时才写 `agent_run_state_history`。
-- **Retry / Resume / Cancel**：`POST /api/agent/tasks/{taskId}/retry|resume|cancel`，Java 先切状态再发 MQ 命令。
-- **自动放行**：命中权限策略（ALLOW / REJECT）的工具调用由 Java 直接内部下发命令，快速结束，不打断 Agent。
-- **心跳**：Python 周期性上报 `AGENT_HEARTBEAT`，Java 更新 `lastHeartbeatAt`；`TaskWatchdog` 每 5s 扫描超过 15s 未心跳的运行中任务。
-
-
+这样 Agent 可以在执行过程中等待人工、失败重试、恢复执行，并且在页面刷新后重新构建之前的工作过程。
 
 ---
 
-## Tool System
+## Human-in-the-loop
 
-工具注册在 Python `ToolRegistry`（`App/agent_boost/tools/tool_registry.py`），当前共 13 个工具：
-
-| Tool                 | Purpose                                            |
-| -------------------- | -------------------------------------------------- |
-| `list_files`         | 列出 Workspace 中的文件和目录                      |
-| `read_file`          | 读取文件                                           |
-| `glob`               | 按文件匹配模式查找文件                             |
-| `grep`               | 在 Workspace 中搜索文本 / 类名 / 方法名 / 配置项   |
-| `write_file`         | 创建新文件                                         |
-| `delete_file`        | 删除文件                                           |
-| `apply_patch`        | 精确修改已有文件（生成 Unified Diff）              |
-| `verify_java_syntax` | 调用 Java `/api/validate` 校验 Java 语法           |
-| `parse_java_code`    | 调用 Java `/api/parse`（JavaParser）解析 Java 结构 |
-| `search_manual`      | 检索《阿里巴巴 Java 开发手册》编码规范条款         |
-| `run_explorer`       | 委派 Explorer 子 Agent 做代码结构分析              |
-| `run_fixer`          | 委派 Fixer 子 Agent 修复代                         |
-
-不同 Agent 拥有不同的工具集合（`AgentToolSet`）：
-
-- `SUPERVISOR`：`list_files` / `glob` / `grep` / `read_file` / `write_file` / `apply_patch` / `delete_file` / `run_explorer` / `run_fixer`
-- `EXPLORER`：`list_files` / `glob` / `grep` / `read_file` / `parse_java_code`
-- `FIXER`：`list_files` / `glob` / `grep` / `read_file` / `write_file` / `apply_patch` / `delete_file` / `search_manual` / `verify_java_syntax`
-
----
-
-## Permission / Approval / ActionId
-
-### 权限档位
+Cando 将“是否允许执行某个 Tool”从 Python Agent 的单纯本地判断中抽离出来，由 Java Control Plane 参与统一控制。
 
 ```text
-READ_ONLY   只允许读取与查询，不允许修改文件
-WORKSPACE   允许在指定 Workspace 内修改文件
-FULL_AUTO   允许 Agent 自动执行全部已支持操作
-```
-
-（`PermissionProfileEnum`，记录在 Run 上。）
-
-### 决策与审批
-
-```text
-Agent
- ↓
 Tool Call
- ↓
-Permission Policy Evaluator（tool + path 规则 + profile）
- ↓
-ALLOW ────────> Java 自动下发 APPROVE，Agent 直接执行
-ASK  ─────────> 进入 WAITING_HUMAN，SSE 推送审批 Block
-DENY ─────────> Java 自动下发 REJECT，Agent 被拒绝
+   ↓
+Permission Evaluator
+   ├── ALLOW ──────→ 自动放行
+   │
+   ├── ASK ────────→ WAITING_HUMAN
+   │                      ↓
+   │                 Frontend Approval
+   │                      ↓
+   │                 APPROVE / REJECT
+   │                      ↓
+   │                 RocketMQ Command
+   │                      ↓
+   │                 ExecutionGate
+   │
+   └── DENY ───────→ 拒绝执行
 ```
 
-- Python 端声明每个工具的默认权限（`tool_policy.py`，默认 `CONFIRM`）；
-- Java 端 `PermissionService.evaluate` 综合 Run 的 `permissionProfile` 与运行时权限策略/缓存做出决策；
-- 需要人工时，Python 的 `ExecutionGate` 以 `actionId` 为 key 阻塞当前 Agent 协程；
-- 用户在前端 APPROVE / REJECT → Java `AgentCommandService` → MQ `AGENT_COMMAND` → Python 唤醒对应 Future。
+### Permission Profile
 
-> 说明：当前权限控制是"产品层的工具/路径审批"机制，仓库中并未实现 OS 级沙箱 / 容器隔离。
+```text
+READ_ONLY   只允许读取与查询
+WORKSPACE   允许在指定 Workspace 内修改
+FULL_AUTO   自动执行当前支持的操作
+```
+
+### 为什么需要 ActionId？
+
+在 Multi-Agent 环境中，同一个 Run 可能存在多个 Agent、多个 Tool Action。
+
+因此审批不能简单地绑定到“当前 Run”，而必须绑定到一个明确的 `actionId`：
+
+```text
+Tool Call A → actionId=A
+Tool Call B → actionId=B
+
+User Approve(A)
+      ↓
+Java
+      ↓
+AGENT_COMMAND(actionId=A)
+      ↓
+ExecutionGate.resolve(A)
+```
+
+这样可以避免“批准了 A，但实际执行了 B”之类的控制问题。
+
+> 当前权限机制属于应用层 Tool / Path 审批，不等同于 OS 级沙箱或容器隔离。
 
 ---
 
-## Event → Activity → Phase → UI
+## Multi-Agent
 
-底层 Event **不会**被直接展示给用户，而是经过多层聚合：
+当前 Multi-Agent 模式采用一个简单的职责拆分：
 
 ```text
-Agent Event（TOOL_CALL / TOOL_WAITING / TOOL_RESULT / THINK / ERROR ...）
-     ↓
-AgentChatBlockAssembler
-     ↓
-Activity Block（type: action / file_change / review）
-     ↓
-AgentPhaseAggregator
-     ↓
-Phase（ANALYSIS / IMPLEMENTATION / VERIFICATION / SUBTASK / ERROR）
-     ↓
-AgentChatAssemblerService → AgentChatViewVO / AgentChatStreamVO
-     ↓
+                  Supervisor
+                      │
+              ┌───────┴───────┐
+              ▼               ▼
+          Explorer          Fixer
+              │               │
+          分析 / 探索       修改 / 验证
+```
+
+### Supervisor
+
+负责任务编排，不直接承担所有底层工具操作。
+
+主要职责：
+
+- 理解用户任务
+- 决定是否需要委派子 Agent
+- 选择 Explorer / Fixer
+- 汇总子 Agent 结果
+- 推动整体任务继续执行
+
+### Explorer
+
+主要负责：
+
+- 探索 Workspace
+- 查找相关代码
+- 分析结构与依赖
+- 输出压缩后的分析结果
+
+Explorer 不负责修改业务文件。
+
+### Fixer
+
+主要负责：
+
+- 根据任务定位修改点
+- 进行最小必要修改
+- 按需执行验证
+- 返回修改结果与证据
+
+这种拆分的意义不是“Agent 越多越高级”，而是让不同职责能够复用同一套 Runtime、Workspace、Permission 和 Action 控制机制。
+
+---
+
+## Event → Activity → UI
+
+Cando 不会把 Python Runtime 的原始 Event 直接展示给用户。
+
+底层执行信息会经过一层产品语义转换：
+
+```text
+Agent Event
+(THINK / TOOL_CALL / TOOL_WAITING / TOOL_RESULT / ERROR ...)
+       ↓
+Event → Activity Block
+       ↓
+Phase Aggregation
+       ↓
+Agent Chat View
+       ↓
 Frontend
 ```
 
-### Phase 的定位
-
-**Phase 是后端内部的聚合容器，而不是用户必须看到的 UI 层级。**
-
-- `AgentChatBlockAssembler` 将单个 Event 转换为 Activity Block（含 `summary`、`action`、`status`、`actionId`、`requiresApproval` 等）；
-- `AgentPhaseAggregator` 按工作阶段把 Block 聚合成 Phase，例如：
+例如底层可能连续产生：
 
 ```text
-Phase "分析问题"（ANALYSIS）
- ├── narration（Agent 文字叙述）
- ├── action（读取 src/...）
- ├── action（搜索 ...）
- └── narration
-Phase "修改代码"（IMPLEMENTATION）
- ├── narration
- ├── file_change
- └── narration
+TOOL_CALL
+TOOL_RESULT
+TOOL_CALL
+TOOL_RESULT
+TOOL_CALL
+TOOL_RESULT
 ```
 
-前端按 Block 顺序渲染，形成类似"Agent 在干活"的叙述流。
-
-### Narration 与 Reasoning
-
-- Agent 事件中面向用户的 `content` 是**工作叙述**，会进入展示；
-- 模型内部 `reasoning` 属于内部推理过程，**不会**作为产品 UI 的叙述展示。
-
----
-
-## Realtime / History 一致性
-
-实时链路与历史链路使用**同一套产品语义**进行 Activity 聚合：
+前端最终看到的是更接近 Coding Agent 产品的工作过程：
 
 ```text
-实时（SSE）：
-Python Agent Event → Java 落库 → AgentChatStreamAssembler → SSE → Frontend
+● 分析项目结构
+  ├─ 读取 xxx
+  ├─ 搜索 xxx
+  └─ 查看 xxx
 
-历史（REST）：
-MySQL AgentEvent → AgentChatBlockAssembler → AgentChatAssemblerService → REST → Frontend
+● 委派 Explorer
+  └─ Explorer 正在分析相关代码
+
+● 修改代码
+  └─ 更新 xxx
+
+● 验证结果
 ```
 
-- 前端在任务进行中通过 `EventSource` 连接 `GET /api/agent/tasks/{taskId}/stream`；
-- SSE 事件类型：`BLOCK_APPEND` / `BLOCK_UPDATE` / `RESULT_REFRESH`（`AgentChatStreamVO.type`）；
-- 页面刷新后可调用 `GET /api/agent/sessions/{sessionId}/chat` 拉取完整 `AgentChatViewVO`（turns + phases）恢复到同一视觉状态。
+### Realtime / History 一致性
+
+实时执行和历史恢复使用同一套产品语义：
+
+```text
+实时：Python Event
+        ↓
+      Java 落库
+        ↓
+   Stream Assembler
+        ↓
+       SSE
+        ↓
+     Frontend
+
+历史：MySQL Event
+        ↓
+    Block Assembler
+        ↓
+  Chat View Assembly
+        ↓
+     Frontend
+```
+
+这使得页面刷新前后不会出现两套完全不同的展示逻辑。
 
 ---
 
 ## Workspace
 
-Agent 的一切文件操作都发生在**专属 Workspace** 内：
+Agent 的文件操作始终围绕 Workspace 展开：
 
 ```text
-Workspace（根目录，例如 /data/workspaces/<id>）
-    ↓
-Tool（list_files / read_file / glob / grep / write_file / apply_patch / delete_file）
-    ↓
-路径隔离（Python resolve_workspace_path 强制限制在根内，越界抛 PermissionError）
-    ↓
-File Change（created / modified / deleted，记录 added/removed 行与 Unified Diff）
-    ↓
-Java 落 agent_file_change 并生成 diffId
-    ↓
-Activity / Diff 展示
+Workspace
+   ↓
+Tool
+   ↓
+Path Isolation
+   ↓
+File Change
+   ↓
+Diff
+   ↓
+Activity / Review
 ```
 
-- Python 侧每个 Run 通过 `run_context.workspace` 绑定工作区；
-- Java 侧暴露 Workspace API：
-	- `GET /api/agent/workspace`（列出 Workspace）
-	- `GET /api/agent/workspace/{workspaceId}/tree`
-	- `GET /api/agent/workspace/{workspaceId}/file?path=...`
-	- `PUT /api/agent/workspace/{workspaceId}/file`
-- 文件变更可通过 `GET /api/agent/diffs/{diffId}` 查看 Diff。
+当前主要能力包括：
 
-> 当前实现不包含容器 / 沙箱隔离，仅做应用层的路径隔离与变更记录。
+- 文件 / 目录浏览
+- 文件读取
+- 搜索与匹配
+- 文件创建 / 修改 / 删除
+- Diff 查看
+- File Change 记录
+- Workspace 路径隔离
+
+> 当前实现主要是应用层路径隔离与变更记录，尚未提供容器级 / OS 级 Sandbox。
+
+---
+
+## Context / Memory
+
+长任务 Coding Agent 的一个核心问题是：**什么信息应该进入下一轮上下文？**
+
+Cando 在 Java 侧提供 Context Retrieval，结合 Workspace 范围进行历史任务检索，并将真正的 USER / ASSISTANT 消息重新组装进 Agent Context。
+
+Python 侧同时维护运行时 Working Memory，用于处理 Agent 执行过程中的消息窗口、上下文管理与压缩。
+
+目标不是无限堆积历史，而是尽量让 Agent 在长任务中拿到 **更相关、更高价值的上下文**。
 
 ---
 
 ## Quick Start
 
-### Requirements
+### 环境要求
 
-| 依赖     | 版本 / 说明                                           |
-| -------- | ----------------------------------------------------- |
-| Java     | 17（`pom.xml` `java.version=17`）                     |
-| Maven    | 用于构建 `CodeFix_Java`                               |
-| Python   | 3.x（依赖见 `CodeFix_PY/requirements.txt`）           |
-| Node.js  | 用于构建 / 运行 `CodeFix_Web`（Vite）                 |
-| MySQL    | 数据库名 `code_fix`（见 `application.yaml`）          |
-| Redis    | Java / Python 均使用（session、缓存、Working Memory） |
-| RocketMQ | Namesrv + Broker（Java 与 Python 通过它通信）         |
+| 依赖         | 说明                                     |
+| ------------ | ---------------------------------------- |
+| Java         | 17                                       |
+| Maven        | Java 项目构建与启动                      |
+| Python       | 3.x                                      |
+| Node.js      | Vue / Vite / Electron                    |
+| MySQL        | `code_fix` 数据库                        |
+| Redis        | 缓存 / Working Memory / Context 等能力   |
+| RocketMQ     | Java 与 Python 的异步通信                |
+| LLM Provider | DeepSeek / OpenAI-compatible Provider 等 |
+| Ollama       | 本地模型 / Embedding 场景（按需）        |
 
-### 目录结构
+### 仓库结构
 
 ```text
-project/
-├── CodeFix_Java/     # Spring Boot 平台后端（控制面）
-├── CodeFix_PY/       # Python Agent Runtime
-├── CodeFix_Web/      # Vue 前端
+Cando/
+├── Cando_Java/      # Spring Boot Control Plane
+├── Cando_PY/        # Python Agent Runtime
+├── Cando_Web/       # Vue / Electron Frontend
+├── Images/            # README 图片与 Demo
 └── README.md
 ```
 
-### Backend（CodeFix_Java）
+### 1. 启动基础设施
 
-1. 准备 MySQL（建库 `code_fix`）、Redis、RocketMQ；
-2. 修改 `CodeFix_Java/src/main/resources/application.yaml` 中的连接配置
-	（MySQL 地址 / 账号、Redis、`mq.rocketmq.name-server`、consumer / producer group 与 topic）；
-3. 启动：
+先准备 MySQL、Redis、RocketMQ，并根据本地环境修改 Java / Python 配置。
+
+Java 端主要配置位于：
+
+```text
+Cando_Java/src/main/resources/application.yaml
+```
+
+Python 端建议使用：
+
+```text
+Cando_PY/.env.example
+```
+
+复制为 `.env` 后填写本地配置。
+
+### 2. 启动 Java
 
 ```bash
-cd CodeFix_Java
+cd Cando_Java
 mvn spring-boot:run
 ```
 
-默认监听 `http://localhost:8080`。
+Java 服务端口以 `application.yaml` 中的 `server.port` 为准。
 
-### Agent（CodeFix_PY）
-
-1. 准备 Python 环境并安装依赖：
+### 3. 启动 Python Agent Runtime
 
 ```bash
-cd CodeFix_PY
+cd Cando_PY
 python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+
+# Linux / macOS
+# source .venv/bin/activate
+
 pip install -r requirements.txt
-```
-
-2. 从模板复制并填写环境变量（LLM、MySQL/Redis/RocketMQ、Ollama、Embedding、Workspace 根等）：
-
-```bash
-cp .env.example .env
-```
-
-3. 启动（默认 `0.0.0.0:8000`，启动时会订阅 RocketMQ 消息）：
-
-```bash
 python App/main.py
 ```
 
-### Frontend（CodeFix_Web）
-
-1. 安装依赖：
+### 4. 启动 Frontend
 
 ```bash
-cd CodeFix_Web
+cd Cando_Web
 npm install
-```
-
-2. 开发环境后端地址默认 `http://localhost:8080`（见 `.env.development`）：
-
-```bash
 npm run dev
 ```
 
-> 注意：`CodeFix_Java`、`CodeFix_PY`、`CodeFix_Web` 中的 Dockerfile 与
-> `CodeFix_PY/docker-compose.yml` 当前为占位文件，尚未包含可用的容器化编排内容。
+Electron 开发环境可按项目现有脚本启动。
+
+### 配置注意事项
+
+不要把真实的 API Key、Password、Token、私网地址等敏感信息提交到仓库。
 
 ---
 
-## Configuration
+## 项目结构
 
-核心配置项（**敏感信息请使用环境变量或本地配置，不要提交到仓库**）：
-
-| 配置域           | 位置 / 示例                                        | 说明                          |
-| ---------------- | -------------------------------------------------- | ----------------------------- |
-| Java 端口        | `server.port`（默认 8080）                         | 后端服务端口                  |
-| MySQL            | `spring.datasource`（库 `code_fix`）               | 持久化                        |
-| Redis            | `spring.data.redis` / `REDIS_URL`                  | 缓存 / Working Memory         |
-| RocketMQ         | `mq.rocketmq.name-server`、group、topic            | 任务 / 状态 / 心跳消息        |
-| LLM Provider     | `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_TIMEOUT`     | DeepSeek 等 OpenAI 兼容接口   |
-| Ollama           | `OLLAMA_BASE_URL`                                  | 本地推理 / Embedding          |
-| Embedding        | `EMBEDDING_BASE_URL` / `EMBEDDING_MODEL`           | chromadb 向量库 Embedding     |
-| Workspace 根目录 | `WORKSPACE_ROOT`（默认 `/data/workspaces`）        | Python 工具访问的工作区根目录 |
-| Java Backend URL | `BACKEND_BASE_URL`（默认 `http://localhost:8080`） | Python 调用 Java 辅助接口     |
-
-> `CodeFix_PY/.env.example` 已存在模板文件，具体取值请按本地环境填写。
-> README 不包含任何真实 API Key / Password / Token / 私网地址。
-
----
-
-## Project Structure
-
-### Java（CodeFix_Java）
+### Cando_Java
 
 ```text
 src/main/java/com/xd/
-├── controller/        # REST / SSE 接口（sessions、tasks、workspace、diffs、parse、validate）
-├── service/
-│   ├── impl/          # 会话/任务/运行/事件/审批/SSE/聚合等实现
-│   ├── TaskDispatcher # 按 type 路由 MQ 消息
-│   └── ...
-├── assembler/         # AgentChatBlockAssembler / AgentPhaseAggregator / AgentChatStreamAssembler ...
-├── runtime/
-│   ├── state/         # 状态机 + 迁移守卫
-│   └── permission/    # 权限策略评估器 / 运行时缓存
-├── mq/                # MQProducer / Listener / TopicInitializer / MessageHandler
-├── mapper/            # MyBatis Mapper（Java 接口）
-├── model/
-│   ├── entity/        # DO（session/task/run/event/file_change/chat_message/workspace...）
-│   ├── dto/           # 消息与请求 DTO（AgentTaskMessage / AgentMessageDTO ...）
-│   ├── vo/            # 展示 VO（AgentChatViewVO / PhaseVO / BlockVO / StreamVO ...）
-│   ├── enums/         # 状态 / Event / Command / Permission 枚举
-│   └── context/       # SessionContext / TaskRunContext ...
-├── scheduleder/       # TaskWatchdog（心跳看门狗）
-├── config/            # Web / Redis / RocketMQ / Transaction 配置
-└── resources/
-    ├── application.yaml
-    └── com/xd/mapper/*.xml   # MyBatis SQL
+├── controller/       # REST / SSE
+├── service/          # Session / Task / Run / Event / Permission 等业务逻辑
+├── runtime/          # State Machine / Permission Runtime
+├── assembler/        # Event → Activity / Phase / Chat View
+├── mq/               # RocketMQ Producer / Consumer / Handler
+├── mapper/           # MyBatis Mapper
+├── model/            # DO / DTO / VO / Enum / Context
+├── scheduleder/      # Task Watchdog / Heartbeat
+└── config/           # Web / MQ / Redis / Transaction 等配置
 ```
 
-### Python（CodeFix_PY）
+### Cando_PY
 
 ```text
 App/
-├── main.py              # FastAPI 入口（lifespan 启动/停止 MQ）
-├── config.py            # 环境变量配置（LLM / MQ / Redis / Workspace / VectorDB）
-├── bootstrap/
-│   └── mq_bootstrap.py  # RocketMQ Consumer 引导与消息类型注册
 ├── agents/
-│   ├── base_agent.py / react_agent.py / tool_executor.py   # ReAct 执行基座
-│   ├── supervisor/supervisor_agent.py                      # 总控 Agent
-│   ├── worker/explorer_agent.py / fixer_agent.py           # Worker Agent
-│   ├── control/execution_gate.py / tool_policy.py / agent_command_service.py
-│   ├── manager/agent_run_manager.py / agent_tool_manager.py
-│   ├── memory/             # context / message / token / working memory
-│   ├── agent_model/        # LLMMessage / ToolCall / LLMResponse ...
-│   ├── context/            # AgentContext / AgentRunContext
-│   └── agent_state.py
+│   ├── base_agent.py
+│   ├── react_agent.py
+│   ├── supervisor/
+│   ├── worker/
+│   ├── control/
+│   ├── memory/
+│   └── context/
 ├── agent_boost/
-│   ├── tools/tool_registry.py     # 13 个工具
-│   ├── tool_model/tool_schemas.py # 工具参数 Schema
+│   ├── tools/
 │   └── rag/
 ├── services/
-│   ├── agent_msg_service.py       # AGENT_TASK 处理与 AGENT_STATUS 回传
-│   ├── llm_service/ (ollama / deepseek)
-│   ├── factory/llm_factory.py
-│   ├── rag_service.py             # chromadb 检索《阿里巴巴 Java 手册》
-│   └── redis_working_memory_store.py
-├── infrastructure/        # mq / redis / heartbeat / files_search / message / handler
-└── models/                # 消息 / 事件 / 命令 / workspace / session 等数据模型
+├── infrastructure/
+└── models/
 ```
 
-### Frontend（CodeFix_Web）
+### Cando_Web
 
 ```text
 src/
-├── api/          # http 封装 + task / session / workspace / diff
-├── stores/       # Pinia（task：任务 + SSE；session：会话与聊天）
-├── views/        # Workspace.vue（主界面）/ TaskList / TaskCreate
-├── components/   # AgentChat / AgentActionBlock / FileChangeBlock / ReviewBlock
-│                 # DiffViewer / CodeViewer / Editor / WorkspaceTree ...
-├── router/       # Vue Router
-├── types/        # task / event / agentChat 类型
-└── config/       # API / SSE 地址（读取 .env）
+├── electron/         # Electron 桌面壳
+├── api/              # HTTP / SSE API
+├── stores/           # Pinia
+├── views/             # 主界面 / Task / Workspace
+├── components/        # Agent Chat / Activity / Diff / Review
+├── router/
+├── types/
+└── config/
 ```
+
+---
+
+## 技术栈
+
+| Layer                  | Technology                                           |
+| ---------------------- | ---------------------------------------------------- |
+| Frontend               | Vue 3 / Pinia / Vue Router / Element Plus / Electron |
+| Editor / Diff          | Monaco Editor / highlight.js / Markdown Renderer     |
+| Backend                | Java 17 / Spring Boot 3.5                            |
+| ORM                    | MyBatis                                              |
+| Messaging              | RocketMQ                                             |
+| Database               | MySQL                                                |
+| Cache / Working Memory | Redis                                                |
+| Agent Runtime          | Python / FastAPI / Uvicorn                           |
+| Agent Model            | Pydantic                                             |
+| Realtime               | SSE                                                  |
+| RAG / Embedding        | ChromaDB / Ollama Embedding                          |
+
+---
+
+## 当前状态
+
+### V2.7
+
+V2.7 的核心目标是完成从 **Single-Agent → Multi-Agent** 的架构演进，并让子 Agent 在统一的 Runtime 控制体系中工作。
+
+当前已完成的核心能力包括：
+
+- [x] Session / Task / Run 生命周期模型
+- [x] Task / Run 状态管理
+- [x] Event 持久化与幂等处理
+- [x] Run State History
+- [x] Retry / Resume / Cancel
+- [x] Tool Registry + ReAct Runtime
+- [x] Permission Profile
+- [x] Human Approval + ExecutionGate
+- [x] actionId 精确审批绑定
+- [x] Workspace 文件操作与路径隔离
+- [x] File Change / Diff
+- [x] SSE 实时执行流
+- [x] History Restore
+- [x] Event → Activity / Phase 聚合
+- [x] Supervisor + Explorer + Fixer Multi-Agent
+- [x] Context / Memory 基础能力
+- [x] Working Memory
+- [x] Heartbeat / Watchdog 基础机制
 
 ---
 
 ## Roadmap
 
-### Current（当前已实现）
+后续版本更关注稳定性、可观测性和运行时能力，而不是无限增加 Agent 数量。
 
-- [x] Session / Task / Run 生命周期与关系建模
-- [x] Agent 状态机（Event / Command / ActionCommand 迁移）+ 迁移守卫
-- [x] Agent Event 持久化与幂等判重
-- [x] Run 状态历史记录
-- [x] Retry / Resume / Cancel
-- [x] Tool Registry 与 ReAct 执行循环（Python）
-- [x] Tool Permission（AUTO / CONFIRM）与 Permission Profile（READ_ONLY / WORKSPACE / FULL_AUTO）
-- [x] Human Approval：ExecutionGate 阻塞 + Java APPROVE / REJECT + actionId 绑定
-- [x] Workspace 文件操作与路径隔离
-- [x] File Change 记录（diffId / unified diff）与 Diff 查看
-- [x] Activity / Phase 聚合展示（Event → Block → Phase → UI）
-- [x] SSE 实时推送与历史恢复（同一聚合语义）
-- [x] 子 Agent：Supervisor + Explorer + Fixer
-- [x] RAG 检索《阿里巴巴 Java 开发手册》（search_manual）
-- [x] Python Working Memory（Redis，消息序列化存储）
-- [x] Heartbeat 上报与 Java 侧看门狗扫描框架
+### V2.8
 
-### Next / 规划
+- [ ] 稳定性与边界场景优化
+- [ ] Workspace / Multi-Agent 协作细节优化
+- [ ] Context Selection / Memory 调优
+- [ ] Docker Compose 一键启动基础设施
 
-- [ ] Workspace 创建 / 关联的产品级完整流程（前端已预留创建入口，后端 CRUD 完善中）
-- [ ] sandbox等隔离机制的实现
-- [ ] agent 流式输出
-- [ ] agent 操作回滚
-- [ ] 有效信息的展示（token消耗、耗时等）
-- [ ] 用户 / 登录 / 账号级权限体系
-- [ ] 更完整的 Docker / docker-compose 一键编排（当前为占位文件）
-- [ ] 单元 / 集成测试覆盖（当前 `CodeFix_Java` 仅包含启动冒烟测试）
-- [ ] 会话级长任务历史归档与检索
-- [ ] 更多 LLM Provider 适配与上下文压缩策略调优
+### V2.9
 
-> 说明：以上 "Next" 均为仓库当前**尚未完成**的内容。
+- [ ] Verification Loop
+- [ ] Token / Cost / Latency Metrics
+- [ ] Agent Evaluation
+- [ ] 更完整的执行结果与质量反馈
+
+### V3.0 / Exploring
+
+- [ ] Sandbox / 隔离执行
+- [ ] 更完善的 Agent Runtime
+- [ ] Dynamic Agent / Skill Registry
+- [ ] 更丰富的 LLM Provider 与上下文策略
+
+> Roadmap 表示当前探索方向，并不代表所有功能都会严格按版本实现。
 
 ---
 
-## Tech Stack
+## 项目定位
 
-| Layer                     | Technology                                         |
-| ------------------------- | -------------------------------------------------- |
-| Frontend                  | Vue 3 / Pinia / Vue Router / Element Plus / Axios  |
-| Editor / Diff             | Monaco Editor / highlight.js / vue-markdown-render |
-| Backend                   | Java 17 / Spring Boot 3.5                          |
-| ORM                       | MyBatis（mybatis-spring-boot-starter 3.0.3）       |
-| Messaging                 | RocketMQ（client 5.3.3，FIFO status topic）        |
-| Database                  | MySQL（库 `code_fix`）                             |
-| Cache / Working Memory    | Redis                                              |
-| Agent Runtime             | Python / FastAPI / Uvicorn                         |
-| Agent Models / Validation | Pydantic                                           |
-| Code Analysis             | JavaParser（core 3.28.0）/ JavaSyntaxValidator     |
-| Realtime                  | SSE（SseEmitter + EventSource）                    |
-| RAG / Embedding           | ChromaDB / Ollama Embedding / pypdf                |
-| JSON 处理                 | fastjson2 / Jackson                                |
+Cando 的目标不是证明“自己做的 Coding Agent 比 Codex 更强”。
+
+相反，我希望通过自己实现一套完整的 Agent Runtime，理解一个 Coding Agent 从“调用 LLM”走向“真正执行软件工程任务”之后，需要解决的工程问题：
+
+```text
+LLM
+ ↓
+Agent Loop
+ ↓
+Tool Execution
+ ↓
+Task / Run Lifecycle
+ ↓
+Permission / Human Approval
+ ↓
+Workspace / File Change
+ ↓
+Event Persistence
+ ↓
+Realtime UI / History
+ ↓
+A controllable Coding Agent Runtime
+```
+
+这也是 Cando 最核心的探索方向：
+
+> **不是重新做一个更强的 Coding Agent，而是探索一个 Coding Agent 背后的工程架构。**
 
 ---
 
 ## License
 
-This project is licensed under the MIT License.
+MIT License
