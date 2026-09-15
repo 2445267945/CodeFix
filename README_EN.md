@@ -1,6 +1,25 @@
-# AI Coding Agent
+<div align="center">
+  <pre>
+  ██████╗ █████╗ ███╗   ██╗██████╗  ██████╗ 
+ ██╔════╝██╔══██╗████╗  ██║██╔══██╗██╔═══██╗
+ ██║     ███████║██╔██╗ ██║██║  ██║██║   ██║
+ ██║     ██╔══██║██║╚██╗██║██║  ██║██║   ██║
+ ╚██████╗██║  ██║██║ ╚████║██████╔╝╚██████╔╝
+  ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚═════╝  ╚═════╝ 
+  </pre>
+  
+  <h3>🤖 长任务 Coding Agent / Agent IDE</h3>
+  
+  <br />
+  
+  <p>
+    <b>🌐 语言 / Language</b>
+    <br />
+    <a href="README.md">🇨🇳 中文</a> | <a href="README_EN.md">🇺🇸 English</a>
+  </p>
+</div>
 
-[English](README_EN.md) | [中文](README.md)
+# AI Coding Agent
 
 A long-running Coding Agent / Agent IDE for individual developers.
 
