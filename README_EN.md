@@ -655,7 +655,8 @@ src/
 
 ---
 ## Roadmap
-Current (Implemented)
+###Current (Implemented)
+
 - ☑ Session / Task / Run lifecycle and relationship modeling
 - ☑ Agent state machine (Event / Command / ActionCommand transitions) + transition guards
 - ☑ Agent Event persistence and idempotent deduplication
@@ -673,7 +674,9 @@ Current (Implemented)
 - ☑ Python Working Memory (Redis, message serialization storage)
 - ☑ Heartbeat reporting and Java-side Watchdog scanning framework
 - ☑ Workspace creation
-Next / Planned
+
+### Next / Planned
+
 - □ Implementation of sandbox isolation mechanisms
 - □ Agent streaming output
 - □ Agent operation rollback
