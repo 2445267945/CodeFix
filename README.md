@@ -104,8 +104,6 @@ Cando 关注的不是“模型还能不能更聪明”，而是 **Agent 为什�
 
 ## 整体架构
 
-![Architecture](Images/architecture.png)
-
 ```text
                          ┌─────────────────────────────┐
                          │     Cando Web / Electron  │
