@@ -656,33 +656,33 @@ src/
 ---
 ## Roadmap
 Current (Implemented)
-☑ Session / Task / Run lifecycle and relationship modeling
-☑ Agent state machine (Event / Command / ActionCommand transitions) + transition guards
-☑ Agent Event persistence and idempotent deduplication
-☑ Run state history recording
-☑ Retry / Resume / Cancel
-☑ Tool Registry and ReAct execution loop (Python)
-☑ Tool Permission (AUTO / CONFIRM) and Permission Profile (READ_ONLY / WORKSPACE / FULL_AUTO)
-☑ Human Approval: ExecutionGate blocking + Java APPROVE / REJECT + actionId binding
-☑ Workspace file operations and path isolation
-☑ File Change recording (diffId / unified diff) and Diff viewing
-☑ Activity / Phase aggregation display (Event → Block → Phase → UI)
-☑ SSE real-time push and history recovery (same aggregation semantics)
-☑ Sub-agents: Supervisor + Explorer + Fixer
-☑ RAG retrieval from Alibaba Java Development Manual (search_manual)
-☑ Python Working Memory (Redis, message serialization storage)
-☑ Heartbeat reporting and Java-side Watchdog scanning framework
-☑ Workspace creation
+- ☑ Session / Task / Run lifecycle and relationship modeling
+- ☑ Agent state machine (Event / Command / ActionCommand transitions) + transition guards
+- ☑ Agent Event persistence and idempotent deduplication
+- ☑ Run state history recording
+- ☑ Retry / Resume / Cancel
+- ☑ Tool Registry and ReAct execution loop (Python)
+- ☑ Tool Permission (AUTO / CONFIRM) and Permission Profile (READ_ONLY / WORKSPACE / FULL_AUTO)
+- ☑ Human Approval: ExecutionGate blocking + Java APPROVE / REJECT + actionId binding
+- ☑ Workspace file operations and path isolation
+- ☑ File Change recording (diffId / unified diff) and Diff viewing
+- ☑ Activity / Phase aggregation display (Event → Block → Phase → UI)
+- ☑ SSE real-time push and history recovery (same aggregation semantics)
+- ☑ Sub-agents: Supervisor + Explorer + Fixer
+- ☑ RAG retrieval from Alibaba Java Development Manual (search_manual)
+- ☑ Python Working Memory (Redis, message serialization storage)
+- ☑ Heartbeat reporting and Java-side Watchdog scanning framework
+- ☑ Workspace creation
 Next / Planned
-□ Implementation of sandbox isolation mechanisms
-□ Agent streaming output
-□ Agent operation rollback
-□ Display of effective information (token consumption, elapsed time, etc.)
-□ User / login / account-level permission system
-□ More complete Docker / docker-compose one-click orchestration (currently placeholder files)
-□ Unit / integration test coverage (currently CodeFix_Java only contains startup smoke tests)
-□ Session-level long-task history archiving and retrieval
-□ More LLM Provider adaptations and context compression strategy tuning
+- □ Implementation of sandbox isolation mechanisms
+- □ Agent streaming output
+- □ Agent operation rollback
+- □ Display of effective information (token consumption, elapsed time, etc.)
+- □ User / login / account-level permission system
+- □ More complete Docker / docker-compose one-click orchestration (currently placeholder files)
+- □ Unit / integration test coverage (currently CodeFix_Java only contains startup smoke tests)
+- □ Session-level long-task history archiving and retrieval
+- □ More LLM Provider adaptations and context compression strategy tuning
 
 > Note: The items in "Next" above are currently not yet completed in the repository.
 
