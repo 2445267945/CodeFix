@@ -1,10 +1,5 @@
 # AI Coding Agent
-```markdown
-   [![Java](https://img.shields.io/badge/Java-17-orange.svg)]()
-   [![Python](https://img.shields.io/badge/Python-3.x-blue.svg)]()
-   [![Vue](https://img.shields.io/badge/Vue-3.x-green.svg)]()
-   [![License](https://img.shields.io/badge/License-MIT-yellow.svg)]()
-```
+
 A long-running Coding Agent / Agent IDE for individual developers.
 
 Built with **Java + Python + Vue**, featuring full Session / Task / Run / Event lifecycles, Tool Calling, Human Approval, Workspace file operations, Event persistence, long-task execution, and real-time visualization with history recovery.
