@@ -1,5 +1,7 @@
 # AI Coding Agent
 
+[English](README_EN.md) | [中文](README.md)
+
 一个面向个人开发者的长任务 Coding Agent / Agent IDE。
 
 基于 **Java + Python + Vue** 构建，支持 Session / Task / Run / Event 生命周期、
