@@ -23,13 +23,13 @@
 
 ## Overview
 
-CodeFix is a **long-running Coding Agent / Agent IDE** designed for individual developers.
+Cando is a **long-running Coding Agent / Agent IDE** designed for individual developers.
 
 It is not intended to simply build "a stronger Codex". Instead, it explores a different question:
 
 > **What kind of engineering system is needed behind a Coding Agent once it starts executing real, long-running software engineering tasks?**
 
-CodeFix is built with **Java + Python + Vue**, separating the agent's intelligence and execution from the system responsible for controlling and managing it:
+Cando is built with **Java + Python + Vue**, separating the agent's intelligence and execution from the system responsible for controlling and managing it:
 
 * **Java** acts as the Control Plane and product backend, managing Tasks, Runs, Events, Permissions, Workspaces, history, and runtime state.
 * **Python** provides the Agent Runtime, including ReAct execution, LLM interaction, Tool Calling, sub-agent collaboration, and tool execution.
@@ -40,11 +40,11 @@ The project has evolved from an early Single-Agent architecture into a **Multi-A
 
 ---
 
-## Why CodeFix?
+## Why Cando?
 
 Modern Coding Agents are already capable of completing many complex software engineering tasks.
 
-CodeFix is less about making the model "smarter" and more about exploring **why an Agent can reliably complete a long-running engineering task in the first place**.
+Cando is less about making the model "smarter" and more about exploring **why an Agent can reliably complete a long-running engineering task in the first place**.
 
 For example:
 
@@ -57,7 +57,7 @@ For example:
 * How should multiple Agents share the same Permission, Action, and Workspace infrastructure?
 * How can low-level Agent events be transformed into a UI that users can actually understand?
 
-Because of this, CodeFix focuses on **Agent Engineering / Agent Runtime / Control Plane**, rather than simply wrapping an LLM API.
+Because of this, Cando focuses on **Agent Engineering / Agent Runtime / Control Plane**, rather than simply wrapping an LLM API.
 
 ---
 
@@ -103,7 +103,7 @@ The current Multi-Agent mode uses **Supervisor / Explorer / Fixer** to collabora
 
 ```text
                          ┌─────────────────────────────┐
-                         │     CodeFix Web / Electron  │
+                         │     Cando Web / Electron  │
                          │                             │
                          │ Workspace / Task / Chat    │
                          │ Agent Activity / Diff      │
@@ -112,7 +112,7 @@ The current Multi-Agent mode uses **Supervisor / Explorer / Fixer** to collabora
                                         │ HTTP / SSE
                                         ▼
                          ┌─────────────────────────────┐
-                         │    CodeFix Java / Control   │
+                         │    Cando Java / Control   │
                          │          Plane              │
                          │                             │
                          │ Session / Task / Run        │
@@ -123,7 +123,7 @@ The current Multi-Agent mode uses **Supervisor / Explorer / Fixer** to collabora
                                         │ RocketMQ
                                         ▼
                          ┌─────────────────────────────┐
-                         │    CodeFix Python Runtime   │
+                         │    Cando Python Runtime   │
                          │                             │
                          │ Supervisor / Worker Agent   │
                          │ ReAct / LLM / Tool Calling  │
@@ -243,7 +243,7 @@ Frontend
 
 ### Long-running Tasks
 
-CodeFix does not simply implement:
+Cando does not simply implement:
 
 ```text
 HTTP → Agent → Response
@@ -267,7 +267,7 @@ This allows an Agent to pause for human intervention, recover from failures, ret
 
 ## Human-in-the-loop
 
-CodeFix separates Tool execution permission from the Agent's local decision-making and lets the Java Control Plane participate in centralized runtime control.
+Cando separates Tool execution permission from the Agent's local decision-making and lets the Java Control Plane participate in centralized runtime control.
 
 ```text
 Tool Call
@@ -374,7 +374,7 @@ The purpose of this separation is not to make the system "more Agentic" by simpl
 
 ## Event → Activity → UI
 
-CodeFix does not expose raw Python Runtime Events directly to the user.
+Cando does not expose raw Python Runtime Events directly to the user.
 
 Execution information is transformed into product-level semantics:
 
@@ -487,7 +487,7 @@ One of the central problems of a long-running Coding Agent is:
 
 > **What information should be carried into the next step of the task?**
 
-CodeFix provides context retrieval on the Java side, with Workspace-scoped historical task retrieval and reconstruction of actual USER / ASSISTANT messages for Agent context.
+Cando provides context retrieval on the Java side, with Workspace-scoped historical task retrieval and reconstruction of actual USER / ASSISTANT messages for Agent context.
 
 The Python runtime also maintains Working Memory for execution-time message management, context handling, and compression.
 
@@ -514,10 +514,10 @@ The goal is not to keep indefinitely accumulating history, but to provide the Ag
 ### Repository Structure
 
 ```text
-CodeFix/
-├── CodeFix_Java/      # Spring Boot Control Plane
-├── CodeFix_PY/        # Python Agent Runtime
-├── CodeFix_Web/       # Vue / Electron Frontend
+Cando/
+├── Cando_Java/      # Spring Boot Control Plane
+├── Cando_PY/        # Python Agent Runtime
+├── Cando_Web/       # Vue / Electron Frontend
 ├── Images/            # README images and demos
 └── README.md
 ```
@@ -529,13 +529,13 @@ Prepare MySQL, Redis, and RocketMQ, then update the Java and Python configuratio
 Java configuration:
 
 ```text
-CodeFix_Java/src/main/resources/application.yaml
+Cando_Java/src/main/resources/application.yaml
 ```
 
 Python configuration:
 
 ```text
-CodeFix_PY/.env.example
+Cando_PY/.env.example
 ```
 
 Copy the example environment file to `.env` and fill in the required values.
@@ -543,7 +543,7 @@ Copy the example environment file to `.env` and fill in the required values.
 ### 2. Start Java
 
 ```bash
-cd CodeFix_Java
+cd Cando_Java
 mvn spring-boot:run
 ```
 
@@ -552,7 +552,7 @@ The server port is configured through `server.port` in `application.yaml`.
 ### 3. Start the Python Agent Runtime
 
 ```bash
-cd CodeFix_PY
+cd Cando_PY
 python -m venv .venv
 
 # Windows
@@ -568,7 +568,7 @@ python App/main.py
 ### 4. Start the Frontend
 
 ```bash
-cd CodeFix_Web
+cd Cando_Web
 npm install
 npm run dev
 ```
@@ -583,7 +583,7 @@ Do not commit real API keys, passwords, tokens, private addresses, or other sens
 
 ## Project Structure
 
-### CodeFix_Java
+### Cando_Java
 
 ```text
 src/main/java/com/xd/
@@ -598,7 +598,7 @@ src/main/java/com/xd/
 └── config/            # Web / MQ / Redis / Transaction configuration
 ```
 
-### CodeFix_PY
+### Cando_PY
 
 ```text
 App/
@@ -618,7 +618,7 @@ App/
 └── models/
 ```
 
-### CodeFix_Web
+### Cando_Web
 
 ```text
 src/
@@ -656,7 +656,7 @@ src/
 
 ### V2.7
 
-The main goal of V2.7 was to evolve CodeFix from **Single-Agent → Multi-Agent** while allowing sub-agents to operate inside the same Runtime control system.
+The main goal of V2.7 was to evolve Cando from **Single-Agent → Multi-Agent** while allowing sub-agents to operate inside the same Runtime control system.
 
 Current capabilities include:
 
@@ -712,7 +712,7 @@ Future versions focus more on **runtime reliability, observability, and executio
 
 ## Project Philosophy
 
-CodeFix is not trying to prove that its Coding Agent is "better than Codex".
+Cando is not trying to prove that its Coding Agent is "better than Codex".
 
 Instead, the project is an attempt to understand what happens after an Agent moves beyond "calling an LLM" and starts performing real software engineering tasks:
 
@@ -736,7 +736,7 @@ Realtime UI / History
 A Controllable Coding Agent Runtime
 ```
 
-That is the core direction of CodeFix:
+That is the core direction of Cando:
 
 > **Not building a stronger Coding Agent from scratch, but exploring the engineering architecture behind a Coding Agent.**
 
